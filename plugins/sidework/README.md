@@ -32,6 +32,12 @@ As a Claude Code plugin:
 /plugin install sidework@repertoire
 ```
 
+With the skills CLI, for any agent that reads skills:
+
+```
+npx skills add johncarmack1984/repertoire --skill sidework
+```
+
 Or as a personal skill:
 
 ```sh

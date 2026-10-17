@@ -17,6 +17,12 @@ As Claude Code plugins:
 /plugin install build-review-lens@repertoire
 ```
 
+For any agent that reads skills, with the skills CLI:
+
+```
+npx skills add johncarmack1984/repertoire
+```
+
 Or as personal skills, from a clone:
 
 ```sh
