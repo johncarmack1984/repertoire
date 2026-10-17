@@ -3,6 +3,9 @@ name: evals
 on:
   workflow_dispatch:
     inputs:
+      plugin:
+        description: Plugin whose eval suite runs
+        default: sidework
       runs:
         description: Runs per case and arm
         default: "1"
@@ -38,14 +41,15 @@ jobs:
             sudo systemctl reload apparmor
           fi
       - name: Install Claude Code
-        run: npm install --global @anthropic-ai/claude-code@2.1.284
+        run: npm install --global @anthropic-ai/claude-code@2.1.302
       - name: Run the eval suite
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          PLUGIN: ${{ inputs.plugin }}
           RUNS: ${{ inputs.runs }}
           MODEL: ${{ inputs.model }}
         run: |
-          claude plugin eval . --scaffold --trust-plugin --allow-tools Bash Edit Write \
+          claude plugin eval "plugins/$PLUGIN" --scaffold --trust-plugin --allow-tools Bash Edit Write \
             --runs "$RUNS" ${MODEL:+--model "$MODEL"} --no-publish \
             --json eval-results.json --report eval-report.html
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

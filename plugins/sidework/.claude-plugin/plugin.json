@@ -6,8 +6,15 @@
     "name": "John Carmack",
     "url": "https://github.com/johncarmack1984"
   },
-  "homepage": "https://github.com/johncarmack1984/sidework",
-  "repository": "https://github.com/johncarmack1984/sidework",
+  "homepage": "https://github.com/johncarmack1984/agent-skills/tree/main/plugins/sidework",
+  "repository": "https://github.com/johncarmack1984/agent-skills",
   "license": "MIT",
-  "keywords": ["git", "worktree", "parallel", "rust", "cargo", "just"]
+  "keywords": [
+    "git",
+    "worktree",
+    "parallel",
+    "rust",
+    "cargo",
+    "just"
+  ]
 }
