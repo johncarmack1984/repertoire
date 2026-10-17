@@ -1,0 +1,20 @@
+{
+  "name": "agent-skills",
+  "description": "Skills for coding agents: worktrees beside the checkout, and reviewer lenses mined from a repo's own review history.",
+  "owner": {
+    "name": "John Carmack",
+    "url": "https://github.com/johncarmack1984"
+  },
+  "plugins": [
+    {
+      "name": "sidework",
+      "source": "./plugins/sidework",
+      "description": "Run Claude Code tasks in git worktrees beside the main checkout (../<repo>-sidework-<session>) instead of nested inside it."
+    },
+    {
+      "name": "build-review-lens",
+      "source": "./plugins/build-review-lens",
+      "description": "Mine a repository's review history into a reviewer lens skill that reviews your branch the way its maintainer will, before the PR opens."
+    }
+  ]
+}

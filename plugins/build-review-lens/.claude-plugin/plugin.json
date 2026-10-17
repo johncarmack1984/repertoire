@@ -1,0 +1,13 @@
+{
+  "name": "build-review-lens",
+  "version": "0.1.0",
+  "description": "Mine a repository's review history into a reviewer lens skill that reviews your branch the way its maintainer will, before the PR opens.",
+  "author": {
+    "name": "John Carmack",
+    "url": "https://github.com/johncarmack1984"
+  },
+  "homepage": "https://github.com/johncarmack1984/agent-skills/tree/main/plugins/build-review-lens",
+  "repository": "https://github.com/johncarmack1984/agent-skills",
+  "license": "MIT",
+  "keywords": ["code-review", "pull-requests", "maintainers", "open-source", "github"]
+}

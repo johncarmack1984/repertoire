@@ -1,0 +1,13 @@
+# Local Claude Code config
+CLAUDE.md
+CLAUDE.local.md
+.claude/
+AGENTS.md
+
+# Eval output
+evals/results/
+plugins/*/evals/results/
+
+# build-review-lens mining output and Python caches
+lens-mining/
+__pycache__/
