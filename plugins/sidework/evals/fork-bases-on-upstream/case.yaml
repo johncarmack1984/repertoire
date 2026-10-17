@@ -1,0 +1,63 @@
+schema_version: "1.1"
+name: fork-bases-on-upstream
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: worktree-beside-checkout
+    type: file_exists
+    path: "*/justfile"
+    weight: 2
+  - name: sidework-naming
+    type: file_exists
+    path: app-sidework-typo/justfile
+  - name: upstream-base
+    type: file_exists
+    path: app-sidework-typo/NEWS.md
+    weight: 2
+  - name: fix-in-worktree
+    type: regex
+    target: { source: file, path: app-sidework-typo/src/lib.rs }
+    pattern: 'when we receive a new user'
+  - name: committed-on-prefixed-branch
+    type: regex
+    target: { source: file, path: app/.git/logs/refs/heads/dev/typo }
+    pattern: '\tcommit'
+    weight: 2
+  - name: checkout-typo-untouched
+    type: regex
+    target: { source: file, path: app/src/lib.rs }
+    pattern: 'when we recieve a new user'
+  - name: nothing-nested-in-checkout
+    type: file_exists
+    path: "app/**/justfile"
+    exists: false
+    weight: 2
+  - name: checkout-head-unmoved
+    type: regex
+    target: { source: file, path: app/.git/logs/HEAD }
+    pattern: '^[0-9a-f]{40} [0-9a-f]{40} '
+    flags: m
+    match: "count:1"
+    weight: 2
+  - name: checkout-still-on-main
+    type: regex
+    target: { source: file, path: app/.git/HEAD }
+    pattern: '^ref: refs/heads/main$'
+    flags: m
+  - name: checkout-wip-intact
+    type: regex
+    target: { source: file, path: app/src/lib.rs }
+    pattern: 'wip: trying a warmer greeting'
+    weight: 2
+  - name: no-stash
+    type: file_exists
+    path: app/.git/refs/stash
+    exists: false
+  - name: nothing-pushed-to-origin
+    type: file_exists
+    path: "origin.git/**"
+    exists: false
+  - name: nothing-pushed-to-upstream
+    type: file_exists
+    path: "upstream.git/**"
+    exists: false

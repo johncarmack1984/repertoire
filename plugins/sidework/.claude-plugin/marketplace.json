@@ -1,0 +1,15 @@
+{
+  "name": "sidework",
+  "description": "Sibling git worktrees for Claude Code sessions.",
+  "owner": {
+    "name": "John Carmack",
+    "url": "https://github.com/johncarmack1984"
+  },
+  "plugins": [
+    {
+      "name": "sidework",
+      "source": "./",
+      "description": "Run Claude Code tasks in git worktrees beside the main checkout (../<repo>-sidework-<session>) instead of nested inside it."
+    }
+  ]
+}

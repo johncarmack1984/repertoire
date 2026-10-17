@@ -1,0 +1,61 @@
+schema_version: "1.1"
+name: no-remote-branches-from-main
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: worktree-beside-checkout
+    type: file_exists
+    path: "*/justfile"
+    weight: 2
+  - name: sidework-naming
+    type: file_exists
+    path: app-sidework-fmt-recipe/justfile
+  - name: branched-from-main
+    type: regex
+    target: { source: file, path: app/.git/logs/refs/heads/sidework/fmt-recipe }
+    pattern: 'Created from (refs/heads/)?main\b'
+    weight: 2
+  - name: wip-commit-not-carried
+    type: file_exists
+    path: "*/WIP_NOTES.md"
+    exists: false
+  - name: recipe-in-worktree
+    type: regex
+    target: { source: file, path: app-sidework-fmt-recipe/justfile }
+    pattern: 'fmt:[\s\S]*cargo fmt'
+  - name: committed-on-branch
+    type: regex
+    target: { source: file, path: app/.git/logs/refs/heads/sidework/fmt-recipe }
+    pattern: '\tcommit'
+  - name: main-branch-unmoved
+    type: regex
+    target: { source: file, path: app/.git/logs/refs/heads/main }
+    pattern: '^[0-9a-f]{40} [0-9a-f]{40} '
+    flags: m
+    match: "count:1"
+  - name: nothing-nested-in-checkout
+    type: file_exists
+    path: "app/**/justfile"
+    exists: false
+    weight: 2
+  - name: checkout-head-unmoved
+    type: regex
+    target: { source: file, path: app/.git/logs/HEAD }
+    pattern: '^[0-9a-f]{40} [0-9a-f]{40} '
+    flags: m
+    match: "count:3"
+    weight: 2
+  - name: checkout-still-on-wip
+    type: regex
+    target: { source: file, path: app/.git/HEAD }
+    pattern: '^ref: refs/heads/wip$'
+    flags: m
+  - name: checkout-wip-intact
+    type: regex
+    target: { source: file, path: app/src/lib.rs }
+    pattern: 'wip: trying a warmer greeting'
+    weight: 2
+  - name: no-stash
+    type: file_exists
+    path: app/.git/refs/stash
+    exists: false

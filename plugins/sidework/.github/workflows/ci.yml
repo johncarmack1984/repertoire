@@ -1,0 +1,45 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install Claude Code
+        run: npm install --global @anthropic-ai/claude-code@2.1.284
+      - name: Validate the manifests
+        run: |
+          claude plugin validate --strict .
+          claude plugin validate --strict .claude-plugin/plugin.json
+          claude plugin validate --strict skills
+      - name: Lint the shell scripts
+        run: shellcheck -x scripts/*.sh evals/_fixtures/lib.sh evals/*/scaffold.sh
+      - name: Build every eval fixture
+        run: |
+          for scaffold in evals/*/scaffold.sh; do
+            workspace="$(mktemp -d)"
+            (cd "$workspace" && bash "$GITHUB_WORKSPACE/$scaffold")
+            echo "built $(dirname "$scaffold")"
+          done
+
+  nesting-lab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4
+      - name: Reproduce the nested-worktree failures
+        run: bash scripts/nesting-lab.sh

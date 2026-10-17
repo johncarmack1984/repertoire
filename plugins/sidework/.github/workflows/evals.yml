@@ -1,0 +1,57 @@
+name: evals
+
+on:
+  workflow_dispatch:
+    inputs:
+      runs:
+        description: Runs per case and arm
+        default: "1"
+      model:
+        description: Model for the agent under test (blank for the default)
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  evals:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4
+      - name: Install the sandbox's dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes bubblewrap socat
+          # Ubuntu 24.04's AppArmor policy blocks the user namespaces bubblewrap needs.
+          if [ "$(sysctl -n kernel.apparmor_restrict_unprivileged_userns 2>/dev/null)" = 1 ]; then
+            sudo tee /etc/apparmor.d/bwrap > /dev/null <<'PROFILE'
+          abi <abi/4.0>,
+          include <tunables/global>
+
+          profile bwrap /usr/bin/bwrap flags=(unconfined) {
+            userns,
+            include if exists <local/bwrap>
+          }
+          PROFILE
+            sudo systemctl reload apparmor
+          fi
+      - name: Install Claude Code
+        run: npm install --global @anthropic-ai/claude-code@2.1.284
+      - name: Run the eval suite
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          RUNS: ${{ inputs.runs }}
+          MODEL: ${{ inputs.model }}
+        run: |
+          claude plugin eval . --scaffold --trust-plugin --allow-tools Bash Edit Write \
+            --runs "$RUNS" ${MODEL:+--model "$MODEL"} --no-publish \
+            --json eval-results.json --report eval-report.html
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: eval-results
+          path: |
+            eval-results.json
+            eval-report.html
