@@ -28,15 +28,15 @@ Cargo merges every `.cargo/config.toml` from the working directory up to the roo
 As a Claude Code plugin:
 
 ```
-/plugin marketplace add johncarmack1984/agent-skills
-/plugin install sidework@agent-skills
+/plugin marketplace add johncarmack1984/repertoire
+/plugin install sidework@repertoire
 ```
 
 Or as a personal skill:
 
 ```sh
-git clone https://github.com/johncarmack1984/agent-skills
-ln -s "$PWD/agent-skills/plugins/sidework/skills/sidework" ~/.claude/skills/sidework
+git clone https://github.com/johncarmack1984/repertoire
+ln -s "$PWD/repertoire/plugins/sidework/skills/sidework" ~/.claude/skills/sidework
 ```
 
 ## Use

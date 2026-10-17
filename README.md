@@ -1,27 +1,28 @@
-# agent-skills
+# repertoire
 
-Skills for coding agents, published as Claude Code plugins. Each is also a plain skill directory containing a `SKILL.md`, scripts, and references. Any runner that follows the open agent skill standard can load it.
+Skills for coding agents, published as Claude Code plugins. Each is also a plain skill directory with a `SKILL.md`, scripts, and references, so any runner that follows the open agent skill standard can load it.
 
 | Plugin | What it does |
 |---|---|
-| [`sidework`](plugins/sidework/) | Runs a task on its own branch in a git worktree beside your checkout, not inside it. Leaves your checkout untouched. |
-| [`build-review-lens`](plugins/build-review-lens/) | Reads a repository's PR history to find who actually reviews and what passes, then writes a lens skill for each reviewer that reviews your branch as that maintainer would. |
+| [`sidework`](plugins/sidework/) | Runs a task on its own branch in a git worktree beside your checkout. Leaves your checkout untouched. |
+| [`build-review-lens`](plugins/build-review-lens/) | Reads a repository's PR history to find who reviews and what passes, then writes a lens skill for each reviewer to review your branch as that maintainer would. |
+
 ## Install
 
 As Claude Code plugins:
 
 ```
-/plugin marketplace add johncarmack1984/agent-skills
-/plugin install sidework@agent-skills
-/plugin install build-review-lens@agent-skills
+/plugin marketplace add johncarmack1984/repertoire
+/plugin install sidework@repertoire
+/plugin install build-review-lens@repertoire
 ```
 
 Or as personal skills, from a clone:
 
 ```sh
-git clone https://github.com/johncarmack1984/agent-skills
-ln -s "$PWD/agent-skills/plugins/sidework/skills/sidework" ~/.claude/skills/sidework
-ln -s "$PWD/agent-skills/plugins/build-review-lens/skills/build-review-lens" ~/.claude/skills/build-review-lens
+git clone https://github.com/johncarmack1984/repertoire
+ln -s "$PWD/repertoire/plugins/sidework/skills/sidework" ~/.claude/skills/sidework
+ln -s "$PWD/repertoire/plugins/build-review-lens/skills/build-review-lens" ~/.claude/skills/build-review-lens
 ```
 
 ## sidework

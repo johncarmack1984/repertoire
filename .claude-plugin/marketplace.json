@@ -1,5 +1,5 @@
 {
-  "name": "agent-skills",
+  "name": "repertoire",
   "description": "Skills for coding agents: worktrees beside the checkout, and reviewer lenses mined from a repo's own review history.",
   "owner": {
     "name": "John Carmack",
