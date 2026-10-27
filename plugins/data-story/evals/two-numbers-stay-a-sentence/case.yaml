@@ -1,0 +1,39 @@
+schema_version: "1.1"
+name: two-numbers-stay-a-sentence
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?data-story"'
+  - name: wrote-the-note
+    type: file_exists
+    path: pr-numbers.md
+    weight: 2
+  - name: no-table
+    type: regex
+    target: { source: file, path: pr-numbers.md }
+    pattern: '^\s*\|'
+    flags: m
+    match: not_contains
+    weight: 3
+  - name: both-values-stated
+    type: regex
+    target: { source: file, path: pr-numbers.md }
+    pattern: '1\.84[\s\S]*1\.21|1\.21[\s\S]*1\.84'
+  - name: size-of-the-change
+    type: regex
+    target: { source: file, path: pr-numbers.md }
+    pattern: '\b3[34]\s?(%|percent)|\bthird\b|1\.5\s?(x|×|times)|0\.6[0-9]\s?s\b'
+    flags: i
+  - name: medians
+    type: regex
+    target: { source: file, path: pr-numbers.md }
+    pattern: median
+    flags: i
+  - name: run-count
+    type: regex
+    target: { source: file, path: pr-numbers.md }
+    pattern: '\b(10|ten)\b[^\n]*\bruns\b'
+    flags: i

@@ -1,0 +1,62 @@
+schema_version: "1.1"
+name: table-from-raw-runs
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?data-story"'
+  - name: wrote-the-section
+    type: file_exists
+    path: pr-numbers.md
+    weight: 2
+  - name: prose-before-the-table
+    type: regex
+    target: { source: file, path: pr-numbers.md }
+    pattern: '^[^|\n]*[a-z]{3,}[^|\n]*\n(?:[^\n]*\n)*?\|'
+  - name: numbers-right-aligned
+    type: regex
+    target: { source: file, path: pr-numbers.md }
+    pattern: '^\|[^\n]*-+:\s*\|'
+    flags: m
+  - name: change-column
+    type: regex
+    target: { source: file, path: pr-numbers.md }
+    pattern: '^\|[^\n]*(Δ|change|delta|diff)[^\n]*\|'
+    flags: mi
+    weight: 2
+  - name: wall-and-cpu-in-one-table
+    type: regex
+    target: { source: file, path: pr-numbers.md }
+    pattern: '^\|[^\n]*(wall[^\n]*cpu|cpu[^\n]*wall)[^\n]*\|'
+    flags: mi
+  - name: no-arrows-in-cells
+    type: regex
+    target: { source: file, path: pr-numbers.md }
+    pattern: '^\|[^\n]*(→|->)[^\n]*\|'
+    flags: m
+    match: not_contains
+    weight: 2
+  - name: no-units-in-cells
+    type: regex
+    target: { source: file, path: pr-numbers.md }
+    pattern: '\|\s*[0-9][0-9.,]*\s*(s|ms|sec|seconds)\s*\|'
+    flags: i
+    match: not_contains
+  - name: repeated-labels-blank
+    type: regex
+    target: { source: file, path: pr-numbers.md }
+    pattern: '^\|\s*\|'
+    flags: m
+  - name: medians
+    type: regex
+    target: { source: file, path: pr-numbers.md }
+    pattern: median
+    flags: i
+    weight: 2
+  - name: run-count
+    type: regex
+    target: { source: file, path: pr-numbers.md }
+    pattern: '\b(5|five)\b[^\n]*\bruns\b'
+    flags: i

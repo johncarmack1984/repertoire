@@ -28,15 +28,15 @@ jobs:
             claude plugin validate --strict "$plugin.claude-plugin/plugin.json"
             claude plugin validate --strict "${plugin}skills"
           done
-      - name: Lint the shell scripts
-        run: shellcheck -x plugins/sidework/scripts/*.sh plugins/sidework/evals/_fixtures/lib.sh plugins/sidework/evals/*/scaffold.sh
+      - name: Lint the shell scripts and the eval scaffolds
+        run: shellcheck -x plugins/sidework/scripts/*.sh plugins/sidework/evals/_fixtures/lib.sh plugins/sidework/evals/*/scaffold.sh plugins/data-story/evals/*/scaffold.sh
       - name: Compile the lens miner
         run: |
           python3 -m py_compile plugins/build-review-lens/skills/build-review-lens/scripts/mine_reviews.py
           python3 plugins/build-review-lens/skills/build-review-lens/scripts/mine_reviews.py --help > /dev/null
-      - name: Build every sidework eval fixture
+      - name: Build every eval fixture
         run: |
-          for scaffold in plugins/sidework/evals/*/scaffold.sh; do
+          for scaffold in plugins/*/evals/*/scaffold.sh; do
             workspace="$(mktemp -d)"
             (cd "$workspace" && bash "$GITHUB_WORKSPACE/$scaffold")
             echo "built $(dirname "$scaffold")"

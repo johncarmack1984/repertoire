@@ -1,0 +1,20 @@
+{
+  "name": "data-story",
+  "version": "0.1.0",
+  "description": "Put measured numbers in front of a reader: the takeaway first, then a sentence, a table or a chart, and a line on how it was measured.",
+  "author": {
+    "name": "John Carmack",
+    "url": "https://github.com/johncarmack1984"
+  },
+  "homepage": "https://github.com/johncarmack1984/repertoire/tree/main/plugins/data-story",
+  "repository": "https://github.com/johncarmack1984/repertoire",
+  "license": "MIT",
+  "keywords": [
+    "benchmarks",
+    "performance",
+    "tables",
+    "markdown",
+    "pull-requests",
+    "reporting"
+  ]
+}

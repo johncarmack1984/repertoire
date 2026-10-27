@@ -1,6 +1,6 @@
 {
   "name": "repertoire",
-  "description": "Skills for coding agents: worktrees beside the checkout, and reviewer lenses mined from a repo's own review history.",
+  "description": "Skills for coding agents: worktrees beside the checkout, reviewer lenses mined from a repo's own review history, and numbers presented so a reader can trust them.",
   "owner": {
     "name": "John Carmack",
     "url": "https://github.com/johncarmack1984"
@@ -15,6 +15,11 @@
       "name": "build-review-lens",
       "source": "./plugins/build-review-lens",
       "description": "Mine a repository's review history into a reviewer lens skill that reviews your branch the way its maintainer will, before the PR opens."
+    },
+    {
+      "name": "data-story",
+      "source": "./plugins/data-story",
+      "description": "Put measured numbers in front of a reader: the takeaway first, then a sentence, a table or a chart, and a line on how it was measured."
     }
   ]
 }

@@ -6,6 +6,7 @@ Skills for coding agents, published as Claude Code plugins. Each is also a plain
 |---|---|
 | [`sidework`](plugins/sidework/) | Runs a task on its own branch in a git worktree beside your checkout. Leaves your checkout untouched. |
 | [`build-review-lens`](plugins/build-review-lens/) | Reads a repository's PR history to find who reviews and what passes, then writes a lens skill for each reviewer to review your branch as that maintainer would. |
+| [`data-story`](plugins/data-story/) | Puts measured numbers in front of a reader: the takeaway sentence first, then a sentence, a table or a chart, and a line on how it was measured. |
 
 ## Install
 
@@ -15,6 +16,7 @@ As Claude Code plugins:
 /plugin marketplace add johncarmack1984/repertoire
 /plugin install sidework@repertoire
 /plugin install build-review-lens@repertoire
+/plugin install data-story@repertoire
 ```
 
 For any agent that reads skills, with the skills CLI:
@@ -29,6 +31,7 @@ Or as personal skills, from a clone:
 git clone https://github.com/johncarmack1984/repertoire
 ln -s "$PWD/repertoire/plugins/sidework/skills/sidework" ~/.claude/skills/sidework
 ln -s "$PWD/repertoire/plugins/build-review-lens/skills/build-review-lens" ~/.claude/skills/build-review-lens
+ln -s "$PWD/repertoire/plugins/data-story/skills/data-story" ~/.claude/skills/data-story
 ```
 
 ## sidework
@@ -43,6 +46,14 @@ The evidence comes from review habits. CONTRIBUTING.md describes the project mai
 
 The mining script ranks reviewers by activity, weighted toward recent reviews. It shows who merges and how long outside contributors wait by PR size, then collects every word from each top reviewer, grouped by PR. A few merged PRs are held back to test the finished lens against comments it hasn't seen. The lens is one file: steps, rules backed by verbatim evidence and PR numbers, and pitfalls the repo's CI never spells out. The lens template, the evidence template and the refinement loop are in [`reference/`](plugins/build-review-lens/skills/build-review-lens/reference/).
 
+## data-story
+
+Numbers in front of a person are an argument, and a table that makes the reader do the arithmetic loses it. `data-story` loads when an agent is about to put measured numbers in a PR description, an issue, a README, a report or a reply: benchmark results, a before/after comparison, a performance claim. It picks the form first. One or two numbers go in a sentence. Values the reader will look up or compare, or more than one measure of the same thing, go in a table. A trend or a distribution goes in a chart, which the skill hands to a charting skill rather than carry chart rules of its own.
+
+The method comes from three books. From Cole Nussbaumer Knaflic's *Storytelling with Data*: audience and context first, the one-sentence takeaway, and the choice between simple text, a table and a graph. From Stephen Few's *Show Me the Numbers*: the table design, with the values being compared side by side, the difference computed for the reader, numbers right-aligned with one precision per column, units in the headers, repeated labels left blank to show the grouping, and nothing in the table that is not data. From Martin Kleppmann's *Designing Data-Intensive Applications*: a measurement is a distribution, so the median and the tail get reported rather than a mean, and response time is a different measure from throughput. The skill's [`reference/sources.md`](plugins/data-story/skills/data-story/reference/sources.md) says which rule came from where.
+
+What the skill produces: the takeaway sentence above the table, including what limits the result; one row per configuration in a meaningful order, with the two variants and their change side by side and time next to cost; and the method below the table, with the statistic, the run count, the spread and the machine. Its evals hand the agent raw benchmark runs and grade the PR section it writes: six configurations with wall and CPU time that belong in one table, one before/after pair that must stay a sentence, and a run set with two slow outliers where a mean would mislead.
+
 ## Development
 
-`just validate` checks the marketplace and both plugins with `claude plugin validate --strict`. `just lint` runs shellcheck over sidework's scripts and compiles the lens miner. `just eval sidework` runs sidework's eval suite, and `just lab` reproduces the nested-worktree failures. CI runs the same checks on every push and pull request; the evals workflow runs on demand and needs an `ANTHROPIC_API_KEY` secret.
+`just validate` checks the marketplace and every plugin with `claude plugin validate --strict`. `just lint` runs shellcheck over sidework's scripts and the eval scaffolds, and compiles the lens miner. `just eval sidework` and `just eval data-story` run those plugins' eval suites, and `just lab` reproduces the nested-worktree failures. CI runs the same checks on every push and pull request; the evals workflow runs on demand and needs an `ANTHROPIC_API_KEY` secret.
