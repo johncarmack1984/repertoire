@@ -20,9 +20,9 @@ Go down the chart the tool drew and ask of each element whether the reader would
 | a color for each series | grey for all of them, one accent for the point |
 | a category that only sums the others | remove it unless the total is the point |
 
-In a table, cut heavy borders, shading, and labels repeated on every row. In prose, cut the account of how the analysis was done, and put it in an appendix for the reader who asks.
+In a table, cut heavy borders, shading, and labels repeated on every row; `tables.md` has the rules for rows, cells, and width. In prose, cut the account of how the analysis was done, and put it in an appendix for the reader who asks.
 
-Some repetition helps. Keep the unit, the % or $ sign, and the thousands separator with every number, so the reader never has to remember what they are looking at.
+Some repetition helps. Keep the % or $ sign and the thousands separator with every number, and keep the unit where the number is read: beside it in prose and on a chart, once in the column header of a table.
 
 ## How the eye groups things
 

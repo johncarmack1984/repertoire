@@ -12,7 +12,7 @@ Be careful when collapsing several numbers into one. "Halved" hides whether it w
 
 A table is read cell by cell, the way text is. Use one when each reader will look up their own row, when exact values matter, or when the measures have different units. Fade the structure so the values stand out: light borders or none, white space between groups, no shading.
 
-Put the values being compared in adjacent columns and compute the difference, so nobody subtracts. Order the rows by what the reader is looking for. A table should still have a sentence above it that says what to conclude.
+Put the values being compared in adjacent columns and compute the difference, so nobody subtracts. `tables.md` has the rules for rows, cells, and width. Order the rows by what the reader is looking for. A table should still have a sentence above it that says what to conclude.
 
 In a live presentation a table loses the room, because people read it and stop listening. Pull out the one comparison the point needs and put the full table in an appendix. In markdown the appendix is a `<details>` block or a linked file.
 

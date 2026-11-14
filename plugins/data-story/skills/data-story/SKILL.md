@@ -24,7 +24,7 @@ Done when you can complete "after reading this, the reader will ...", with a nam
 
 ### 2. The point
 
-- What does the data say? Find out first, any quick way. Look for what holds across every series, and for the one that breaks the pattern. That exploring is for you: of the hundred things you looked at, the reader gets the one or two that matter.
+- What does the data say? Find out first, any quick way. Look for what holds across every series, and for the one that breaks the pattern. For runs you measured, such as benchmarks and timings, `reference/measurements.md` says which statistic describes them and what to do with a slow run. That exploring is for you: of the hundred things you looked at, the reader gets the one or two that matter.
 - With three minutes and no visuals, what would you say? Write that paragraph: what was going on, what changed or what you found, what it means for this reader, what you recommend.
 - With one sentence? That sentence is the Big Idea. It states your point of view, says what is at stake, and is a complete sentence. "Cache latency results" is a topic. "The cache cuts p99 latency by a third at no memory cost, so it should ship in 4.2" is a Big Idea.
 - Which two or three numbers make the sentence true, and which numbers cut against it? The second kind stays in: a reader who finds it alone stops believing the rest.
@@ -62,6 +62,8 @@ Which form will this reader read most easily? Choose by what they need to see, n
 - Trend or exact values? For a trend, keep a faint axis and label only the ends. For exact values, label the data and drop the axis.
 - About to draw a pie, a donut, 3D, or a second y-axis? Draw sorted bars in place of the pie or donut, never 3D, and for two units label one series directly or stack two graphs on a shared x-axis.
 
+A table answers one question. The things compared are the rows, in an order that means something. The measures are the columns, with the compared values side by side and their difference computed. Units go in the headers, and numbers are right-aligned with one precision per column. `reference/tables.md` has the rest.
+
 Bars start at zero, always. A bar chart whose axis starts at 34 makes 35 against 39.6 look like a fivefold jump, and one reader who notices discards the argument along with the chart. A line may start above zero when the axis is labelled and the zoom doesn't turn a small change into a large one. `reference/visuals.md` has each form in detail, what to use where the medium is markdown or plain text, and what to do with a tangle of lines.
 
 Done when the reader could say what they are looking at before reading a single value.
@@ -75,7 +77,7 @@ Everything on the page costs the reader some attention. Go through it one elemen
 - Does it look ordered? Left-align text, line elements up on shared edges, and leave empty space empty. Data added because there was room is noise.
 - Would they miss these words? Cut prose the same way: background the reader already knows, an account of the method, a caveat given a paragraph where a line would do. A page read before a decision is read in about a minute.
 
-Keep what makes a number readable: its unit, the % or $ sign, the thousands separator.
+Keep what makes a number readable: its unit, the % or $ sign, the thousands separator. In a table the unit goes once, in the column header.
 
 Done when removing one more thing would lose information.
 
@@ -93,7 +95,7 @@ Done when a glance goes to the point.
 - If they read only the title, do they have the point? The title is the Big Idea or the ask: "Please approve two hires", "The cache cuts p99 latency by a third". The label for what is plotted ("Ticket volume over time") goes under it, smaller.
 - Is everything labelled in the reader's words? Every graph gets a title, and every axis a title or values on the data. Plain words, units written out, acronyms spelled out once.
 - Is the reason written next to the evidence? Put a short note on the data where the thing happened: "two people left in May".
-- Where did the numbers come from? A small line at the bottom: the source, the dates, how many, how it was measured, and what more is available.
+- Where did the numbers come from? A small line at the bottom: the source, the dates, how many, how it was measured, and what more is available. For numbers you measured, that line gives the statistic (medians, not means), how many runs and in what order, the spread, and the machine. `reference/measurements.md` also covers skewed runs, tails, and keeping time apart from throughput and cost.
 
 Done when someone who sees only this could repeat the point and say where the numbers came from.
 
@@ -198,4 +200,4 @@ Headings 3 and 4 are one bar chart shown twice, by exports and then by tickets, 
 
 ## Sources
 
-Every step follows a chapter of Cole Nussbaumer Knaflic's *Storytelling with Data* (Wiley, 2015). `reference/sources.md` maps each question to its chapter and credits the people she builds on: Nancy Duarte for the Big Idea, Stephen Few and Edward Tufte for tables and clutter, and Colin Ware for contrast.
+Every step follows a chapter of Cole Nussbaumer Knaflic's *Storytelling with Data* (Wiley, 2015). `reference/sources.md` maps each question to its chapter and credits the people she builds on: Nancy Duarte for the Big Idea, Stephen Few and Edward Tufte for tables and clutter, and Colin Ware for contrast. The table rules in `reference/tables.md` follow Stephen Few's *Show Me the Numbers*, and the measurement rules in `reference/measurements.md` follow Martin Kleppmann's *Designing Data-Intensive Applications*.
