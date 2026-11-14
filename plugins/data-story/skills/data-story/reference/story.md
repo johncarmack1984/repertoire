@@ -1,30 +1,41 @@
 # Story
 
-Step 7 in detail, for a piece with more than one visual: a report, a deck, a long PR description, a README. A list of facts invites the reader to argue with each one. A story gives them a stake in how it ends, and it is what they repeat to someone else afterwards.
+Step 7 in detail, for a piece with more than one visual: a report, a deck, a talk, a long PR description, a README. A list of facts invites the reader to argue with each one. A story gives them a stake in how it ends, and it is what they repeat to someone else afterwards.
 
-## Beginning, middle, end
+## What the reader wants
 
-The beginning gives the reader a reason to care. Answer these in a few sentences:
+Start with the reader and answer each of these in a line:
 
 - Where and when is this?
 - Who is it about? Make it the reader: their team, their budget, their users.
-- What changed, or what is wrong?
-- What should be true instead?
-- How do we get there?
+- What do they want?
+- What changed, or what is in the way?
+- What should be true instead, and how do we get there?
 
-The gap between what is and what should be is the tension, and without it nobody has a reason to keep reading. If everything looks fine, look again for what the reader stands to lose or gain.
+The gap between what is and what should be is the tension, and without it nobody has a reason to keep reading. If everything looks fine, look again for what the reader stands to lose or gain. Then say what moves this reader: money, time, risk, a competitor, a promise they made.
 
-The middle convinces. Use what this reader needs and leave the rest out:
+## Three sentences
+
+Write the story in three sentences before any heading or slide: the situation the reader is in, what the data shows that changes it, and what to do. If the three don't follow from each other, more slides will not fix it. Keep them. When the piece is finished, they should still describe it.
+
+## The middle convinces
+
+Use what this reader needs and leave the rest out:
 
 - the background they are missing
 - a comparison: last year, the target, a competitor
 - one example that makes the problem concrete
 - the data that shows it
 - what happens if nothing is done
-- the options, and why the one you recommend
+- the alternatives, and what the data says about each
+- why the one you recommend
 - why this reader is the one who can act
 
-The end is the ask. Say exactly what you want done, and tie it to the problem the piece opened with.
+The alternatives and the objection get skipped, and a skeptical reader looks for both. A recommendation needs a reason the other choices lack, so list the choices the reader will weigh and say what the numbers say about each. Then find the number that cuts against you, put it where the reader would raise it, and answer it there. A reader who finds it alone stops believing the rest.
+
+## The end is the ask
+
+Say exactly what you want done and by when, and tie it to the problem the piece opened with.
 
 ## Order
 
@@ -35,26 +46,50 @@ Going through events in the order they happened is the natural way to tell it an
 
 Either way, say which one you are doing: "the recommendation first, then how we got there".
 
+## Headings
+
+- Write the headings first, as full sentences. Read alone and in order, they are the argument. A heading that is a topic ("Results", "Background") says nothing, so make it the sentence that section proves.
+- Under each heading, write the figures it rests on. A heading that speaks for several series or years has to be true of every one of them: "every service got faster" fails if one got slower, and "under 200 ms all year" fails if March was 240.
+- A pair of headings can set up and pay off. "XML is under 4% of exports" makes the room expect a small problem, and "It is 38% of the export tickets" is the turn.
+- Everything under a heading supports that heading. Anything else moves or goes.
+
 ## Repetition
 
 Say what the piece will show, show it, then say what it showed, with the ask. To the writer this feels like saying it three times. To a reader seeing it for the first time, it is what makes the point stay.
 
-A short phrase the reader can repeat to someone else does more than a paragraph. "Storage doubled since June" travels; a table doesn't.
+A short phrase the reader can repeat to someone else does more than a paragraph. "Storage doubled since June" travels, and a table doesn't.
 
 ## Presented live or read alone
 
 The same material needs two versions.
 
-- Presented, the speaker controls what is seen and when. Slides stay sparse and the detail is spoken. Build one graph up in steps: the empty axes first, so the room learns how to read it, then one series or one highlight at a time, each step with its own sentence as the title. Keep the same graph and the same order of categories all the way through, and change only what is emphasized.
-- Read alone, the reader controls the pace and nobody is there to explain. Use one version of the graph, annotated with the points a speaker would have made, and words that say what each section means for the reader.
+- Presented, the speaker controls what is seen and when. Slides stay sparse and the detail is spoken. Plan each step three ways: what is on the screen, what changed from the step before, and the sentence said aloud that leads to the next. Build one graph up in steps: the empty axes first, so the room learns how to read it, then one series or one highlight at a time. Keep the same graph and the same order of categories all the way through, and change only what is emphasized.
+- Read alone, the reader controls the pace and nobody is there to explain. Use one version of the graph, annotated with what a speaker would have said, and words that say what each section means for the reader.
 
 One document doing both jobs does neither well. When there is time for one version only, make the one that will be read alone.
 
+## A talk, worked through
+
+The third worked example in `SKILL.md`: five minutes at a roadmap review, asking the head of product to end XML export. The three sentences, the alternatives, and the objection are written there. This is the plan for each step.
+
+| Step | On the screen | What changed | Said aloud |
+| --: | :-- | :-- | :-- |
+| 1 | The ask as one sentence | | "I'm asking you to end XML export on 30 September, with a converter first. Here is why, and what it costs." |
+| 2 | Support tickets by category, as bars, with exports in the accent color | | "Exports are our largest support category: 412 tickets last year." |
+| 3 | Monthly exports by format, as three bars, with XML in the accent color | a new chart | "XML is 3,600 of 101,000 exports a month. Under 4%." |
+| 4 | The same three bars, now counting export tickets | the bars change; the order and the colors stay | "The same three formats, counted by tickets. XML is 157 of 412." |
+| 5 | The 19 accounts that use XML, as bars, with three in the accent color | a new chart | "Three accounts make 91% of those exports, and they pay us $410k a year. So we can't switch it off today." |
+| 6 | Two numbers: three weeks once, two weeks every quarter | | "A converter for those three takes three engineer-weeks. Keeping XML alive takes two every quarter." |
+| 7 | The ask again, with the date | | "So: end XML on 30 September, converter first. Can it go on the Q2 roadmap?" |
+
+Step 1 says what is coming. Steps 3 and 4 are the setup and the turn. Step 5 raises the objection before the room does, and step 6 answers it with the cost of each alternative. Step 7 is the ask from step 1, now with its reasons behind it.
+
 ## Checks
 
-- Read the headings alone, in order. They should tell the story. A heading that is a topic ("Results", "Background") says nothing; make it the sentence that section proves.
-- Read each section against its heading. Everything in it should support that heading, and anything else moves or goes.
-- When the piece is finished, write down the point of each section and compare the list with the outline you started from. Where they differ, one of them is wrong.
+- Read the headings alone, in order. They should tell the story.
+- Read each section against its heading.
+- Read the three sentences again. If the finished piece has become a different story, one of the two is wrong.
+- When the piece is finished, write down the point of each section and compare the list with the outline you started from.
 - Give it to someone who doesn't know the subject and ask what they think it says and where they got lost.
 
 ## The appendix

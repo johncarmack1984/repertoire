@@ -24,7 +24,7 @@ Done when you can complete "after reading this, the reader will ...", with a nam
 
 ### 2. The point
 
-- What does the data say? Find out first, any quick way. That exploring is for you: of the hundred things you looked at, the reader gets the one or two that matter.
+- What does the data say? Find out first, any quick way. Look for what holds across every series, and for the one that breaks the pattern. That exploring is for you: of the hundred things you looked at, the reader gets the one or two that matter.
 - With three minutes and no visuals, what would you say? Write that paragraph: what was going on, what changed or what you found, what it means for this reader, what you recommend.
 - With one sentence? That sentence is the Big Idea. It states your point of view, says what is at stake, and is a complete sentence. "Cache latency results" is a topic. "The cache cuts p99 latency by a third at no memory cost, so it should ship in 4.2" is a Big Idea.
 - Which two or three numbers make the sentence true, and which numbers cut against it? The second kind stays in: a reader who finds it alone stops believing the rest.
@@ -99,16 +99,20 @@ Done when someone who sees only this could repeat the point and say where the nu
 
 ### 7. Story
 
-For anything longer than one visual: a report, a deck, a long PR description, a README.
+For anything longer than one visual: a report, a deck, a talk, a long PR description, a README. A story has a reader who wants something, something in the way, and a way through. A list of findings has none of the three.
 
-- What is the tension? What is, against what could be, in the reader's terms. A page where everything is fine and will stay fine gives nobody a reason to act.
-- What order? Open with the ask for a busy reader who trusts you. For a reader who has to be convinced, go in order: the problem, what you looked at, what you found, what you recommend.
-- Do the headings tell it on their own? Write them first, as full sentences. Read alone, top to bottom, they are the argument, and everything under a heading supports that heading.
+- What does the reader want, and what is in the way? Say it in their terms: the price they have to set, the release they have to approve. The gap between what is and what could be is the tension, and it is the reason they keep listening.
+- What is the story in three sentences? The situation the reader is in. What the data shows that changes it. What to do. Write them before any heading or slide.
+- Why this, and why none of the alternatives? List the choices the reader will weigh, and say what the data says about each. A recommendation needs a reason the alternatives lack.
+- What will they object to? Find the number that cuts against you, put it where the reader would raise it, and answer it there.
+- What order? Open with the ask for a busy reader who trusts you. For a reader who has to be convinced, go in order: the problem, what you looked at, what you found, what you recommend. Either way, start by saying what is coming.
+- Do the headings tell it on their own? Write them first, as full sentences, and under each write the figures it rests on. A heading that speaks for several series or years ("every service got faster", "under 200 ms all year") has to be true of every one of them.
+- Is it presented live? Then plan each step three ways: what is on the screen, what changed from the step before, and the sentence said aloud that leads to the next. Write that sentence even when only the slides were asked for, because the slides are the smaller part of a talk. Build one graph up across the steps. A new chart on each slide makes the room learn to read again.
 - Does it end on what to do? Close with the ask, tied to the problem the piece opened with. Saying the point at the start, showing it, and saying it again with the ask is repetition the reader needs.
 
-`reference/story.md` has the structure, the difference between a version presented live and one read alone, and what goes to an appendix.
+`reference/story.md` has each of these in full, and plans the talk in the third worked example below step by step.
 
-Done when the headings make the argument without the text under them, and the last heading is the ask.
+Done when the three sentences still describe the finished piece, the headings make the argument without the text under them, and the last heading is the ask. For a talk, every step also has the sentence that is said with it.
 
 ## Before it goes out
 
@@ -116,7 +120,7 @@ Done when the headings make the argument without the text under them, and the la
 
 - Is it true to the data? Recompute every number the words claim, then read each claim against what the numbers can support. A change in totals doesn't show which individuals changed. A result measured once doesn't show that it lasts. Things that happened together don't show that one caused the other. Nothing is inflated or softened: bars start at zero, the time window wasn't chosen to flatter, the caveat is on the page, and the title claims no more than the numbers show.
 - What does a reader who knows nothing see? Give the finished piece, with nothing else, to someone who hasn't seen the data (a subagent with no context will do) and ask where they looked first, what they think it says, what they would do, and what they aren't sure of. If the answer isn't the Big Idea, fix the piece and ask again. With nobody to ask, render it and look: for a chart, look at the picture and never only the code that draws it.
-- Tell whoever asked, in two lines with the result: who it was written for, the point it makes, and what was left out. A wrong assumption then takes one reply to fix.
+- Tell whoever asked, in two lines with the result: who it was written for, the point it makes, and what was left out. If a claim in what they gave you is wrong, say which one and what the data shows. A wrong assumption then takes one reply to fix.
 
 ## Worked examples
 
@@ -165,6 +169,32 @@ Evidence:  for: storage $4.2k in May, $8.4k in October. Against: compute is stil
 ```
 
 Rebuilt as `assets/storage-cost.svg`: a line graph, because it is change over time. Compute and network are grey, storage is the one accent color, and each line is labelled at its end with its October value in place of a legend. A note at June says what happened. The title is the ask, with the plain label under it, and the source and period are in small type at the bottom. Read that file before drawing a line graph and `assets/flaky-tests.svg` before drawing bars: keep the structure, replace the data.
+
+A story, for five minutes at a live roadmap review where the head of product decides what the next two quarters drop. The data is a year of exports by format, the support tickets about exports, and which accounts use XML. The first draft was six charts with titles such as "Exports by format" and "Tickets by category". The story notes:
+
+```
+Reader wants:  fewer support tickets without losing accounts
+In the way:    XML export, which three large accounts depend on
+Three sentences:
+  We keep three export formats alive, and export problems are the largest category in support.
+  XML is under 4% of exports and 38% of those tickets, and three accounts make 91% of the XML exports.
+  End XML export on 30 September, after building those three accounts a converter.
+Alternatives:  keep it: 157 tickets a year and two engineer-weeks a quarter go on.
+               end it now: $410k a year of renewals is at risk.
+Objection:     "those three accounts pay $410k a year". The converter ships first and takes three engineer-weeks, once.
+```
+
+The headings, each with the figures it rests on:
+
+1. We recommend ending XML export on 30 September, with a converter first. This is the ask, and it says what the five minutes will cover.
+2. Export problems are the largest category in support: 412 of 1,960 tickets last year.
+3. XML is under 4% of exports: 3,600 of 101,000 a month.
+4. It is 38% of the export tickets: 157 of 412.
+5. Three accounts make 91% of the XML exports, and they pay $410k a year.
+6. A converter for those three takes three engineer-weeks once, against two every quarter to keep XML alive.
+7. Decision today: end XML on 30 September, converter first.
+
+Headings 3 and 4 are one bar chart shown twice, by exports and then by tickets, with XML in the accent color both times. Heading 5 is the objection, raised before the room raises it, and heading 6 answers it. Keeping XML and ending it now are both on the screen with what each costs, so the recommendation has a reason the alternatives lack.
 
 ## Sources
 

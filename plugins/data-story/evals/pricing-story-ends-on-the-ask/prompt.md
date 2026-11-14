@@ -1,5 +1,5 @@
 ---
-description: The pricing example from Storytelling with Data, chapter 8. Average retail price by year for five products, a draft slide whose headline says prices fell for all of them (false for three), and five minutes in front of the VP who sets the price. The storyboard should have titles that tell the story on their own, stay true to the data, build to a recommendation of $150 to $200 against the $223 average, and reuse one line graph with the emphasis changing.
+description: The pricing example from Storytelling with Data, chapter 8. Average retail price by year for five products, a draft slide whose headline says prices fell for all of them (false for three), and five minutes in front of the VP who sets the price. The storyboard should have titles that tell the story on their own, stay true to the data, reuse one line graph with the emphasis changing, say what is said aloud, argue for $150 to $200 against the alternatives, answer what cuts against it, and end on the ask. The reply should say that the draft's headline was wrong.
 tags: [behavior, story, book-example]
 max_turns: 30
 timeout_seconds: 900

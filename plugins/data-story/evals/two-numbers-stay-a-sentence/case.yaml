@@ -18,6 +18,18 @@ graders:
     flags: m
     match: not_contains
     weight: 3
+  - name: no-bullet-list
+    type: regex
+    target: { source: file, path: pr-numbers.md }
+    pattern: '^\s*[-*+] '
+    flags: m
+    match: not_contains
+  - name: spread-given
+    type: regex
+    target: { source: file, path: pr-numbers.md }
+    pattern: '1\.80[\s\S]*1\.90|1\.18[\s\S]*1\.25|overlap|slowest[\s\S]{0,120}fastest|fastest[\s\S]{0,120}slowest|every (one of the )?(ten )?(branch )?runs?'
+    flags: i
+    weight: 2
   - name: both-values-stated
     type: regex
     target: { source: file, path: pr-numbers.md }
