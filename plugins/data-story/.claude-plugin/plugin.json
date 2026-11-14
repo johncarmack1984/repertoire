@@ -1,7 +1,7 @@
 {
   "name": "data-story",
-  "version": "0.1.0",
-  "description": "Put measured numbers in front of a reader: the takeaway first, then a sentence, a table or a chart, and a line on how it was measured.",
+  "version": "0.2.0",
+  "description": "Turn numbers into a point a reader gets in seconds and can act on: the questions from Storytelling with Data, then the form, the clutter cut, the emphasis on the point, and the conclusion in words.",
   "author": {
     "name": "John Carmack",
     "url": "https://github.com/johncarmack1984"
@@ -10,11 +10,12 @@
   "repository": "https://github.com/johncarmack1984/repertoire",
   "license": "MIT",
   "keywords": [
-    "benchmarks",
-    "performance",
+    "storytelling-with-data",
+    "data-visualization",
+    "charts",
     "tables",
-    "markdown",
+    "reporting",
     "pull-requests",
-    "reporting"
+    "presentations"
   ]
 }

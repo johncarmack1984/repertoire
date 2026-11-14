@@ -1,5 +1,5 @@
 ---
-description: Raw interleaved runs of a build-script change, two profiles by three -j values, wall and CPU seconds. The numbers section should lead with the takeaway and its limit, put one configuration per row with the two variants side by side and a change column for each measure, keep units in the headers, and say below the table what was measured and how many runs.
+description: Raw interleaved runs of a build-script change, two profiles by three -j values, wall and CPU seconds. The numbers section should open with the conclusion and what limits it, then use a table because the maintainer will look up their own configuration and there are two measures, with the two variants side by side and the change computed, and end with a line on where the numbers came from.
 tags: [behavior, table]
 max_turns: 30
 timeout_seconds: 900

@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 430" width="720" height="430" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" role="img" aria-labelledby="t d">
+  <title id="t">Please approve a 14-day retention on debug logs</title>
+  <desc id="d">Line graph of monthly cloud spend by service, January to October 2026. Storage doubles from $4.2k in May to $8.4k in October after debug logging was turned on in June, while compute and network stay flat.</desc>
+
+  <!-- A white background, painted, so a dark page can't hide the grey text. No border. -->
+  <rect width="720" height="430" fill="#fff"/>
+
+  <!-- Words first, top left: the ask as the title, the reason under it, then the plain label for what is plotted. -->
+  <text x="24" y="36" font-size="18" font-weight="700" fill="#333">Please approve a 14-day retention on debug logs</text>
+  <text x="24" y="58" font-size="14" fill="#555">Storage cost has doubled since logging went on in June. Compute and network are flat.</text>
+  <text x="24" y="92" font-size="13" fill="#888">Monthly cloud spend by service, 2026</text>
+
+  <!-- Scale: x = 80 + 52 * month index (Jan = 0). y = 350 - 16 * spend in $ thousands. -->
+  <!-- Axis in grey: one baseline, four labels, no gridlines, no tick marks. -->
+  <line x1="70" y1="350" x2="560" y2="350" stroke="#c8c8c8" stroke-width="1"/>
+  <g font-size="11" fill="#888" text-anchor="end">
+    <text x="62" y="354">$0</text>
+    <text x="62" y="290">$4k</text>
+    <text x="62" y="226">$8k</text>
+    <text x="62" y="162">$12k</text>
+  </g>
+  <g font-size="11" fill="#888" text-anchor="middle">
+    <text x="80" y="368">Jan</text>
+    <text x="132" y="368">Feb</text>
+    <text x="184" y="368">Mar</text>
+    <text x="236" y="368">Apr</text>
+    <text x="288" y="368">May</text>
+    <text x="340" y="368">Jun</text>
+    <text x="392" y="368">Jul</text>
+    <text x="444" y="368">Aug</text>
+    <text x="496" y="368">Sep</text>
+    <text x="548" y="368">Oct</text>
+  </g>
+
+  <!-- Context: the series the point isn't about, in grey, thin. -->
+  <polyline points="80,161.2 132,156.4 184,158 236,151.6 288,154.8 340,150 392,153.2 444,148.4 496,151.6 548,146.8" fill="none" stroke="#b0b0b0" stroke-width="2" stroke-linejoin="round"/>
+  <polyline points="80,300.4 132,302 184,298.8 236,300.4 288,298.8 340,298.8 392,297.2 444,298.8 496,297.2 548,297.2" fill="none" stroke="#b0b0b0" stroke-width="2" stroke-linejoin="round"/>
+
+  <!-- The event, marked where it happened, with the reason written next to the data. -->
+  <line x1="314" y1="170.8" x2="314" y2="350" stroke="#c8c8c8" stroke-width="1" stroke-dasharray="3 3"/>
+  <text x="322" y="180.4" font-size="12" fill="#555"><tspan font-weight="700">Debug logging turned on in June.</tspan></text>
+  <text x="322" y="196.4" font-size="12" fill="#555">Storage has grown every month since.</text>
+
+  <!-- The point: one accent color, a heavier line, markers and values only on the two months the title compares. -->
+  <polyline points="80,286 132,284.4 184,284.4 236,282.8 288,282.8 340,260.4 392,246 444,233.2 496,223.6 548,215.6" fill="none" stroke="#1f6fb5" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"/>
+  <circle cx="288" cy="282.8" r="4.5" fill="#1f6fb5"/>
+  <circle cx="548" cy="215.6" r="4.5" fill="#1f6fb5"/>
+  <text x="288" y="271.8" font-size="12" font-weight="700" fill="#1f6fb5" text-anchor="middle">$4.2k</text>
+
+  <!-- Each line labelled at its end, in its own color, with its last value. No legend. -->
+  <text x="560" y="150.8" font-size="12" fill="#888">Compute $12.7k</text>
+  <text x="560" y="220.6" font-size="13" font-weight="700" fill="#1f6fb5">Storage $8.4k</text>
+  <text x="560" y="301.2" font-size="12" fill="#888">Network $3.3k</text>
+
+  <!-- Where the numbers came from, small, at the bottom. -->
+  <text x="24" y="410" font-size="10.5" fill="#888">Source: cloud billing export, January to October 2026. Compute and network are each within 8% of their January cost.</text>
+</svg>

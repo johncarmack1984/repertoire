@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 410" width="720" height="410" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" role="img" aria-labelledby="t d">
+  <title id="t">Quarantine five flaky tests: they cause 71% of red builds on main</title>
+  <desc id="d">Horizontal bar chart of red builds on main by first failing test over 30 days. Five tests account for 99 of 139 red builds; the next two account for 11 and the other 61 tests for 29.</desc>
+
+  <!-- A white background, painted, so a dark page can't hide the grey text. No border. -->
+  <rect width="720" height="410" fill="#fff"/>
+
+  <!-- Words first, top left: the ask and the reason as the title, then the plain label for what is plotted. -->
+  <text x="24" y="36" font-size="18" font-weight="700" fill="#333">Quarantine five flaky tests: they cause 71% of red builds on main</text>
+  <text x="24" y="70" font-size="13" fill="#888">Red builds on main by first failing test, last 30 days</text>
+
+  <!-- Scale: every bar starts at x = 300 (zero) and is 9 wide per red build. One row every 30, largest first. -->
+  <!-- Names to the left, read before the bar. Values at the bar ends, so there is no axis and no gridlines. -->
+  <text x="290" y="125" font-size="12" fill="#333" text-anchor="end">checkout_applies_coupon_after_retry</text>
+  <rect x="300" y="112" width="279" height="18" fill="#1f6fb5"/>
+  <text x="585" y="125" font-size="12" font-weight="700" fill="#1f6fb5">31</text>
+  <text x="290" y="155" font-size="12" fill="#333" text-anchor="end">search_index_rebuilds_on_startup</text>
+  <rect x="300" y="142" width="216" height="18" fill="#1f6fb5"/>
+  <text x="522" y="155" font-size="12" font-weight="700" fill="#1f6fb5">24</text>
+  <text x="290" y="185" font-size="12" fill="#333" text-anchor="end">upload_resumes_after_disconnect</text>
+  <rect x="300" y="172" width="171" height="18" fill="#1f6fb5"/>
+  <text x="477" y="185" font-size="12" font-weight="700" fill="#1f6fb5">19</text>
+  <text x="290" y="215" font-size="12" fill="#333" text-anchor="end">session_expires_at_midnight_utc</text>
+  <rect x="300" y="202" width="126" height="18" fill="#1f6fb5"/>
+  <text x="432" y="215" font-size="12" font-weight="700" fill="#1f6fb5">14</text>
+  <text x="290" y="245" font-size="12" fill="#333" text-anchor="end">webhook_delivers_exactly_once</text>
+  <rect x="300" y="232" width="99" height="18" fill="#1f6fb5"/>
+  <text x="405" y="245" font-size="12" font-weight="700" fill="#1f6fb5">11</text>
+  <text x="290" y="275" font-size="12" fill="#888" text-anchor="end">export_csv_handles_unicode</text>
+  <rect x="300" y="262" width="54" height="18" fill="#b0b0b0"/>
+  <text x="360" y="275" font-size="12" fill="#888">6</text>
+  <text x="290" y="305" font-size="12" fill="#888" text-anchor="end">signup_sends_welcome_email</text>
+  <rect x="300" y="292" width="45" height="18" fill="#b0b0b0"/>
+  <text x="351" y="305" font-size="12" fill="#888">5</text>
+  <text x="290" y="335" font-size="12" fill="#888" text-anchor="end">61 other tests</text>
+  <rect x="300" y="322" width="261" height="18" fill="#b0b0b0"/>
+  <text x="567" y="335" font-size="12" fill="#888">29</text>
+
+  <!-- The point: one accent color on the five bars the title talks about, and the sum the reader would otherwise add up. -->
+  <line x1="613" y1="112" x2="613" y2="250" stroke="#1f6fb5" stroke-width="1.5"/>
+  <text x="623" y="175" font-size="13" font-weight="700" fill="#1f6fb5">99 of 139</text>
+  <text x="623" y="192" font-size="12" fill="#555">red builds</text>
+
+  <!-- Where the numbers came from, small, at the bottom. -->
+  <text x="24" y="376" font-size="10.5" fill="#888">Source: CI history for main, 15 October to 13 November 2026: 139 red builds of 1,204.</text>
+  <text x="24" y="391" font-size="10.5" fill="#888">A test is counted as flaky when a rerun of the same commit passed.</text>
+</svg>

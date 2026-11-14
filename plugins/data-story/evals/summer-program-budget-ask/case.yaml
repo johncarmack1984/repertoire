@@ -1,0 +1,53 @@
+schema_version: "1.1"
+name: summer-program-budget-ask
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?data-story"'
+  - name: wrote-the-page
+    type: file_exists
+    path: budget-request.md
+    weight: 2
+  - name: no-pies
+    type: regex
+    target: { source: file, path: budget-request.md }
+    pattern: '^\s*pie\b'
+    flags: mi
+    match: not_contains
+    weight: 2
+  - name: ask-in-the-opening
+    type: regex
+    target: { source: file, path: budget-request.md }
+    pattern: '^[\s\S]{0,500}?(approv|fund|\$12,?000|\$12k)'
+    flags: i
+    weight: 2
+  - name: result-in-the-opening
+    type: regex
+    target: { source: file, path: budget-request.md }
+    pattern: '^[\s\S]{0,700}?(\b68\b|\b44\b|\b38\b|twice|doubl|two.thirds)'
+    flags: i
+    weight: 2
+  - name: the-amount
+    type: regex
+    target: { source: file, path: budget-request.md }
+    pattern: '\$12,?000|\$12k'
+    flags: i
+    weight: 2
+  - name: before-and-after-pair
+    type: regex
+    target: { source: file, path: budget-request.md }
+    pattern: '(\b68\b|nearly 70)[\s\S]*\b44\b|\b44\b[\s\S]*(\b68\b|nearly 70)'
+    flags: i
+    weight: 2
+  - name: fits-one-page
+    type: regex
+    target: { source: file, path: budget-request.md }
+    pattern: '^[\s\S]{1,3200}$'
+  - name: says-who-was-surveyed
+    type: regex
+    target: { source: file, path: budget-request.md }
+    pattern: '\b100\b[^\n]*(student|kid|child|participant|pupil)|(student|kid|child|participant|pupil)[^\n]*\b100\b'
+    flags: i

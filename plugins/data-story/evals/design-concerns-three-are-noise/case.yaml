@@ -1,0 +1,37 @@
+schema_version: "1.1"
+name: design-concerns-three-are-noise
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?data-story"'
+  - name: wrote-the-chart
+    type: file_exists
+    path: concerns.svg
+    weight: 2
+  - name: bars-drawn
+    type: regex
+    target: { source: file, path: concerns.svg }
+    pattern: '<rect\b'
+  - name: values-on-the-bars
+    type: regex
+    target: { source: file, path: concerns.svg }
+    pattern: '12\.9[\s\S]*8\.2|8\.2[\s\S]*12\.9'
+  - name: title-says-three
+    type: regex
+    target: { source: file, path: concerns.svg }
+    pattern: '\b(three|3)\b[^<]{0,80}\b(noise|ten|10)\b|\bnoise\b[^<]{0,60}\b(first|three|3)\b'
+    flags: i
+    weight: 2
+  - name: what-the-comments-say
+    type: regex
+    target: { source: file, path: concerns.svg }
+    pattern: '\brain\b|freeway|highway|\bsat\b|sitting|cold start'
+    flags: i
+  - name: no-rotated-text
+    type: regex
+    target: { source: file, path: concerns.svg }
+    pattern: 'rotate\('
+    match: not_contains
