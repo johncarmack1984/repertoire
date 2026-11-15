@@ -12,5 +12,6 @@ plugins/*/evals/results/
 lens-mining/
 __pycache__/
 
-# data-dashboard check screenshots (<page>.<W>x<H>.png)
+# data-dashboard check screenshots (<page>.<W>x<H>.png and <page>.phone.png)
 plugins/data-dashboard/**/*.[0-9]*x[0-9]*.png
+plugins/data-dashboard/**/*.phone.png

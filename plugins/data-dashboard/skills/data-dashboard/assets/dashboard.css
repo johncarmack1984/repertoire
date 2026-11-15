@@ -110,6 +110,9 @@ html { background: var(--dd-bg); }
   font-size: calc(var(--u) * 0.55);
   color: var(--dd-ink-2);
 }
+.dd-foot .dd-title, .dd-foot .dd-asof { display: inline-block; margin-right: calc(var(--u) * 1); }
+.dd-foot .dd-title { white-space: nowrap; }
+.dd-head:not(:has(*)) { display: none; }
 
 .dd-sr {
   position: absolute;

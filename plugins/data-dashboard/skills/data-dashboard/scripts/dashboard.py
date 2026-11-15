@@ -9,7 +9,8 @@
 version and sha256 markers. `sync` rewrites those regions from assets/ and
 optionally the data block. `check` runs a static pass over the file, then
 renders it in headless Chrome, reads the report the page's own dd.check()
-writes, and saves a screenshot at the design viewport and one at phone width.
+writes, and saves a screenshot at the design viewport and one at phone width,
+<page>.phone.png, the full length of the one scrolling column.
 Each finding cites the mistake it guards against, numbered as in chapter 3 of
 Stephen Few's Information Dashboard Design. Exit status 1 means a FAIL.
 """
@@ -161,12 +162,12 @@ def cmd_sync(a) -> int:
     new = synced(old, read_data(a.data) if a.data else None)
     if a.check:
         stale = [m[1] for m in REGION.finditer(old) if m[3] != sha(asset(m[1])) or sha(m[5]) != m[3] or m[2] != VERSION]
-        if a.data and DATA.sub(lambda m: m[2], new) != DATA.sub(lambda m: m[2], old):
-            stale.append("data")
+        if a.data and DATA.search(old)[2] != DATA.search(new)[2]:
+            stale.append(f"the data block ({a.data})")
         if new != old:
-            print(f"FAIL sync: {path} differs from assets/ in {', '.join(stale) or 'region layout'}. Fix: run dashboard.py sync {a.out}")
+            print(f"FAIL sync: {path} differs from assets/ in {', '.join(stale) or 'region layout'}. Fix: run dashboard.py sync {a.out}" + (f" --data {a.data}" if a.data else ""))
             return 1
-        print(f"PASS sync: {path} matches assets/ ({VERSION})")
+        print(f"PASS sync: {path} matches assets/ ({VERSION})" + (f", and its data block matches {a.data}" if a.data else ""))
         return 0
     if new == old:
         print(f"{path} already matches assets/ ({VERSION})")
@@ -260,7 +261,7 @@ def static_pass(text: str) -> list[dict]:
     elif extra := sorted("#%02X%02X%02X" % c for c in colors - tokens()):
         out.append(finding("WARN", "color", 12, f"the page's CSS sets saturated color {', '.join(extra)}", "keep everything gray; only alert dots carry saturated red"))
     meta = re.search(r'<meta name="dd-viewport" content="(\d+)x(\d+)"', text)
-    cols = re.search(r"--dd-cols:\s*([\d.]+);\s*--dd-rows:\s*([\d.]+)", text)
+    cols = re.search(r"--dd-cols:\s*([\d.]+);\s*--dd-rows:\s*([\d.]+)", authored)
     if meta and cols and (abs(float(cols[1]) - int(meta[1]) / UNIT) > 0.01 or abs(float(cols[2]) - int(meta[2]) / UNIT) > 0.01):
         out.append(finding("FAIL", "viewport", 1, f"dd-viewport {meta[1]}x{meta[2]} disagrees with --dd-cols {cols[1]} / --dd-rows {cols[2]}", f"set --dd-cols: {int(meta[1]) / UNIT:g}; --dd-rows: {int(meta[2]) / UNIT:g}"))
     return out
@@ -456,7 +457,7 @@ def browser_pass(browser: str, page: Path, w: int, h: int, pw: int, ph: int, out
         out += judge_phone(phone, pw)
         laid = max(pw, phone["viewport"]["w"])
         full = min(max(phone["page"]["h"], ph), 6000)
-        png = page.with_name(f"{page.stem}.{laid}x{full}.png")
+        png = page.with_name(f"{page.stem}.phone.png")
         if screenshot(browser, page, laid, full, png):
             shots.append(str(png))
     return out, shots, reports

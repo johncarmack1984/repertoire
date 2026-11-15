@@ -33,8 +33,9 @@ const R = (x, y, w, ht, cls) => h('rect', { x, y, width: max(0, w), height: max(
 const dot = (cx, cy, r, level) => DOTC[level] ? h('circle', { cx, cy, r, class: DOTC[level] + ' dd-mark' }) : null
 const bold = level => DOTC[level] ? { 'font-weight': 700 } : {}
 const row = (level, label, title, kids) => h('g', { 'data-dd-level': level, 'data-dd-label': level ? label : null }, h('title', {}, title), kids)
+const NS = 'http://www.w3.org/2000/svg'
 const svg = (W, H, label, kids, cls) => String(h('svg', {
-  xmlns: 'http://www.w3.org/2000/svg', width: W, height: H, viewBox: `0 0 ${W} ${H}`,
+  xmlns: NS, width: W, height: H, viewBox: `0 0 ${W} ${H}`,
   role: 'img', 'aria-label': label, class: 'dd-svg ' + cls
 }, kids))
 
@@ -97,9 +98,9 @@ function basis (m) {
 const pol = (m, policy) => ({ ...POLICY, ...(policy || now.policy), ...m.policy })
 const goodness = (r, better) => better === 'down' ? 2 - r : r
 const ladder = (g, p) => g >= 1 ? 'good' : g < p.alert ? 'alert' : isNum(p.warn) && g < p.warn ? 'warn' : 'ok'
-function breaks (m, p) {
+function breaks (m, policy) {
   if (Array.isArray(m.ranges) && m.ranges.length) return m.ranges
-  const b = basis(m)
+  const b = basis(m), p = pol(m, policy)
   if (!b || m.better === 'in') return null
   return [p.alert, p.warn].filter(isNum).map(x => b.value * goodness(x, m.better))
 }
@@ -152,11 +153,17 @@ function data (sel = '#dd-data') {
 }
 
 const estimate = (t, size, weight) => String(t).length * size * (weight > 500 ? 0.6 : 0.55)
-let cv
+let probe
 const measurer = font => (t, size, weight = 400) => {
-  cv = cv || document.createElement('canvas').getContext('2d')
-  cv.font = `${weight} ${size}px ${font}`
-  return cv.measureText(String(t)).width
+  if (!probe) {
+    const s = document.body.appendChild(document.createElementNS(NS, 'svg'))
+    s.setAttribute('class', 'dd-sr')
+    s.setAttribute('aria-hidden', 'true')
+    probe = s.appendChild(document.createElementNS(NS, 'text'))
+  }
+  probe.setAttribute('style', `font: ${weight} ${size}px ${font}; font-variant-numeric: tabular-nums`)
+  probe.textContent = String(t)
+  return probe.getComputedTextLength()
 }
 function env (o) {
   const u = o.u || 20, fs = px(u * 1.25) / 2
@@ -219,16 +226,16 @@ const yWidth = (t, f, e) => Math.ceil(most(t.ticks.map(v => e.tw(tick(v, f, t.st
 const axisY = (sy, t, x0, y0, y1, f, e) => [R(x0, y0, 1, y1 - y0 + 1, 'dd-axis'),
   t.ticks.map(v => [R(x0 - 4, px(sy(v)), 4, 1, 'dd-axis'), T(x0 - 6, px(sy(v)) + mid(e.sm), tick(v, f, t.step), e.sm, 'dd-t3', END)])]
 
-function bandsOf (m, p, d0, d1) {
+function bandsOf (m, policy, d0, d1) {
   if (m.better === 'in' && Array.isArray(m.norm)) return [[d0, m.norm[0], 1], [m.norm[0], m.norm[1], 4], [m.norm[1], d1, 1]]
-  const br = breaks(m, p)
+  const br = breaks(m, policy)
   if (!br) return []
   const edges = m.better === 'down' ? [d1, ...br, d0] : [d0, ...br, d1]
   return TONES[min(br.length, 4)].map((t, i) => [edges[i], edges[i + 1], t])
 }
-function bulletMarks (m, p, sc, y, b, fs, target = true) {
+function bulletMarks (m, policy, sc, y, b, fs, target = true) {
   const [d0, d1] = sc.d, out = [], X = v => px(sc(clamp(v, d0, d1)))
-  for (const [a, c, t] of bandsOf(m, p, d0, d1)) {
+  for (const [a, c, t] of bandsOf(m, policy, d0, d1)) {
     const x0 = X(min(a, c)), x1 = X(max(a, c))
     if (x1 > x0) out.push(R(x0, y, x1 - x0, b, 'dd-band dd-band-' + t))
   }
@@ -258,11 +265,11 @@ function sparkMarks (m, st, x, y, w, ht, o = {}) {
   const hs = (m.history || []).filter(isNum)
   if (!hs.length) return []
   const band = o.norm !== false && Array.isArray(m.norm) ? m.norm : null
-  let lo = min(...hs, ...(band || [])), hi = max(...hs, ...(band || []))
+  let lo = min(...hs), hi = max(...hs)
   if (hi === lo) { lo -= 1; hi += 1 }
-  const pad = 2.5, sy = lin(lo, hi, y + ht - pad, y + pad)
+  const pad = 2.5, sy = lin(lo, hi, y + ht - pad, y + pad), Y = v => v <= lo ? y + ht : v >= hi ? y : px(sy(v))
   const sx = i => hs.length === 1 ? x + w - pad : x + pad + i * (w - 2 * pad) / (hs.length - 1)
-  const out = band ? [R(x, px(sy(band[1])), w, px(sy(band[0])) - px(sy(band[1])), 'dd-norm dd-crisp')] : []
+  const out = band && Y(band[0]) > Y(band[1]) ? [R(x, Y(band[1]), w, Y(band[0]) - Y(band[1]), 'dd-norm dd-crisp')] : []
   if (hs.length > 1) out.push(h('path', { d: 'M' + hs.map((v, i) => `${sx(i).toFixed(1)},${sy(v).toFixed(1)}`).join('L'), class: 'dd-spark dd-mark' }))
   const end = [sx(hs.length - 1), sy(hs[hs.length - 1])], flag = o.endDot === 'always' || (o.endDot !== 'none' && DOTC[st.level])
   if (flag && DOTC[st.level]) out.push(dot(...end, 2.5, st.level))
@@ -270,17 +277,21 @@ function sparkMarks (m, st, x, y, w, ht, o = {}) {
   return out
 }
 
+const SCALES = ['pctTarget', 'shared', 'own']
 function table (input, o) {
-  const e = env(o), { fs, sm, W, tw, gap } = e, p = pol({}, e.policy)
+  const e = env(o), { fs, sm, W, tw, gap } = e, mode = o.scale || 'pctTarget'
+  if (!SCALES.includes(mode)) throw new Error(`dd.table: scale "${mode}" is unknown; use ${SCALES.join(', ')}`)
   const rows = pick(input, o.rows), cols = new Set(o.cols || ['spark', 'alert', 'label', 'graph', 'value'])
-  const pct = o.scale !== 'own', head = o.head, units = rows.some(m => m.units), lh = px(fs * 1.3)
+  const head = o.head, hw = k => head && head[k] ? tw(head[k], sm) : 0, len = v => typeof v === 'string' ? parseFloat(v) : v * e.u
+  const pct = mode === 'pctTarget', units = rows.some(m => m.units), lh = px(fs * 1.3)
   const sts = rows.map(m => state(m, e.policy)), vals = rows.map(m => fmt(m.value, m.format))
   const sw = cols.has('spark') ? clamp(px(W * 0.26), 7 * lh, 10 * lh) : 0
   const dw = cols.has('alert') ? px(fs * 1.2) : 0
-  const vw = cols.has('value') ? Math.ceil(most([...vals.map(t => tw(t, fs, 700)), head && head.value ? tw(head.value, sm) : 0])) : 0
-  const lw = cols.has('label') ? Math.ceil(clamp(most(rows.map(m => max(tw(m.label, fs), m.units ? tw(m.units, sm) : 0))), 4 * fs, W * 0.24)) : 0
-  const xl = (sw ? sw + gap : 0) + dw, gx0 = xl + (lw ? lw + gap : 0), gx1 = W - (vw ? vw + gap : 0)
-  const b = px(fs * 1.04), tk = px(fs * 0.35), graph = cols.has('graph') && gx1 - gx0 > fs * 3, own = !pct && graph
+  const vw = cols.has('value') ? Math.ceil(most([...vals.map(t => tw(t, fs, 700)), hw('value'), o.valueWidth ? len(o.valueWidth) : 0])) : 0
+  const lw = !cols.has('label') ? 0 : o.labelWidth ? px(len(o.labelWidth))
+    : Math.ceil(clamp(most([...rows.map(m => max(tw(m.label, fs), m.units ? tw(m.units, sm) : 0)), hw('label')]), 4 * fs, W * 0.24))
+  const xl = (sw ? max(sw, hw('spark')) + gap : 0) + dw, gx0 = xl + (lw ? lw + gap : 0), gx1 = W - (vw ? vw + gap : 0)
+  const b = px(fs * 1.04), tk = px(fs * 0.35), graph = cols.has('graph') && gx1 - gx0 > fs * 3, own = mode === 'own' && graph
   const asc = px(fs * 1.05), text = asc + (units ? px(sm * 1.3) : 0) + px(fs * 0.3)
   const pitch = max(px(fs * (units ? 2.3 : 1.8)), own ? max(text, b + tk + sm + 4) + px(fs * 0.6) : 0)
   const ruleY = head ? px(sm * 1.45) : 0, top = head ? ruleY + px(fs * 0.35) : 0
@@ -290,15 +301,16 @@ function table (input, o) {
     const k = bs.value, div = a => a && a.map(x => x / k)
     return { ...m, target: undefined, forecast: undefined, prior: undefined, [bs.kind]: 1, value: m.value / k, projection: isNum(m.projection) ? m.projection / k : undefined, ranges: div(m.ranges), norm: div(m.norm) }
   }
-  const rs = pct ? rows.map(ratio) : []
-  const xs = rs.filter(Boolean).flatMap(r => [r.value, r.projection]).filter(isNum)
-  const shared = pct && graph ? (o.domain ? scaleFor(o.domain[0], o.domain[1], gx1 - gx0, 'pct0', e, true) : scaleFor(min(0, ...xs), max(1.5, ...xs), gx1 - gx0, 'pct0', e)) : null
-  const sc = shared && lin(shared.lo, shared.hi, gx0, gx1)
+  const rs = pct ? rows.map(ratio) : mode === 'shared' ? rows : [], f = pct ? 'pct0' : rows.length ? rows[0].format : 'int'
+  const xs = rs.filter(Boolean).flatMap(r => [r.value, r.projection, r.target, r.forecast, r.prior]).filter(isNum)
+  const line = pct ? 1 : rows.length && rows.every(m => isNum(m.target) && m.target === rows[0].target) ? rows[0].target : null
+  const foot = rs.length && graph ? (o.domain ? scaleFor(o.domain[0], o.domain[1], gx1 - gx0, f, e, true) : scaleFor(min(0, ...xs), pct ? max(1.5, ...xs) : most(xs, 1) * 1.05, gx1 - gx0, f, e)) : null
+  const sc = foot && lin(foot.lo, foot.hi, gx0, gx1)
   const kids = []
   if (head) {
     const hy = ruleY - px(sm * 0.4)
     kids.push(R(0, ruleY, W, 1, 'dd-rule'), head.spark && sw ? T(0, hy, head.spark, sm, 'dd-t3') : null,
-      head.label && lw ? T(xl, hy, head.label, sm, 'dd-t3') : null, head.graph && graph ? T(gx0, hy, head.graph, sm, 'dd-t3') : null,
+      head.label && lw ? T(xl, hy, clip(head.label, lw, sm, 400, tw), sm, 'dd-t3') : null, head.graph && graph ? T(gx0, hy, head.graph, sm, 'dd-t3') : null,
       head.value && vw ? T(W, hy, head.value, sm, 'dd-t3', END) : null)
   }
   rows.forEach((m, i) => {
@@ -308,10 +320,10 @@ function table (input, o) {
     if (sw) g.push(sparkMarks(m, st, 0, px(cy - lh / 2), sw, lh, o))
     if (dw) g.push(dot(xl - dw / 2 - 1, cy, fs * 0.4, st.level))
     if (lw) g.push(T(xl, lb, clip(m.label, lw, fs, 400, tw), fs), m.units ? T(xl, lb + px(sm * 1.3), clip(m.units, lw, sm, 400, tw), sm, 'dd-t2') : null)
-    if (rs[i] && sc) g.push(bulletMarks(rs[i], p, sc, by, b, fs, false))
+    if (rs[i] && sc) g.push(bulletMarks(rs[i], e.policy, sc, by, b, fs, line == null))
     if (own) {
       const t = ownScale(m, gx1 - gx0, e), s = lin(t.lo, t.hi, gx0, gx1)
-      g.push(bulletMarks(m, p, s, by, b, fs), axisX(s, t, by + b, m.format, { ...e, W: gx1 }, false))
+      g.push(bulletMarks(m, e.policy, s, by, b, fs), axisX(s, t, by + b, m.format, { ...e, W: gx1 }, false))
     }
     if (vw) g.push(T(W, cy + mid(fs), vals[i], fs, 'dd-t', { ...END, ...bold(st.level) }))
     const extra = [isNum(m.target) && `target ${fmt(m.target, m.format)}`, isNum(m.projection) && `projection ${fmt(m.projection, m.format)}`]
@@ -320,14 +332,14 @@ function table (input, o) {
   let H = top + rows.length * pitch
   if (sc) {
     const ay = H + 3, y = top + px((pitch - b) / 2) - 3
-    if (shared.lo <= 1 && shared.hi >= 1) kids.push(R(px(sc(1)) - 1, y, 2, ay - y, 'dd-tgt dd-mark dd-crisp'))
-    if (o.axis !== false) { kids.push(axisX(sc, shared, ay, 'pct0', e)); H = ay + axisH(e) }
+    if (line != null && foot.lo <= line && foot.hi >= line) kids.push(R(px(sc(line)) - 1, y, 2, ay - y, 'dd-tgt dd-mark dd-crisp'))
+    if (o.axis !== false) { kids.push(axisX(sc, foot, ay, f, e)); H = ay + axisH(e) }
   }
   return svg(W, H, join(o.title, sts.map(s => s.text).join('; ')), kids, 'dd-table')
 }
 
 function bullet (input, o) {
-  const e = env(o), { fs, sm, W, tw, gap } = e, p = pol({}, e.policy)
+  const e = env(o), { fs, sm, W, tw, gap } = e
   const ms = (Array.isArray(input) ? input : [input]).map(m => norm(m, m.key)), sts = ms.map(m => state(m, e.policy))
   const b = px(e.u * 1.4), tk = px(b * 0.22), pitch = px(b * 2.35), lg = px(b * 0.45)
   const vals = ms.map(m => fmt(m.value, m.format)), dw = px(fs * 1.2)
@@ -340,7 +352,7 @@ function bullet (input, o) {
     return row(st.level, m.label, st.text, [dot(dw / 2, cy, fs * 0.4, st.level),
       T(x0 - lg, m.units ? cy - px(fs * 0.1) : cy + mid(fs), clip(m.label, lw, fs, 600, tw), fs, 'dd-t', { ...END, 'font-weight': 600 }),
       m.units ? T(x0 - lg, cy + px(sm * 1.2), clip(m.units, lw, sm, 400, tw), sm, 'dd-t2', END) : null,
-      bulletMarks(m, p, sc, y, b, fs), axisX(sc, t, y + b, m.format, { ...e, W: x1 + fs }, false, tk),
+      bulletMarks(m, e.policy, sc, y, b, fs), axisX(sc, t, y + b, m.format, { ...e, W: x1 + fs }, false, tk),
       vw ? T(right, cy + mid(fs), vals[i], fs, 'dd-t', { ...END, ...bold(st.level) }) : null])
   })
   return svg(right, (ms.length - 1) * pitch + b + tk + sm + 6, sts.map(s => s.text).join('; '), kids, 'dd-bullet')
@@ -558,17 +570,18 @@ function text (rows, o) {
   const cols = (o.cols || Object.keys(rows[0] || {})).map(c => typeof c === 'string' ? (([key, format, label]) => ({ key, format, label }))(c.split(':')) : c)
   const sts = rows.map(r => r.state || basis(r) ? state(norm(r), o.policy) : null), dots = sts.some(Boolean)
   const numeric = c => c.format || rows.some(r => isNum(r[c.key]))
-  const cls = (...xs) => xs.filter(Boolean).join(' ') || null, fill = cols.find(c => !numeric(c) && !c.wrap)
+  const cls = (...xs) => xs.filter(Boolean).join(' ') || null, fill = o.stretch == null ? cols.find(c => !numeric(c)) : cols.find(c => c.key === o.stretch)
+  if (o.stretch != null && !fill) throw new Error(`dd.text: stretch "${o.stretch}" names no column; use one of ${cols.map(c => c.key).join(', ')}`)
   const lines = s => String(s).split('\n').map(l => h('span', { style: 'display:block' }, l))
   return String(h('table', { class: 'dd-text', 'aria-label': o.title || null },
     h('thead', {}, h('tr', {}, o.rank ? h('th', { class: 'dd-num dd-rank' }) : null, dots ? h('th', { class: 'dd-dotcell' }) : null,
-      cols.map(c => h('th', { class: cls(numeric(c) && 'dd-num', c.wrap && 'dd-wrap') }, lines(c.label ?? c.key))))),
+      cols.map(c => h('th', { class: cls(numeric(c) && 'dd-num') }, lines(c.label ?? c.key))))),
     h('tbody', {}, rows.map((r, i) => {
       const lv = sts[i] && sts[i].level
       return h('tr', { 'data-dd-level': lv, 'data-dd-label': lv ? r[cols[0].key] : null, title: sts[i] && sts[i].text },
         o.rank ? h('td', { class: 'dd-num dd-rank' }, i + 1) : null,
         dots ? h('td', { class: 'dd-dotcell' }, new Raw(DOTC[lv] ? alert(lv, o) : '')) : null,
-        cols.map(c => h('td', { class: cls(numeric(c) && 'dd-num', c.wrap && 'dd-wrap', c === fill && 'dd-fill-col', DOTC[lv] && 'dd-strong'), title: c === fill ? r[c.key] : null },
+        cols.map(c => h('td', { class: cls(numeric(c) && 'dd-num', c === fill && 'dd-fill-col', c === fill && c.wrap && 'dd-wrap', DOTC[lv] && 'dd-strong'), title: c === fill ? r[c.key] : null },
           c.format ? fmt(r[c.key], c.format) : isNum(r[c.key]) ? fmt(r[c.key]) : r[c.key] ?? '')))
     }))))
 }
@@ -589,9 +602,9 @@ function legend (items, o) {
   const e = env(o), { fs, tw, gap } = e, ht = px(fs * 1.3), cy = ht / 2, s = px(fs * 0.75), kids = []
   let x = 0
   for (const it of items) {
-    const k = it.mark, w = k === 'bar' || k === 'line' ? px(s * 1.6) : k === 'target' ? 4 : s
-    const th = k === 'bar' ? max(3, px(s / 3)) : k === 'line' ? 2 : k === 'target' ? s + 2 : s
-    const cls = { bar: 'dd-bar', target: 'dd-tgt', band: `dd-band dd-band-${it.tone ?? 2}`, fill: 'dd-fill', highlight: 'dd-fill-hi', part: `dd-part-${it.tone ?? 0}`, line: `dd-part-${it.tone ?? 0}` }[k]
+    const k = it.mark, bar = k === 'bar' || k === 'projection', w = bar || k === 'line' ? px(s * 1.6) : k === 'target' ? 4 : s
+    const th = bar ? max(3, px(s / 3)) : k === 'line' ? 2 : k === 'target' ? s + 2 : s
+    const cls = { bar: 'dd-bar', projection: 'dd-proj', target: 'dd-tgt', band: `dd-band dd-band-${it.tone ?? 2}`, fill: 'dd-fill', highlight: 'dd-fill-hi', part: `dd-part-${it.tone ?? 0}`, line: `dd-part-${it.tone ?? 0}` }[k]
     kids.push(k === 'dot' ? dot(x + s / 2, cy, s * 0.45, it.level || 'alert') : cls ? R(x + (k === 'target' ? 1 : 0), px(cy - th / 2), k === 'target' ? 2 : w, th, cls) : null,
       T(x + w + 4, cy + mid(fs), it.label, fs, 'dd-t2'))
     x += w + 4 + tw(it.label, fs) + gap
