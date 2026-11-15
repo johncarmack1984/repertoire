@@ -68,7 +68,7 @@ An alert dot is one line of text across, 1.3 times the type size: 16 px at 12.5 
 
 ### Flagged rows
 
-`dd.flags('#dd-flags')` writes "2 critical · 4 warnings", with a small dot of each level before its count, or "Nothing flagged". It counts the rows the page flags, so sparkline end dots and legend swatches never count. A row counts once however many dots it has, and rows that share a measure key count as one, so a measure drawn in a table and again as a bullet counts once. Rows from `bars`, `stacked` and `text` have no key unless you give them one: give Few's paired revenue YTD and QTD rows for a region the same `key` to count the region once. A row flagged at two levels counts at the worse one. The line's `title` lists the labels at each level. Call it anywhere in the page script: it counts again whenever another mount draws.
+`dd.flags('#dd-flags')` writes "2 critical · 4 warnings", with a small dot of each level before its count, or "Nothing flagged". It counts the rows the page flags, so sparkline end dots and legend swatches never count. A row counts once however many dots it has, and rows that share a measure key count as one, so a measure drawn in a table and again as a bullet counts once. Rows from `bars`, `stacked` and `text` have no key unless you give them one. Give each measure its own key, even when two measures belong to one region, such as its revenue for the year and its quarter with pipeline, so the count matches the dots the viewer sees. A row flagged at two levels counts at the worse one. The line's `title` lists the labels at each level. Call it anywhere in the page script: it counts again whenever another mount draws.
 
 ## Helpers
 
