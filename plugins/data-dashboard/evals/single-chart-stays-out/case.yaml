@@ -1,0 +1,12 @@
+schema_version: "1.1"
+name: single-chart-stays-out
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: data-dashboard-stays-out
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?data-dashboard"'
+    min: 0
+    max: 0
+    arm: both

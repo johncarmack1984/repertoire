@@ -1,0 +1,45 @@
+schema_version: "1.1"
+name: sales-dashboard-strategic
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: wrote-the-dashboard
+    type: file_exists
+    path: sales-dashboard.html
+    weight: 2
+  - name: self-contained
+    type: regex
+    target: { source: file, path: sales-dashboard.html }
+    pattern: '<script[^>]*\ssrc\s*=|<link[^>]*\shref\s*=\s*["'']?(?:https?:)?//|url\(\s*["'']?(?:https?:)?//|@import'
+    flags: i
+    match: not_contains
+    weight: 2
+  - name: no-forbidden-media
+    type: regex
+    target: { source: file, path: sales-dashboard.html }
+    pattern: '<canvas\b|(?:linear|radial|conic)-gradient\s*\(|<(?:linear|radial)Gradient\b|box-shadow\s*:\s*(?!none\b)[^;}"''\s]|type\s*:\s*["''](?:pie|doughnut|gauge|radar|polarArea)["'']'
+    flags: i
+    match: not_contains
+    weight: 2
+  - name: no-hand-drawn-shapes
+    type: regex
+    target: { source: file, path: sales-dashboard.html }
+    pattern: '<(?:rect|circle|path)\b'
+    match: not_contains
+  - name: library-inlined
+    type: regex
+    target: { source: file, path: sales-dashboard.html }
+    pattern: 'data-dashboard:lib \d+\.\d+\.\d+'
+  - name: data-block
+    type: regex
+    target: { source: file, path: sales-dashboard.html }
+    pattern: 'id\s*=\s*["'']dd-data["'']'
+  - name: graphical-table
+    type: regex
+    target: { source: file, path: sales-dashboard.html }
+    pattern: 'id\s*=\s*["'']dd-data["''](?:(?!data-dashboard:lib)[\s\S])*?\b(?:dd|DataDashboard)\.table\s*\('
+  - name: as-of-with-zone
+    type: regex
+    target: { source: file, path: sales-dashboard.html }
+    pattern: '"asOf"\s*:\s*"\d{4}-\d\d-\d\dT\d\d:\d\d(?::\d\d)?(?:Z|[+-]\d\d:?\d\d)"|as of[^<]{0,60}\d{1,2}:\d\d[^<]{0,20}\b(?:[ECMP][SD]T|UTC|GMT|Pacific)\b'
+    flags: i

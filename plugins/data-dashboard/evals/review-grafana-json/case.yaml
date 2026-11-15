@@ -1,0 +1,26 @@
+schema_version: "1.1"
+name: review-grafana-json
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?data-dashboard"'
+  - name: file-left-alone
+    type: regex
+    target: { source: file, path: grafana/service-health.json }
+    pattern: '"type": "piechart"'
+    weight: 2
+  - name: names-the-pie
+    type: regex
+    pattern: '\bpie'
+    flags: i
+  - name: names-the-gauges
+    type: regex
+    pattern: '\bgauges?\b'
+    flags: i
+  - name: names-the-red-and-green
+    type: regex
+    pattern: '\bred\b[\s\S]{0,120}\bgreen\b|\bgreen\b[\s\S]{0,120}\bred\b'
+    flags: i
