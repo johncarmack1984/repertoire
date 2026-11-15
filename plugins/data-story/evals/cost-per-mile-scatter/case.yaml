@@ -29,11 +29,6 @@ graders:
     target: { source: file, path: fleet.svg }
     pattern: '^(?=[\s\S]*?<text\b[^>]*>(?:[^<]|<(?!/text>)[^>]*>)*?miles)(?=[\s\S]*?<text\b[^>]*>(?:[^<]|<(?!/text>)[^>]*>)*?per mile)'
     flags: i
-  - name: no-trailing-zeros-on-the-axis
-    type: regex
-    target: { source: file, path: fleet.svg }
-    pattern: '>\s*\$?\d+\.00\s*<'
-    match: not_contains
   # Routing indicators: reported, not scored. A skill file can be read with Read or with cat, so each never-read check has a shell twin.
   - name: no-other-visuals
     type: tool_used

@@ -1,5 +1,5 @@
 ---
-description: Cost per mile against miles driven, from Storytelling with Data's chapter 2 scatterplot. Thirty-four vans; the ones driven under about 1,700 or over about 3,300 miles a month cost more per mile than average, and a default scatter in one color, with gridlines and a legend, shows none of it. The chart for the route proposal should be a scatterplot with the average as a labelled reference line, the vans above it emphasized and the rest grey, both axes titled with units, and a title that states the pattern or the ask.
+description: Cost per mile against miles driven, from Storytelling with Data's chapter 2 scatterplot. Thirty-four vans; the ones driven under about 1,700 or over about 3,300 miles a month cost more per mile than average, and a default scatter in one color, with gridlines and a legend, shows none of it. The chart for the route proposal should be a scatterplot with a labelled reference (the average cost per mile, or the 1,700 to 3,300 mile range the proposal asks for), the 13 high-cost vans at both ends emphasized against the rest, both axes titled with units, and a title that states the pattern or the ask.
 tags: [behavior, chart, book-example]
 max_turns: 30
 timeout_seconds: 900
