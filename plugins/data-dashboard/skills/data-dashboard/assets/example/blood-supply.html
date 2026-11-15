@@ -1085,7 +1085,7 @@ dd.table('#week', d.measures, {rows: ['collected', 'filled', 'outdated'],
   head: {spark: 'Past 13 weeks', label: 'Measure', graph: '% of target', value: 'Actual'}})
 </script>
 <!-- /data-dashboard:page -->
-<!-- data-dashboard:lib 0.1.0 sha256:dd18b82c7581d10d6f4871d44c94ec8d9634af5e789209d27019b8bcbbb566c1 -->
+<!-- data-dashboard:lib 0.1.0 sha256:98668d8a0127b787f4e17b14dc37e216c9ce0e25369143078df25b003336eb7b -->
 <script>
 /* data-dashboard 0.1.0: Stephen Few's dashboard display media, drawn as SVG. MIT license. */
 (() => {
@@ -1469,7 +1469,7 @@ function frame (e, labels, cols, dots, top = 0) {
   const cy = i => top + i * slot + slot / 2
   const cells = (i, level, hi) => [dw ? alertDot(fs * DOT / 2, cy(i), fs, level) : null,
     T(dw, cy(i) + mid(fs), clip(labels[i], lw, fs, hi ? 600 : 400, tw), fs, 'dd-t', { 'font-weight': hi ? 600 : null }),
-    cols.map((c, k) => T(ends[k], cy(i) + mid(fs), c[i], fs, k ? 'dd-t2' : 'dd-t', { ...END, ...(k ? {} : bold(level)) }))]
+    cols.map((c, k) => T(ends[k] - EDGE, cy(i) + mid(fs), c[i], fs, k ? 'dd-t2' : 'dd-t', { ...END, ...(k ? {} : bold(level)) }))]
   return { x0, x1, slot, cy, cells, H: top + labels.length * slot }
 }
 function sortRows (rows, how) {

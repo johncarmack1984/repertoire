@@ -380,7 +380,7 @@ function frame (e, labels, cols, dots, top = 0) {
   const cy = i => top + i * slot + slot / 2
   const cells = (i, level, hi) => [dw ? alertDot(fs * DOT / 2, cy(i), fs, level) : null,
     T(dw, cy(i) + mid(fs), clip(labels[i], lw, fs, hi ? 600 : 400, tw), fs, 'dd-t', { 'font-weight': hi ? 600 : null }),
-    cols.map((c, k) => T(ends[k], cy(i) + mid(fs), c[i], fs, k ? 'dd-t2' : 'dd-t', { ...END, ...(k ? {} : bold(level)) }))]
+    cols.map((c, k) => T(ends[k] - EDGE, cy(i) + mid(fs), c[i], fs, k ? 'dd-t2' : 'dd-t', { ...END, ...(k ? {} : bold(level)) }))]
   return { x0, x1, slot, cy, cells, H: top + labels.length * slot }
 }
 function sortRows (rows, how) {
