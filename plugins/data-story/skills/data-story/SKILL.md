@@ -67,7 +67,7 @@ Done when the headings alone, read in order, make the argument; the recommendati
 
 ## 7. Words
 
-When the visual is ready, invoke the `write-with-style` skill on every line the reader will read: the prose around the visual, the headings, a chart's title, subtitle, annotations and note, and a talk's spoken lines. Table cells, axis labels and data labels stay as they are, and so does your reply to whoever asked. If `write-with-style` is already loaded, apply it without loading it again.
+When the visual is ready, invoke the `write-with-style` skill on every line the reader will read: the prose around the visual, the headings, a chart's title, subtitle, annotations and note, and a talk's spoken lines. Table cells, axis labels and data labels stay as they are, and so does your reply to whoever asked. A chart with no prose around it still goes through the pass: its title and notes are the lines read first. If `write-with-style` is already loaded, apply it without loading it again.
 
 Ask it to revise the lines rather than rewrite them, and give it:
 

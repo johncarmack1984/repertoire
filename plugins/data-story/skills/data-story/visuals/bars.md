@@ -10,6 +10,7 @@ Bars are for categories. The eye compares where the bars end, so the comparison 
 - With two series, what is adjacent gets compared, so group the bars by the comparison that matters.
 - Make the bars wider than the gaps between them.
 - Sorted by size, the end the reader should look at goes on top.
+- Keep each category its own bar, and give the ones that belong together the accent color in place. A bar that sums several categories is one the data doesn't have, and it counts anyone in two of them twice.
 - A value written on a bar goes at its end, just past the bar or just inside it.
 
 ## The model
