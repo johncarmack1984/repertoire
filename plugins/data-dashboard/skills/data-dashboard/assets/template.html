@@ -243,7 +243,7 @@ document.querySelector('#dd-asof').textContent = d.asOf ? `Data as of ${dd.asOf(
 dd.flags('#dd-flags')
 </script>
 <!-- /data-dashboard:page -->
-<!-- data-dashboard:lib 0.1.0 sha256:768a6f772ddb7d126b3cf3991ac807d072b867872dcda5d51b794df519b346d5 -->
+<!-- data-dashboard:lib 0.1.0 sha256:dd18b82c7581d10d6f4871d44c94ec8d9634af5e789209d27019b8bcbbb566c1 -->
 <script>
 /* data-dashboard 0.1.0: Stephen Few's dashboard display media, drawn as SVG. MIT license. */
 (() => {
@@ -253,7 +253,7 @@ const POLICY = { warn: 0.95, alert: 0.85 }
 const WORD = { good: 'good', ok: 'satisfactory', warn: 'warning', alert: 'critical', none: 'no comparison' }
 const DOTC = { warn: 'dd-dot-warn', alert: 'dd-dot-alert' }
 const TONES = [[4], [1, 4], [1, 2, 4], [0, 1, 2, 4], [0, 1, 2, 3, 4]]
-const END = { 'text-anchor': 'end' }
+const END = { 'text-anchor': 'end' }, EDGE = 2
 const MID = { 'text-anchor': 'middle' }
 const now = { locale: 'en-US', currency: 'USD', policy: POLICY }
 const isNum = v => typeof v === 'number' && Number.isFinite(v)
@@ -562,7 +562,7 @@ function table (input, o) {
     const hy = ruleY - px(sm * 0.4)
     kids.push(R(0, ruleY, W, 1, 'dd-rule'), head.spark && sw ? T(0, hy, head.spark, sm, 'dd-t3') : null,
       head.label && lw ? T(xl, hy, clip(head.label, lw, sm, 400, tw), sm, 'dd-t3') : null, head.graph && graph ? T(gx0, hy, clip(head.graph, W - hw('value') - gap - gx0, sm, 400, tw), sm, 'dd-t3') : null,
-      head.value && vw ? T(W, hy, head.value, sm, 'dd-t3', END) : null)
+      head.value && vw ? T(W - EDGE, hy, head.value, sm, 'dd-t3', END) : null)
   }
   rows.forEach((m, i) => {
     const st = sts[i], y0 = top + i * pitch
@@ -576,7 +576,7 @@ function table (input, o) {
       const t = ownScale(m, gx1 - gx0, e), s = lin(t.lo, t.hi, gx0, gx1)
       g.push(bulletMarks(m, e.policy, s, by, b, fs), axisX(s, t, by + b, m.format, { ...e, W: gx1 }, false))
     }
-    if (vw) g.push(T(W, cy + mid(fs), vals[i], fs, 'dd-t', { ...END, ...bold(st.level) }))
+    if (vw) g.push(T(W - EDGE, cy + mid(fs), vals[i], fs, 'dd-t', { ...END, ...bold(st.level) }))
     const extra = [isNum(m.target) && `target ${fmt(m.target, m.format)}`, isNum(m.projection) && `projection ${fmt(m.projection, m.format)}`]
     kids.push(row(st.level, m.label, [st.text, ...extra].filter(Boolean).join('; '), g, m.key))
   })
@@ -604,7 +604,7 @@ function bullet (input, o) {
       T(x0 - lg, m.units ? cy - px(fs * 0.1) : cy + mid(fs), clip(m.label, lw, fs, 600, tw), fs, 'dd-t', { ...END, 'font-weight': 600 }),
       m.units ? T(x0 - lg, cy + px(sm * 1.2), clip(m.units, lw, sm, 400, tw), sm, 'dd-t2', END) : null,
       bulletMarks(m, e.policy, sc, y, b, fs), axisX(sc, t, y + b, m.format, { ...e, W: x1 + fs }, false, tk),
-      vw ? T(right, cy + mid(fs), vals[i], fs, 'dd-t', { ...END, ...bold(st.level) }) : null], m.key)
+      vw ? T(right - EDGE, cy + mid(fs), vals[i], fs, 'dd-t', { ...END, ...bold(st.level) }) : null], m.key)
   })
   return svg(right, (ms.length - 1) * pitch + b + tk + sm + 6, sts.map(s => s.text).join('; '), kids, 'dd-bullet')
 }
