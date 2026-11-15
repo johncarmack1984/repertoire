@@ -11,3 +11,6 @@ plugins/*/evals/results/
 # build-review-lens mining output and Python caches
 lens-mining/
 __pycache__/
+
+# data-dashboard check screenshots (<page>.<W>x<H>.png)
+plugins/data-dashboard/**/*.[0-9]*x[0-9]*.png
