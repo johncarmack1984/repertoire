@@ -1,14 +1,14 @@
 # Story
 
-Step 7 in detail, for a piece with more than one visual: a report, a deck, a talk, a long PR description, a README. A list of facts invites the reader to argue with each one. A story gives them a stake in how it ends, and it is what they repeat to someone else afterwards.
+Steps 1 and 6 of the flow in `SKILL.md`, from chapter 7 of *Storytelling with Data*, "lessons in storytelling", for a piece with more than one visual: a report, a deck, a talk, a long PR description, a README. Read it at step 1 and storyboard before choosing any visual; at step 6, run the checks at the end on what you built. A list of findings invites the reader to argue with each one. A story gives them a stake in how it ends, and it is what they repeat to someone else afterwards.
 
 ## What the reader wants
 
-Start with the reader and answer each of these in a line:
+A story has a reader who wants something, something in the way, and a way through. Start with the reader and answer each of these in a line:
 
 - Where and when is this?
 - Who is it about? Make it the reader: their team, their budget, their users.
-- What do they want?
+- What do they want, in their terms: the price they have to set, the release they have to approve?
 - What changed, or what is in the way?
 - What should be true instead, and how do we get there?
 
@@ -61,16 +61,40 @@ A short phrase the reader can repeat to someone else does more than a paragraph.
 
 ## Presented live or read alone
 
-The same material needs two versions.
+The same material needs two versions (chapter 9's case on animating what you present).
 
-- Presented, the speaker controls what is seen and when. Slides stay sparse and the detail is spoken. Plan each step three ways: what is on the screen, what changed from the step before, and the sentence said aloud that leads to the next. Build one graph up in steps: the empty axes first, so the room learns how to read it, then one series or one highlight at a time. Keep the same graph and the same order of categories all the way through, and change only what is emphasized.
+- Presented, the speaker controls what is seen and when. Slides stay sparse and the detail is spoken. Plan each step three ways: what is on the screen, what changed from the step before, and the sentence said aloud that leads to the next. Write that sentence even when only the slides were asked for, because the slides are the smaller part of a talk. Build one graph up in steps: the empty axes first, so the room learns how to read it, then one series or one highlight at a time. Keep the same graph and the same order of categories all the way through, and change only what is emphasized. A new chart on each slide makes the room learn to read again.
 - Read alone, the reader controls the pace and nobody is there to explain. Use one version of the graph, annotated with what a speaker would have said, and words that say what each section means for the reader.
 
 One document doing both jobs does neither well. When there is time for one version only, make the one that will be read alone.
 
 ## A talk, worked through
 
-The third worked example in `SKILL.md`: five minutes at a roadmap review, asking the head of product to end XML export. The three sentences, the alternatives, and the objection are written there. This is the plan for each step.
+Five minutes at a live roadmap review, where the head of product decides what the next two quarters drop. The data is a year of exports by format, the support tickets about exports, and which accounts use XML. The first draft was six charts with titles such as "Exports by format" and "Tickets by category". The story notes:
+
+```
+Reader wants:  fewer support tickets without losing accounts
+In the way:    XML export, which three large accounts depend on
+Three sentences:
+  We keep three export formats alive, and export problems are the largest category in support.
+  XML is under 4% of exports and 38% of those tickets, and three accounts make 91% of the XML exports.
+  End XML export on 30 September, after building those three accounts a converter.
+Alternatives:  keep it: 157 tickets a year and two engineer-weeks a quarter go on.
+               end it now: $410k a year of renewals is at risk.
+Objection:     "those three accounts pay $410k a year". The converter ships first and takes three engineer-weeks, once.
+```
+
+The headings, each with the figures it rests on:
+
+1. We recommend ending XML export on 30 September, with a converter first. This is the ask, and it says what the five minutes will cover.
+2. Export problems are the largest category in support: 412 of 1,960 tickets last year.
+3. XML is under 4% of exports: 3,600 of 101,000 a month.
+4. It is 38% of the export tickets: 157 of 412.
+5. Three accounts make 91% of the XML exports, and they pay $410k a year.
+6. A converter for those three takes three engineer-weeks once, against two every quarter to keep XML alive.
+7. Decision today: end XML on 30 September, converter first.
+
+Each step of the talk, planned three ways:
 
 | Step | On the screen | What changed | Said aloud |
 | --: | :-- | :-- | :-- |
@@ -82,14 +106,14 @@ The third worked example in `SKILL.md`: five minutes at a roadmap review, asking
 | 6 | Two numbers: three weeks once, two weeks every quarter | | "A converter for those three takes three engineer-weeks. Keeping XML alive takes two every quarter." |
 | 7 | The ask again, with the date | | "So: end XML on 30 September, converter first. Can it go on the Q2 roadmap?" |
 
-Step 1 says what is coming. Steps 3 and 4 are the setup and the turn. Step 5 raises the objection before the room does, and step 6 answers it with the cost of each alternative. Step 7 is the ask from step 1, now with its reasons behind it.
+Step 1 says what is coming. Steps 3 and 4 are one bar chart shown twice, the setup and the turn, with XML in the accent color both times. Step 5 raises the objection before the room does, and step 6 answers it with the cost of each alternative, so the recommendation has a reason the alternatives lack. Step 7 is the ask from step 1, now with its reasons behind it.
 
-## Checks
+## Checks (step 6)
 
 - Read the headings alone, in order. They should tell the story.
 - Read each section against its heading.
 - Read the three sentences again. If the finished piece has become a different story, one of the two is wrong.
-- When the piece is finished, write down the point of each section and compare the list with the outline you started from.
+- Write down the point of each section and compare the list with the outline you started from.
 - Give it to someone who doesn't know the subject and ask what they think it says and where they got lost.
 
 ## The appendix
