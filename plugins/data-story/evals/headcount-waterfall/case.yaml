@@ -1,0 +1,67 @@
+schema_version: "1.1"
+name: headcount-waterfall
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?data-story"'
+  - name: wrote-the-chart
+    type: file_exists
+    path: headcount.svg
+    weight: 2
+  - name: start-and-end
+    type: regex
+    target: { source: file, path: headcount.svg }
+    pattern: '>\s*100\s*<[\s\S]*>\s*116\s*<'
+  - name: additions-signed
+    type: regex
+    target: { source: file, path: headcount.svg }
+    pattern: '\+\s?30[\s\S]*\+\s?8\b|\+\s?8\b[\s\S]*\+\s?30'
+  - name: losses-signed
+    type: regex
+    target: { source: file, path: headcount.svg }
+    pattern: '(−|-|–)\s?12\b[\s\S]*(−|-|–)\s?10\b|(−|-|–)\s?10\b[\s\S]*(−|-|–)\s?12\b'
+  - name: growth-in-words
+    type: regex
+    target: { source: file, path: headcount.svg }
+    pattern: '\b16\s?(%|percent)|\b16 more\b|100 to 116|from 100\b'
+    flags: i
+    weight: 2
+  - name: no-rotated-text
+    type: regex
+    target: { source: file, path: headcount.svg }
+    pattern: 'rotate\('
+    match: not_contains
+  # Routing indicators: reported, not scored. They show which of the skill's files the run read.
+  - name: read-context
+    type: tool_used
+    tool: Read
+    input_match: 'chapters/context\.md'
+    min: 1
+    arm: with-only
+  - name: read-waterfall
+    type: tool_used
+    tool: Read
+    input_match: 'visuals/waterfall\.md'
+    min: 1
+    arm: with-only
+  - name: no-other-visuals
+    type: tool_used
+    tool: Read
+    input_match: 'visuals/(?!waterfall\.md)[\w-]+\.md'
+    max: 0
+    arm: with-only
+  - name: read-chart-chapters
+    type: tool_used
+    tool: Read
+    input_match: 'chapters/(declutter|focus|design)\.md'
+    min: 3
+    arm: with-only
+  - name: words-handed-off
+    type: tool_used
+    tool: Skill
+    input_match: 'write-with-style'
+    min: 1
+    arm: with-only

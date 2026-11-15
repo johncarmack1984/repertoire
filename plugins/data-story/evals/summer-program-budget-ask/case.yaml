@@ -51,3 +51,28 @@ graders:
     target: { source: file, path: budget-request.md }
     pattern: '\b100\b[^\n]*(student|kid|child|participant|pupil)|(student|kid|child|participant|pupil)[^\n]*\b100\b'
     flags: i
+  # Routing indicators: reported, not scored. They show which of the skill's files the run read.
+  - name: read-context
+    type: tool_used
+    tool: Read
+    input_match: 'chapters/context\.md'
+    min: 1
+    arm: with-only
+  - name: read-simple-text-or-stacked-bars-or-bars
+    type: tool_used
+    tool: Read
+    input_match: 'visuals/(simple-text|stacked-bars|bars)\.md'
+    min: 1
+    arm: with-only
+  - name: no-other-visuals
+    type: tool_used
+    tool: Read
+    input_match: 'visuals/(?!(simple-text|stacked-bars|bars)\.md)[\w-]+\.md'
+    max: 0
+    arm: with-only
+  - name: words-handed-off
+    type: tool_used
+    tool: Skill
+    input_match: 'write-with-style'
+    min: 1
+    arm: with-only

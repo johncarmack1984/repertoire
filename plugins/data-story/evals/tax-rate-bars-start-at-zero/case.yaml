@@ -33,3 +33,28 @@ graders:
     pattern: 'zero|baseline|truncat|34\s?%|started at 34|cut off'
     flags: i
     weight: 2
+  # Routing indicators: reported, not scored. They show which of the skill's files the run read.
+  - name: read-context
+    type: tool_used
+    tool: Read
+    input_match: 'chapters/context\.md'
+    min: 1
+    arm: with-only
+  - name: read-bars-or-simple-text
+    type: tool_used
+    tool: Read
+    input_match: 'visuals/(bars|simple-text)\.md'
+    min: 1
+    arm: with-only
+  - name: no-other-visuals
+    type: tool_used
+    tool: Read
+    input_match: 'visuals/(?!(bars|simple-text)\.md)[\w-]+\.md'
+    max: 0
+    arm: with-only
+  - name: words-handed-off
+    type: tool_used
+    tool: Skill
+    input_match: 'write-with-style'
+    min: 1
+    arm: with-only
