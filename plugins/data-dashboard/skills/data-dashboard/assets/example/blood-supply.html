@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="dd-viewport" content="1440x800">
 <title>Blood supply</title>
-<!-- data-dashboard:css 0.1.0 sha256:bf94592a536e70b4619c7350a218707ad486ca1ed31cee31c5b3db0eed5aeec0 -->
+<!-- data-dashboard:css 0.1.0 sha256:09a5d5bbc0ef17a7a6ca48395bc13775fd7490f4dc1e15c0ce43eb39de097ec8 -->
 <style>
 :root {
   --dd-cols: 72;
@@ -79,6 +79,7 @@ html { background: var(--dd-bg); }
   color: var(--dd-title);
 }
 .dd-asof { margin: 0; color: var(--dd-ink-2); }
+.dd-flags { margin: 0; font-size: calc(var(--u) * 0.625); color: var(--dd-ink); }
 
 .dd-grid {
   flex: 1 1 auto;
@@ -119,7 +120,7 @@ html { background: var(--dd-bg); }
   font-size: calc(var(--u) * 0.55);
   color: var(--dd-ink-2);
 }
-.dd-foot .dd-title, .dd-foot .dd-asof { display: inline-block; margin-right: calc(var(--u) * 1); }
+.dd-foot .dd-title, .dd-foot .dd-asof, .dd-foot .dd-flags { display: inline-block; margin-right: calc(var(--u) * 1); }
 .dd-foot .dd-title { white-space: nowrap; }
 .dd-head:not(:has(*)) { display: none; }
 
@@ -197,7 +198,8 @@ html { background: var(--dd-bg); }
 .dd-text th:last-child, .dd-text td:last-child { padding-right: 0; }
 .dd-text .dd-num { text-align: right; }
 .dd-text .dd-rank { width: 1.6em; color: var(--dd-ink-3); }
-.dd-text .dd-dotcell { width: 1.2em; padding-right: 0.3em; }
+.dd-text .dd-dotcell { padding: 0 0.4em 0 0; vertical-align: middle; }
+.dd-text .dd-dotcell .dd-svg { display: block; }
 .dd-text .dd-strong { font-weight: 700; }
 .dd-text .dd-wrap { white-space: normal; }
 .dd-text .dd-fill-col { width: 100%; max-width: 0; overflow: hidden; text-overflow: ellipsis; }
@@ -245,7 +247,7 @@ html { background: var(--dd-bg); }
 <footer class="dd-foot">
 <h1 class="dd-title">Blood supply</h1>
 <p class="dd-asof" id="dd-asof"></p>
-<span class="dd-legend" id="dots-legend"></span>
+<p class="dd-flags" id="dd-flags"></p>
 </footer>
 <script type="application/json" id="dd-data">
 {
@@ -1054,6 +1056,7 @@ html { background: var(--dd-bg); }
 const dd = DataDashboard
 const d = dd.data()
 document.querySelector('#dd-asof').textContent = d.asOf ? `Data as of ${dd.asOf(d.asOf, d.tz, d.locale)}` : ''
+dd.flags('#dd-flags')
 const text = (sel, t) => { document.querySelector(sel).textContent = t }
 text('#donors-qual', `(${d.tomorrow}, vs. target)`)
 text('#expiring-qual', `(${d.expiring.units} red cell units; a Monday averages ${d.expiring.usual})`)
@@ -1080,11 +1083,9 @@ dd.text('#expiring', d.expiring.rows, {cols: ['expires::Expires', 'where::Held a
 
 dd.table('#week', d.measures, {rows: ['collected', 'filled', 'outdated'],
   head: {spark: 'Past 13 weeks', label: 'Measure', graph: '% of target', value: 'Actual'}})
-
-dd.legend('#dots-legend', [{mark: 'dot', level: 'alert', label: 'Critical'}, {mark: 'dot', level: 'warn', label: 'Warning'}])
 </script>
 <!-- /data-dashboard:page -->
-<!-- data-dashboard:lib 0.1.0 sha256:56b6f2341128b458fe41b69544924a60ba6f325e370b483efc49a363b3399ac5 -->
+<!-- data-dashboard:lib 0.1.0 sha256:4d3ec8ce0c07a2454ba58e6437a13238e5a54c9dd88f482e37030e5fb76170bc -->
 <script>
 /* data-dashboard 0.1.0: Stephen Few's dashboard display media, drawn as SVG. MIT license. */
 (() => {
@@ -1119,12 +1120,17 @@ function h (tag, attrs, ...kids) {
 const T = (x, y, s, size, cls = 'dd-t', more) => h('text', { x, y, 'font-size': size, class: cls, ...more }, s)
 const R = (x, y, w, ht, cls) => h('rect', { x, y, width: max(0, w), height: max(0, ht), class: cls })
 const dot = (cx, cy, r, level) => DOTC[level] ? h('circle', { cx, cy, r, class: DOTC[level] + ' dd-mark' }) : null
+// An alert dot is one line of text (1.3 × the type) across, so it fits a text-table row without growing it:
+// 16 px at 12.5 px type, 1.1% of a 72-column page, toward the 1.3% to 1.9% of Few's exemplars.
+const DOT = 1.3, DOTGAP = 0.4
+const alertDot = (cx, cy, fs, level) => dot(cx, cy, fs * DOT / 2, level)
+const dotCol = fs => px(fs * (DOT + DOTGAP))
 const bold = level => DOTC[level] ? { 'font-weight': 700 } : {}
-const row = (level, label, title, kids) => h('g', { 'data-dd-level': level, 'data-dd-label': level ? label : null }, h('title', {}, title), kids)
+const row = (level, label, title, kids, key) => h('g', { 'data-dd-level': level, 'data-dd-label': level ? label : null, 'data-dd-key': key }, h('title', {}, title), kids)
 const NS = 'http://www.w3.org/2000/svg'
-const svg = (W, H, label, kids, cls) => String(h('svg', {
+const svg = (W, H, label, kids, cls, style) => String(h('svg', {
   xmlns: NS, width: W, height: H, viewBox: `0 0 ${W} ${H}`,
-  role: 'img', 'aria-label': label, class: 'dd-svg ' + cls
+  role: label == null ? null : 'img', 'aria-label': label, 'aria-hidden': label == null ? 'true' : null, class: 'dd-svg ' + cls, style
 }, kids))
 
 const FORMATS = {
@@ -1357,7 +1363,8 @@ function sparkMarks (m, st, x, y, w, ht, o = {}) {
   if (hi === lo) { lo -= 1; hi += 1 }
   const pad = 2.5, sy = lin(lo, hi, y + ht - pad, y + pad), Y = v => v <= lo ? y + ht : v >= hi ? y : px(sy(v))
   const sx = i => hs.length === 1 ? x + w - pad : x + pad + i * (w - 2 * pad) / (hs.length - 1)
-  const out = band && Y(band[0]) > Y(band[1]) ? [R(x, Y(band[1]), w, Y(band[0]) - Y(band[1]), 'dd-norm dd-crisp')] : []
+  const leaves = band && hs.some(v => v < band[0] || v > band[1])
+  const out = leaves && Y(band[0]) > Y(band[1]) ? [R(x, Y(band[1]), w, Y(band[0]) - Y(band[1]), 'dd-norm dd-crisp')] : []
   if (hs.length > 1) out.push(h('path', { d: 'M' + hs.map((v, i) => `${sx(i).toFixed(1)},${sy(v).toFixed(1)}`).join('L'), class: 'dd-spark dd-mark' }))
   const end = [sx(hs.length - 1), sy(hs[hs.length - 1])], flag = o.endDot === 'always' || (o.endDot !== 'none' && DOTC[st.level])
   if (flag && DOTC[st.level]) out.push(dot(...end, 2.5, st.level))
@@ -1374,7 +1381,7 @@ function table (input, o) {
   const pct = mode === 'pctTarget', units = rows.some(m => m.units), lh = px(fs * 1.3)
   const sts = rows.map(m => state(m, e.policy)), vals = rows.map(m => fmt(m.value, m.format))
   const sw = cols.has('spark') ? clamp(px(W * 0.26), 7 * lh, 10 * lh) : 0
-  const dw = cols.has('alert') ? px(fs * 1.2) : 0
+  const dw = cols.has('alert') ? dotCol(fs) : 0
   const vw = cols.has('value') ? Math.ceil(most([...vals.map(t => tw(t, fs, 700)), hw('value'), o.valueWidth ? len(o.valueWidth) : 0])) : 0
   const lw = !cols.has('label') ? 0 : o.labelWidth ? px(len(o.labelWidth))
     : Math.ceil(clamp(most([...rows.map(m => max(tw(m.label, fs), m.units ? tw(m.units, sm) : 0)), hw('label')]), 4 * fs, W * 0.24))
@@ -1398,7 +1405,7 @@ function table (input, o) {
   if (head) {
     const hy = ruleY - px(sm * 0.4)
     kids.push(R(0, ruleY, W, 1, 'dd-rule'), head.spark && sw ? T(0, hy, head.spark, sm, 'dd-t3') : null,
-      head.label && lw ? T(xl, hy, clip(head.label, lw, sm, 400, tw), sm, 'dd-t3') : null, head.graph && graph ? T(gx0, hy, head.graph, sm, 'dd-t3') : null,
+      head.label && lw ? T(xl, hy, clip(head.label, lw, sm, 400, tw), sm, 'dd-t3') : null, head.graph && graph ? T(gx0, hy, clip(head.graph, W - hw('value') - gap - gx0, sm, 400, tw), sm, 'dd-t3') : null,
       head.value && vw ? T(W, hy, head.value, sm, 'dd-t3', END) : null)
   }
   rows.forEach((m, i) => {
@@ -1406,7 +1413,7 @@ function table (input, o) {
     const by = own ? y0 + asc - px(mid(fs) + b / 2) : px(y0 + (pitch - b) / 2)
     const cy = by + b / 2, lb = own ? y0 + asc : m.units ? cy - px(fs * 0.12) : cy + mid(fs), g = []
     if (sw) g.push(sparkMarks(m, st, 0, px(cy - lh / 2), sw, lh, o))
-    if (dw) g.push(dot(xl - dw / 2 - 1, cy, fs * 0.4, st.level))
+    if (dw) g.push(alertDot(xl - fs * (DOTGAP + DOT / 2), cy, fs, st.level))
     if (lw) g.push(T(xl, lb, clip(m.label, lw, fs, 400, tw), fs), m.units ? T(xl, lb + px(sm * 1.3), clip(m.units, lw, sm, 400, tw), sm, 'dd-t2') : null)
     if (rs[i] && sc) g.push(bulletMarks(rs[i], e.policy, sc, by, b, fs, line == null))
     if (own) {
@@ -1415,7 +1422,7 @@ function table (input, o) {
     }
     if (vw) g.push(T(W, cy + mid(fs), vals[i], fs, 'dd-t', { ...END, ...bold(st.level) }))
     const extra = [isNum(m.target) && `target ${fmt(m.target, m.format)}`, isNum(m.projection) && `projection ${fmt(m.projection, m.format)}`]
-    kids.push(row(st.level, m.label, [st.text, ...extra].filter(Boolean).join('; '), g))
+    kids.push(row(st.level, m.label, [st.text, ...extra].filter(Boolean).join('; '), g, m.key))
   })
   let H = top + rows.length * pitch
   if (sc) {
@@ -1430,18 +1437,18 @@ function bullet (input, o) {
   const e = env(o), { fs, sm, W, tw, gap } = e
   const ms = (Array.isArray(input) ? input : [input]).map(m => norm(m, m.key)), sts = ms.map(m => state(m, e.policy))
   const b = px(e.u * 1.4), tk = px(b * 0.22), pitch = px(b * 2.35), lg = px(b * 0.45)
-  const vals = ms.map(m => fmt(m.value, m.format)), dw = px(fs * 1.2)
+  const vals = ms.map(m => fmt(m.value, m.format)), dw = dotCol(fs)
   const lw = Math.ceil(clamp(most(ms.map(m => max(tw(m.label, fs, 600), m.units ? tw(m.units, sm) : 0))), 3 * fs, W * 0.35))
   const vw = o.value === false ? 0 : Math.ceil(most(vals.map(t => tw(t, fs, 700)))) + gap
   const x0 = dw + lw + lg, x1 = min(W - vw - px(fs), x0 + 13 * b), right = x1 + px(fs) + vw
   const kids = ms.map((m, i) => {
     const st = sts[i], y = i * pitch + 1, cy = y + b / 2, t = ownScale({ ...m, domain: m.domain || o.domain }, x1 - x0, e)
     const sc = lin(t.lo, t.hi, x0, x1)
-    return row(st.level, m.label, st.text, [dot(dw / 2, cy, fs * 0.4, st.level),
+    return row(st.level, m.label, st.text, [alertDot(fs * DOT / 2, cy, fs, st.level),
       T(x0 - lg, m.units ? cy - px(fs * 0.1) : cy + mid(fs), clip(m.label, lw, fs, 600, tw), fs, 'dd-t', { ...END, 'font-weight': 600 }),
       m.units ? T(x0 - lg, cy + px(sm * 1.2), clip(m.units, lw, sm, 400, tw), sm, 'dd-t2', END) : null,
       bulletMarks(m, e.policy, sc, y, b, fs), axisX(sc, t, y + b, m.format, { ...e, W: x1 + fs }, false, tk),
-      vw ? T(right, cy + mid(fs), vals[i], fs, 'dd-t', { ...END, ...bold(st.level) }) : null])
+      vw ? T(right, cy + mid(fs), vals[i], fs, 'dd-t', { ...END, ...bold(st.level) }) : null], m.key)
   })
   return svg(right, (ms.length - 1) * pitch + b + tk + sm + 6, sts.map(s => s.text).join('; '), kids, 'dd-bullet')
 }
@@ -1452,17 +1459,17 @@ function spark (input, o) {
   const tw = text ? vw + gap + e.tw(m.label, fs) : 0
   const w = px(clamp(e.W - (text ? tw + gap : 0), ht * 4, ht * 10)), y = ht / 2 + mid(fs)
   return svg(Math.ceil(text ? w + gap + tw : w), ht, st.text, row(st.level, m.label, st.text, [sparkMarks(m, st, 0, 0, w, ht, o),
-    text ? [T(w + gap, y, val, fs, 'dd-t', { 'font-weight': 700 }), T(w + gap * 2 + vw, y, m.label, fs, 'dd-t2')] : null]), 'dd-spark-svg')
+    text ? [T(w + gap, y, val, fs, 'dd-t', { 'font-weight': 700 }), T(w + gap * 2 + vw, y, m.label, fs, 'dd-t2')] : null], m.key), 'dd-spark-svg')
 }
 
 function frame (e, labels, cols, dots, top = 0) {
-  const { fs, W, tw, gap } = e, slot = px(fs * 1.8), dw = dots ? px(fs * 1.2) : 0
+  const { fs, W, tw, gap } = e, slot = px(fs * 1.8), dw = dots ? dotCol(fs) : 0
   const lw = Math.ceil(clamp(most(labels.map(l => tw(l, fs, 600))), 2 * fs, W * 0.34))
   const cw = cols.map(c => Math.ceil(most(c.map(t => tw(t, fs, 700)))))
   const x0 = dw + lw + gap, x1 = W - cw.reduce((a, w) => a + w + gap, 0) - px(fs * 0.6)
   const ends = cw.map((w, k) => x1 + px(fs * 0.6) + cw.slice(0, k + 1).reduce((a, c) => a + c + gap, 0))
   const cy = i => top + i * slot + slot / 2
-  const cells = (i, level, hi) => [dw ? dot(dw / 2 - 1, cy(i), fs * 0.4, level) : null,
+  const cells = (i, level, hi) => [dw ? alertDot(fs * DOT / 2, cy(i), fs, level) : null,
     T(dw, cy(i) + mid(fs), clip(labels[i], lw, fs, hi ? 600 : 400, tw), fs, 'dd-t', { 'font-weight': hi ? 600 : null }),
     cols.map((c, k) => T(ends[k], cy(i) + mid(fs), c[i], fs, k ? 'dd-t2' : 'dd-t', { ...END, ...(k ? {} : bold(level)) }))]
   return { x0, x1, slot, cy, cells, H: top + labels.length * slot }
@@ -1495,7 +1502,7 @@ function bars (input, o) {
     const cy = F.cy(i), by = px(cy - bh / 2), x = X(r.value)
     return row(level(r), r.label, r.st ? r.st.text : `${r.label} ${vals[i]}${pcts ? `, ${pcts[i]} of total` : ''}`, [F.cells(i, level(r), r.hi),
       isNum(r.value) ? R(min(z, x), by, Math.abs(x - z), bh, (r.hi ? 'dd-fill-hi' : 'dd-fill') + ' dd-mark dd-crisp') : null,
-      isNum(r.target) ? R(X(r.target) - 1, px(cy - bh * 0.8), 2, px(bh * 1.6), 'dd-tgt dd-mark dd-crisp') : null])
+      isNum(r.target) ? R(X(r.target) - 1, px(cy - bh * 0.8), 2, px(bh * 1.6), 'dd-tgt dd-mark dd-crisp') : null], r.key)
   })
   kids.push(R(z, 0, 1, F.H, t.lo < 0 ? 'dd-zero dd-crisp' : 'dd-axis'))
   if (o.axis !== false) kids.push(axisX(sc, t, F.H + 2, f, e))
@@ -1504,7 +1511,8 @@ function bars (input, o) {
 function barsV (input, o) {
   const e = env(o), { fs, sm, W, tw } = e, rows = barRows(input, o, 'none'), f = o.format || 'int'
   const H = px((o.height || 8) * e.u), vals = rows.map(r => fmt(r.value, f))
-  const y0 = px(sm * 1.6), y1 = H - px(sm * (rows.some(r => r.value < 0) ? 3.2 : 1.8))
+  const dh = rows.some(r => r.st) ? px(fs * DOT) + 2 : 0
+  const y0 = dh + px(sm * 1.6), y1 = H - px(sm * (rows.some(r => r.value < 0) ? 3.2 : 1.8))
   const t = zeroScale(o, rows.flatMap(r => [r.value, r.target]).filter(isNum), y1 - y0, f, e, true), x0 = yWidth(t, f, e)
   const sy = lin(t.lo, t.hi, y1, y0), Y = v => px(sy(clamp(v, t.lo, t.hi))), zy = Y(0)
   const slot = (W - 2 - x0) / max(1, rows.length), bw = max(2, px(slot * 0.56))
@@ -1515,7 +1523,7 @@ function barsV (input, o) {
       isNum(r.value) ? R(px(cx - bw / 2), min(y, zy), bw, Math.abs(zy - y), (r.hi ? 'dd-fill-hi' : 'dd-fill') + ' dd-mark dd-crisp') : null,
       isNum(r.target) ? R(px(cx - bw * 0.8), Y(r.target) - 1, px(bw * 1.6), 2, 'dd-tgt dd-mark dd-crisp') : null,
       T(cx, r.value < 0 ? y + sm + 2 : min(y, zy) - 4, vals[i], sm, 'dd-t2', { ...MID, ...bold(lv) }),
-      T(cx, H - 4, clip(r.label, slot - 2, sm, 400, tw), sm, 'dd-t3', MID), dot(cx, y0 - sm * 1.1, fs * 0.35, lv)]))
+      T(cx, H - 4, clip(r.label, slot - 2, sm, 400, tw), sm, 'dd-t3', MID), alertDot(cx, fs * DOT / 2 + 1, fs, lv)], r.key))
   })
   kids.push(R(x0, zy, W - 2 - x0, 1, t.lo < 0 ? 'dd-zero dd-crisp' : 'dd-axis'))
   return svg(W, H, join(o.title, rows.map((r, i) => `${r.label} ${vals[i]}`).join('; ')), kids, 'dd-bars')
@@ -1545,7 +1553,7 @@ function stacked (input, o) {
     let acc = 0
     const segs = x.vs.map((v, k) => { const a = px(sc(acc)); acc += v; return R(a, by, px(sc(acc)) - a, bh, `dd-part-${k} dd-mark dd-crisp`) })
     kids.push(row(x.st.level, x.r.label, `${x.st.text}; ${names.map((n, j) => `${n} ${fmt(x.vs[j], f)}`).join(', ')}`, [F.cells(i, x.st.level), segs,
-      isNum(x.r[tk]) ? R(px(sc(x.r[tk])) - 1, px(cy - bh * 0.8), 2, px(bh * 1.6), 'dd-tgt dd-mark dd-crisp') : null]))
+      isNum(x.r[tk]) ? R(px(sc(x.r[tk])) - 1, px(cy - bh * 0.8), 2, px(bh * 1.6), 'dd-tgt dd-mark dd-crisp') : null], x.r.key))
   })
   kids.push(R(px(sc(0)), top, 1, F.H - top, 'dd-axis'))
   if (o.axis !== false) kids.push(axisX(sc, t, F.H + 2, f, e))
@@ -1662,11 +1670,11 @@ function text (rows, o) {
   if (o.stretch != null && !fill) throw new Error(`dd.text: stretch "${o.stretch}" names no column; use one of ${cols.map(c => c.key).join(', ')}`)
   const lines = s => String(s).split('\n').map(l => h('span', { style: 'display:block' }, l))
   return String(h('table', { class: 'dd-text', 'aria-label': o.title || null },
-    h('thead', {}, h('tr', {}, o.rank ? h('th', { class: 'dd-num dd-rank' }) : null, dots ? h('th', { class: 'dd-dotcell' }) : null,
+    h('thead', {}, h('tr', {}, o.rank ? h('th', { class: 'dd-num dd-rank' }) : null, dots ? h('th', { class: 'dd-dotcell', style: `width:${dotCol(env(o).fs)}px` }) : null,
       cols.map(c => h('th', { class: cls(numeric(c) && 'dd-num') }, lines(c.label ?? c.key))))),
     h('tbody', {}, rows.map((r, i) => {
       const lv = sts[i] && sts[i].level
-      return h('tr', { 'data-dd-level': lv, 'data-dd-label': lv ? r[cols[0].key] : null, title: sts[i] && sts[i].text },
+      return h('tr', { 'data-dd-level': lv, 'data-dd-label': lv ? r[cols[0].key] : null, 'data-dd-key': r.key, title: sts[i] && sts[i].text },
         o.rank ? h('td', { class: 'dd-num dd-rank' }, i + 1) : null,
         dots ? h('td', { class: 'dd-dotcell' }, new Raw(DOTC[lv] ? alert(lv, o) : '')) : null,
         cols.map(c => h('td', { class: cls(numeric(c) && 'dd-num', c === fill && 'dd-fill-col', c === fill && c.wrap && 'dd-wrap', DOTC[lv] && 'dd-strong'), title: c === fill ? r[c.key] : null },
@@ -1679,9 +1687,10 @@ const ICONS = {
   check: 'M.2,.5L.42,.8L.8,.2', x: 'M.2,.2L.8,.8M.8,.2L.2,.8', asterisk: 'M.5,.18L.5,.82M.22,.34L.78,.66M.22,.66L.78,.34'
 }
 function icon (kind, o, label, cls) {
-  const s = px(env(o).fs)
+  const fs = env(o).fs, s = px(fs), d = fs * DOT
   if (cls && !ICONS[kind]) throw new Error(`dd: icon "${kind}" is unknown; use ${Object.keys(ICONS).join(', ')}`)
-  return svg(s, s, label, cls ? h('path', { d: ICONS[kind].replace(/[\d.]+/g, v => +(v * s).toFixed(2)), class: cls }) : dot(s / 2, s / 2, s * 0.4, kind), 'dd-inline')
+  if (cls) return svg(s, s, label, h('path', { d: ICONS[kind].replace(/[\d.]+/g, v => +(v * s).toFixed(2)), class: cls }), 'dd-inline')
+  return svg(d, d, label, alertDot(d / 2, d / 2, fs, kind), 'dd-inline', `vertical-align: ${+(mid(1) - DOT / 2).toFixed(2)}em`)
 }
 const alert = (level, o = {}) => icon(level, o, WORD[level] || level)
 const trend = (dir, o = {}) => icon(dir, o, `trend ${dir}`, (o.bad ? 'dd-dot-alert' : 'dd-icon') + ' dd-mark')
@@ -1690,26 +1699,54 @@ function legend (items, o) {
   const e = env(o), { fs, tw, gap } = e, ht = px(fs * 1.3), cy = ht / 2, s = px(fs * 0.75), kids = []
   let x = 0
   for (const it of items) {
-    const k = it.mark, bar = k === 'bar' || k === 'projection', w = bar || k === 'line' ? px(s * 1.6) : k === 'target' ? 4 : s
+    const k = it.mark, bar = k === 'bar' || k === 'projection', w = k === 'dot' ? px(fs * DOT) : bar || k === 'line' ? px(s * 1.6) : k === 'target' ? 4 : s
     const th = bar ? max(3, px(s / 3)) : k === 'line' ? 2 : k === 'target' ? s + 2 : s
     const cls = { bar: 'dd-bar', projection: 'dd-proj', target: 'dd-tgt', band: `dd-band dd-band-${it.tone ?? 2}`, fill: 'dd-fill', highlight: 'dd-fill-hi', part: `dd-part-${it.tone ?? 0}`, line: `dd-part-${it.tone ?? 0}` }[k]
-    kids.push(k === 'dot' ? dot(x + s / 2, cy, s * 0.45, it.level || 'alert') : cls ? R(x + (k === 'target' ? 1 : 0), px(cy - th / 2), k === 'target' ? 2 : w, th, cls) : null,
+    kids.push(k === 'dot' ? alertDot(x + w / 2, cy, fs, it.level || 'alert') : cls ? R(x + (k === 'target' ? 1 : 0), px(cy - th / 2), k === 'target' ? 2 : w, th, cls) : null,
       T(x + w + 4, cy + mid(fs), it.label, fs, 'dd-t2'))
     x += w + 4 + tw(it.label, fs) + gap
   }
   return svg(Math.ceil(x - gap), ht, items.map(i => i.label).join(', '), kids, 'dd-inline')
 }
 
+const RANK = { warn: 1, alert: 2 }
+function flagged (root = document) {
+  const rows = new Map()
+  for (const el of root.querySelectorAll('[data-dd-level]')) {
+    const level = el.getAttribute('data-dd-level'), id = el.getAttribute('data-dd-key') || el, was = rows.get(id)
+    if (!was || (RANK[level] || 0) > (RANK[was.level] || 0)) rows.set(id, { level, label: el.getAttribute('data-dd-label') || '' })
+  }
+  const out = { total: rows.size, alert: [], warn: [] }
+  for (const r of rows.values()) if (RANK[r.level]) out[r.level].push(r.label)
+  return out
+}
+function flags (rows, o) {
+  const parts = ['alert', 'warn'].map(lv => [lv, (rows[lv] || []).length]).filter(([, n]) => n)
+  if (!parts.length) return String(h('span', {}, 'Nothing flagged'))
+  const fs = env(o).fs, d = Math.ceil(fs * 0.7), pip = lv => new Raw(svg(d, d, null, dot(d / 2, d / 2, fs * 0.35, lv), 'dd-inline', 'vertical-align: 0'))
+  const said = (lv, n) => `${n} ${lv === 'alert' ? 'critical' : n === 1 ? 'warning' : 'warnings'}`
+  return String(h('span', { title: parts.map(([lv]) => `${WORD[lv][0].toUpperCase()}${WORD[lv].slice(1)}: ${rows[lv].join(', ')}`).join('. ') },
+    parts.map(([lv, n], i) => [i ? ' · ' : null, pip(lv), ' ', said(lv, n)])))
+}
+
 const ro = typeof ResizeObserver === 'function' && new ResizeObserver(es => es.forEach(en => en.target.ddRender && en.target.ddRender()))
+const counters = new Set()
+let recounting = false
+const recount = () => {
+  if (recounting || !counters.size) return
+  recounting = true
+  queueMicrotask(() => { recounting = false; counters.forEach(el => el.ddRender(true)) })
+}
 const mount = (name, draw) => (target, input, o = {}) => {
   const el = typeof target === 'string' ? document.querySelector(target) : target
   if (!el) throw new Error(`dd.${name}: nothing on the page matches ${target}`)
   let last = ''
-  el.ddRender = () => {
+  el.ddRender = force => {
     const cs = getComputedStyle(el), u = parseFloat(cs.fontSize) / 0.625, width = el.clientWidth, key = width + ' ' + u
-    if (key === last) return
+    if (key === last && !force) return
     last = key
     el.innerHTML = draw(input, { ...o, width, u, measure: measurer(cs.fontFamily) })
+    if (!counters.has(el)) recount()
   }
   el.classList.add('dd-mount')
   el.ddRender()
@@ -1822,12 +1859,8 @@ function check () {
     for (const d of ['Top', 'Right', 'Bottom', 'Left']) if (parseFloat(s[`border${d}Width`]) > 0) sat(rgba(s[`border${d}Color`]), el, 'border')
   }
   rep.colors = [...colors.values()]
-  rep.empty = [...document.querySelectorAll('.dd-mount')].filter(el => !el.querySelector('svg, table')).map(where)
-  for (const el of document.querySelectorAll('[data-dd-level]')) {
-    const lv = el.getAttribute('data-dd-level')
-    rep.rows.total++
-    if (DOTC[lv]) rep.rows[lv].push(el.getAttribute('data-dd-label') || where(el))
-  }
+  rep.empty = [...document.querySelectorAll('.dd-mount')].filter(el => !el.querySelector('svg, table') && !el.textContent.trim()).map(where)
+  rep.rows = flagged()
   try {
     const d = JSON.parse((document.getElementById('dd-data') || {}).textContent || '{}')
     rep.asOf = d.asOf || null
@@ -1846,10 +1879,16 @@ function fmtIn (v, s, locale) {
   now.locale = locale || was
   try { return fmt(v, s) } finally { now.locale = was }
 }
-const api = { version: VERSION, fmt: fmtIn, asOf, state, data, check, svg: {} }
+const api = { version: VERSION, fmt: fmtIn, asOf, state, data, check, flagged, svg: {} }
 for (const [k, f] of Object.entries(media)) {
   api.svg[k] = (input, o) => f(input, o || {})
   api[k] = mount(k, f)
+}
+api.svg.flags = (rows, o) => flags(rows, o || {})
+api.flags = (target, o) => {
+  const el = mount('flags', (_, opts) => flags(flagged(), opts))(target, null, o)
+  counters.add(el)
+  return el
 }
 const INSTEAD = { pie: 'dd.bars with pctTotal', donut: 'dd.bars with pctTotal', gauge: 'dd.bullet', radar: 'dd.bars', area: 'dd.line, or dd.stacked for parts of a whole' }
 for (const [k, use] of Object.entries(INSTEAD)) {

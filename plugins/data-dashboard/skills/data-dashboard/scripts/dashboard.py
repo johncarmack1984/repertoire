@@ -67,6 +67,7 @@ TEMPLATE = """<!doctype html>
 <header class="dd-head">
 <h1 class="dd-title">@TITLE@</h1>
 <p class="dd-asof" id="dd-asof"></p>
+<p class="dd-flags" id="dd-flags"></p>
 </header>
 <main class="dd-grid">
 <!-- One section per group:
@@ -84,6 +85,7 @@ TEMPLATE = """<!doctype html>
 const dd = DataDashboard
 const d = dd.data()
 document.querySelector('#dd-asof').textContent = d.asOf ? `Data as of ${dd.asOf(d.asOf, d.tz, d.locale)}` : ''
+dd.flags('#dd-flags')
 </script>
 <!-- /data-dashboard:page -->
 @LIB@

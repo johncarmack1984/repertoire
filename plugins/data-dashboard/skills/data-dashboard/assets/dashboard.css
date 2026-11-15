@@ -70,6 +70,7 @@ html { background: var(--dd-bg); }
   color: var(--dd-title);
 }
 .dd-asof { margin: 0; color: var(--dd-ink-2); }
+.dd-flags { margin: 0; font-size: calc(var(--u) * 0.625); color: var(--dd-ink); }
 
 .dd-grid {
   flex: 1 1 auto;
@@ -110,7 +111,7 @@ html { background: var(--dd-bg); }
   font-size: calc(var(--u) * 0.55);
   color: var(--dd-ink-2);
 }
-.dd-foot .dd-title, .dd-foot .dd-asof { display: inline-block; margin-right: calc(var(--u) * 1); }
+.dd-foot .dd-title, .dd-foot .dd-asof, .dd-foot .dd-flags { display: inline-block; margin-right: calc(var(--u) * 1); }
 .dd-foot .dd-title { white-space: nowrap; }
 .dd-head:not(:has(*)) { display: none; }
 
@@ -188,7 +189,8 @@ html { background: var(--dd-bg); }
 .dd-text th:last-child, .dd-text td:last-child { padding-right: 0; }
 .dd-text .dd-num { text-align: right; }
 .dd-text .dd-rank { width: 1.6em; color: var(--dd-ink-3); }
-.dd-text .dd-dotcell { width: 1.2em; padding-right: 0.3em; }
+.dd-text .dd-dotcell { padding: 0 0.4em 0 0; vertical-align: middle; }
+.dd-text .dd-dotcell .dd-svg { display: block; }
 .dd-text .dd-strong { font-weight: 700; }
 .dd-text .dd-wrap { white-space: normal; }
 .dd-text .dd-fill-col { width: 100%; max-width: 0; overflow: hidden; text-overflow: ellipsis; }
