@@ -494,16 +494,16 @@ EOF
 
 cat > web/products.csv <<'EOF'
 product,pct_of_revenue_this_month,pct_of_product_views_this_month
-Merino crew sweater, charcoal,12.4,9.8
-Rain shell jacket, navy,10.9,8.7
-Wool socks, 3-pack,8.6,5.1
-Down vest, olive,7.8,7.2
-Flannel shirt, red plaid,6.9,6.4
-Trail runners, gray,6.1,7.9
-Fleece pullover, oatmeal,5.4,4.6
+"Merino crew sweater, charcoal",12.4,9.8
+"Rain shell jacket, navy",10.9,8.7
+"Wool socks, 3-pack",8.6,5.1
+"Down vest, olive",7.8,7.2
+"Flannel shirt, red plaid",6.9,6.4
+"Trail runners, gray",6.1,7.9
+"Fleece pullover, oatmeal",5.4,4.6
 Canvas tote,4.2,2.9
-Corduroy pants, tan,3.7,4.4
-Pleated skirt, beige,3.1,14.8
+"Corduroy pants, tan",3.7,4.4
+"Pleated skirt, beige",3.1,14.8
 EOF
 
 cat > web/referrers.csv <<'EOF'
@@ -522,28 +522,28 @@ EOF
 
 cat > web/bought_together_not_shown_together.csv <<'EOF'
 pct_of_orders_with_both,product_1,product_2
-27,Wool socks, 3-pack,Trail runners, gray
-24,Merino crew sweater, charcoal,Corduroy pants, tan
-21,Down vest, olive,Flannel shirt, red plaid
-19,Rain shell jacket, navy,Wool socks, 3-pack
-17,Canvas tote,Fleece pullover, oatmeal
-15,Flannel shirt, red plaid,Corduroy pants, tan
-14,Pleated skirt, beige,Merino crew sweater, charcoal
-12,Trail runners, gray,Rain shell jacket, navy
-11,Fleece pullover, oatmeal,Wool socks, 3-pack
-10,Down vest, olive,Canvas tote
+27,"Wool socks, 3-pack","Trail runners, gray"
+24,"Merino crew sweater, charcoal","Corduroy pants, tan"
+21,"Down vest, olive","Flannel shirt, red plaid"
+19,"Rain shell jacket, navy","Wool socks, 3-pack"
+17,Canvas tote,"Fleece pullover, oatmeal"
+15,"Flannel shirt, red plaid","Corduroy pants, tan"
+14,"Pleated skirt, beige","Merino crew sweater, charcoal"
+12,"Trail runners, gray","Rain shell jacket, navy"
+11,"Fleece pullover, oatmeal","Wool socks, 3-pack"
+10,"Down vest, olive",Canvas tote
 EOF
 
 cat > web/shown_together_rarely_bought_together.csv <<'EOF'
 pct_of_orders_with_both,product_1,product_2
-3,Rain shell jacket, navy,Down vest, olive
-3,Merino crew sweater, charcoal,Fleece pullover, oatmeal
-2,Trail runners, gray,Canvas tote
-2,Pleated skirt, beige,Flannel shirt, red plaid
-2,Corduroy pants, tan,Trail runners, gray
-1,Wool socks, 3-pack,Pleated skirt, beige
-1,Corduroy pants, tan,Canvas tote
-1,Canvas tote,Merino crew sweater, charcoal
-0,Fleece pullover, oatmeal,Down vest, olive
-0,Trail runners, gray,Merino crew sweater, charcoal
+3,"Rain shell jacket, navy","Down vest, olive"
+3,"Merino crew sweater, charcoal","Fleece pullover, oatmeal"
+2,"Trail runners, gray",Canvas tote
+2,"Pleated skirt, beige","Flannel shirt, red plaid"
+2,"Corduroy pants, tan","Trail runners, gray"
+1,"Wool socks, 3-pack","Pleated skirt, beige"
+1,"Corduroy pants, tan",Canvas tote
+1,Canvas tote,"Merino crew sweater, charcoal"
+0,"Fleece pullover, oatmeal","Down vest, olive"
+0,"Trail runners, gray","Merino crew sweater, charcoal"
 EOF
