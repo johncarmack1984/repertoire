@@ -48,7 +48,7 @@ Either way, say which one you are doing: "the recommendation first, then how we 
 
 ## Headings
 
-- Write the headings first, as full sentences. Read alone and in order, they are the argument. A heading that is a topic ("Results", "Background") says nothing, so make it the sentence that section proves.
+- Write the headings first, as full sentences. Read alone and in order, they are the argument. A heading that is a topic ("Results", "Background") says nothing, so make it the sentence that section proves. The piece's own title follows the same rule: a storyboard, a report, or a deck is named for its ask and its reason ("Launch at $150 to $200, with the newer products"), never for what kind of document it is ("Pricing review storyboard").
 - Under each heading, write the figures it rests on. A heading that speaks for several series or years has to be true of every one of them: "every service got faster" fails if one got slower, and "under 200 ms all year" fails if March was 240.
 - A pair of headings can set up and pay off. "XML is under 4% of exports" makes the room expect a small problem, and "It is 38% of the export tickets" is the turn.
 - Everything under a heading supports that heading. Anything else moves or goes.
