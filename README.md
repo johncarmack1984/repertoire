@@ -6,7 +6,7 @@ Skills for coding agents, published as Claude Code plugins. Each is also a plain
 |---|---|
 | [`sidework`](plugins/sidework/) | Runs a task on its own branch in a git worktree beside your checkout. Leaves your checkout untouched. |
 | [`build-review-lens`](plugins/build-review-lens/) | Reads a repository's PR history to find who reviews and what passes, then writes a lens skill for each reviewer to review your branch as that maintainer would. |
-| [`data-story`](plugins/data-story/) | Puts measured numbers in front of a reader: the takeaway sentence first, then a sentence, a table or a chart, and a line on how it was measured. |
+| [`data-story`](plugins/data-story/) | Turns numbers into a point a reader gets in seconds and can act on, by answering the questions *Storytelling with Data* asks before anything is drawn. |
 
 ## Install
 
@@ -48,11 +48,13 @@ The mining script ranks reviewers by activity, weighted toward recent reviews. I
 
 ## data-story
 
-Numbers in front of a person are an argument, and a table that makes the reader do the arithmetic loses it. `data-story` loads when an agent is about to put measured numbers in a PR description, an issue, a README, a report or a reply: benchmark results, a before/after comparison, a performance claim. It picks the form first. One or two numbers go in a sentence. Values the reader will look up or compare, or more than one measure of the same thing, go in a table. A trend or a distribution goes in a chart, which the skill hands to a charting skill rather than carry chart rules of its own.
+A reader gives a page of numbers a few seconds before deciding whether to keep reading. `data-story` loads when an agent is about to put numbers in front of someone: a chart, a table, a slide, or results going into a PR description, a README, or a report. Before anything is drawn, the agent answers the questions Cole Nussbaumer Knaflic's *Storytelling with Data* asks: who is the one reader, what should they do when they finish, and what is the point in one sentence.
 
-The method comes from three books. From Cole Nussbaumer Knaflic's *Storytelling with Data*: audience and context first, the one-sentence takeaway, and the choice between simple text, a table and a graph. From Stephen Few's *Show Me the Numbers*: the table design, with the values being compared side by side, the difference computed for the reader, numbers right-aligned with one precision per column, units in the headers, repeated labels left blank to show the grouping, and nothing in the table that is not data. From Martin Kleppmann's *Designing Data-Intensive Applications*: a measurement is a distribution, so the median and the tail get reported rather than a mean, and response time is a different measure from throughput. The skill's [`reference/sources.md`](plugins/data-story/skills/data-story/reference/sources.md) says which rule came from where.
+<img src="plugins/data-story/skills/data-story/assets/storage-cost.svg" alt="Line graph of monthly cloud spend by service. Storage cost doubles after debug logging is turned on in June, while compute and network stay flat. The title asks for a 14-day retention on debug logs." width="720">
 
-What the skill produces: the takeaway sentence above the table, including what limits the result; one row per configuration in a meaningful order, with the two variants and their change side by side and time next to cost; and the method below the table, with the statistic, the run count, the spread and the machine. Its evals hand the agent raw benchmark runs and grade the PR section it writes: six configurations with wall and CPU time that belong in one table, one before/after pair that must stay a sentence, and a run set with two slow outliers where a mean would mislead.
+Then it builds. The form follows what the reader needs to see: a sentence for one or two numbers, a table for values to look up, a line for change over time, bars from zero for categories, and no pies. What doesn't help the reader is cut, the accent color goes to the data the title talks about and to nothing else, and the title says the conclusion or the ask. The chart above is one of two the skill includes as models. Before the piece goes out, the agent recomputes every number the words claim and gives it to a reader who has no context.
+
+Five of its evals are the book's own examples: the pilot science program's budget request, the ticket backlog behind a hiring request, ten design concerns of which three are noise, five products' prices leading to a recommendation, and a tax-rate chart whose axis starts at 34%. Three more are benchmark numbers for a PR: raw runs that belong in one table, one before and after that stays a sentence, and a run set with two slow outliers where a mean would mislead. The table rules still follow Stephen Few's *Show Me the Numbers* and the measurement rules Martin Kleppmann's *Designing Data-Intensive Applications*, each in its own reference file. The skill's [`reference/sources.md`](plugins/data-story/skills/data-story/reference/sources.md) maps each step to its chapter.
 
 ## Development
 

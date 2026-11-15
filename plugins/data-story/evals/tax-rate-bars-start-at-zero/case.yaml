@@ -1,0 +1,35 @@
+schema_version: "1.1"
+name: tax-rate-bars-start-at-zero
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?data-story"'
+  - name: wrote-the-chart
+    type: file_exists
+    path: top-rate-new.svg
+    weight: 2
+  - name: both-rates-shown
+    type: regex
+    target: { source: file, path: top-rate-new.svg }
+    pattern: '\b35(\.0)?\s?%[\s\S]*39\.6|39\.6[\s\S]*\b35(\.0)?\s?%'
+    weight: 2
+  - name: no-axis-starting-at-34
+    type: regex
+    target: { source: file, path: top-rate-new.svg }
+    pattern: '>\s*3[468]\s?%\s*<'
+    match: not_contains
+    weight: 2
+  - name: no-inflated-wording
+    type: regex
+    target: { source: file, path: top-rate-new.svg }
+    pattern: '>[^<]*(skyrocket|explod|soar|surg|spik)[^<]*<|460\s?%'
+    flags: i
+    match: not_contains
+  - name: says-the-axis-was-cut-off
+    type: regex
+    pattern: 'zero|baseline|truncat|34\s?%|started at 34|cut off'
+    flags: i
+    weight: 2

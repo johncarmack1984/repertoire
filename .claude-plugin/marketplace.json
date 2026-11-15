@@ -1,6 +1,6 @@
 {
   "name": "repertoire",
-  "description": "Skills for coding agents: worktrees beside the checkout, reviewer lenses mined from a repo's own review history, and numbers presented so a reader can trust them.",
+  "description": "Skills for coding agents: worktrees beside the checkout, reviewer lenses mined from a repo's own review history, and data told so a reader gets the point and can act on it.",
   "owner": {
     "name": "John Carmack",
     "url": "https://github.com/johncarmack1984"
@@ -19,7 +19,7 @@
     {
       "name": "data-story",
       "source": "./plugins/data-story",
-      "description": "Put measured numbers in front of a reader: the takeaway first, then a sentence, a table or a chart, and a line on how it was measured."
+      "description": "Turn numbers into a point a reader gets in seconds and can act on: the questions from Storytelling with Data, then the form, the clutter cut, the emphasis on the point, and the conclusion in words."
     }
   ]
 }

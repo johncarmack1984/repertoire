@@ -1,0 +1,42 @@
+schema_version: "1.1"
+name: ticket-backlog-hiring-request
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?data-story"'
+  - name: wrote-the-chart
+    type: file_exists
+    path: tickets.svg
+    weight: 2
+  - name: lines-drawn
+    type: regex
+    target: { source: file, path: tickets.svg }
+    pattern: '<(polyline|path)\b'
+  - name: lines-labelled-by-name
+    type: regex
+    target: { source: file, path: tickets.svg }
+    pattern: 'Received[\s\S]*Processed|Processed[\s\S]*Received'
+  - name: the-ask-in-words
+    type: regex
+    target: { source: file, path: tickets.svg }
+    pattern: 'approv|\bhir(e|es|ing)\b|backfill|headcount'
+    flags: i
+    weight: 2
+  - name: no-trailing-zeros-on-the-axis
+    type: regex
+    target: { source: file, path: tickets.svg }
+    pattern: '>\s*\d+\.00\s*<'
+    match: not_contains
+  - name: months-abbreviated
+    type: regex
+    target: { source: file, path: tickets.svg }
+    pattern: '>\s*(January|February|September|November|December)\s*<'
+    match: not_contains
+  - name: source-noted
+    type: regex
+    target: { source: file, path: tickets.svg }
+    pattern: 'source|dashboard'
+    flags: i

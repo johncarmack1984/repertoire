@@ -1,0 +1,28 @@
+schema_version: "1.1"
+name: pricing-story-ends-on-the-ask
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?data-story"'
+  - name: wrote-the-storyboard
+    type: file_exists
+    path: pricing-story.md
+    weight: 2
+  - name: the-recommended-range
+    type: regex
+    target: { source: file, path: pricing-story.md }
+    pattern: '\$150[\s\S]{0,40}200'
+    weight: 2
+  - name: where-the-market-is
+    type: regex
+    target: { source: file, path: pricing-story.md }
+    pattern: '\$223|\$180[\s\S]{0,40}260'
+    weight: 2
+  - name: a-line-graph
+    type: regex
+    target: { source: file, path: pricing-story.md }
+    pattern: '\bline (graph|chart)\b|\blines?\b'
+    flags: i
