@@ -31,9 +31,7 @@ function h (tag, attrs, ...kids) {
 const T = (x, y, s, size, cls = 'dd-t', more) => h('text', { x, y, 'font-size': size, class: cls, ...more }, s)
 const R = (x, y, w, ht, cls) => h('rect', { x, y, width: max(0, w), height: max(0, ht), class: cls })
 const dot = (cx, cy, r, level) => DOTC[level] ? h('circle', { cx, cy, r, class: DOTC[level] + ' dd-mark' }) : null
-// An alert dot is one line of text (1.3 × the type) across, so it fits a text-table row without growing it:
-// 16 px at 12.5 px type, 1.1% of a 72-column page, toward the 1.3% to 1.9% of Few's exemplars.
-const DOT = 1.3, DOTGAP = 0.4
+const LINE = 1.3, DOT = LINE, DOTGAP = 0.4
 const alertDot = (cx, cy, fs, level) => dot(cx, cy, fs * DOT / 2, level)
 const dotCol = fs => px(fs * (DOT + DOTGAP))
 const bold = level => DOTC[level] ? { 'font-weight': 700 } : {}
@@ -289,7 +287,7 @@ function table (input, o) {
   if (!SCALES.includes(mode)) throw new Error(`dd.table: scale "${mode}" is unknown; use ${SCALES.join(', ')}`)
   const rows = pick(input, o.rows), cols = new Set(o.cols || ['spark', 'alert', 'label', 'graph', 'value'])
   const head = o.head, hw = k => head && head[k] ? tw(head[k], sm) : 0, len = v => typeof v === 'string' ? parseFloat(v) : v * e.u
-  const pct = mode === 'pctTarget', units = rows.some(m => m.units), lh = px(fs * 1.3)
+  const pct = mode === 'pctTarget', units = rows.some(m => m.units), lh = px(fs * LINE)
   const sts = rows.map(m => state(m, e.policy)), vals = rows.map(m => fmt(m.value, m.format))
   const sw = cols.has('spark') ? clamp(px(W * 0.26), 7 * lh, 10 * lh) : 0
   const dw = cols.has('alert') ? dotCol(fs) : 0
@@ -298,7 +296,7 @@ function table (input, o) {
     : Math.ceil(clamp(most([...rows.map(m => max(tw(m.label, fs), m.units ? tw(m.units, sm) : 0)), hw('label')]), 4 * fs, W * 0.24))
   const xl = (sw ? max(sw, hw('spark')) + gap : 0) + dw, gx0 = xl + (lw ? lw + gap : 0), gx1 = W - (vw ? vw + gap : 0)
   const b = px(fs * 1.04), tk = px(fs * 0.35), graph = cols.has('graph') && gx1 - gx0 > fs * 3, own = mode === 'own' && graph
-  const asc = px(fs * 1.05), text = asc + (units ? px(sm * 1.3) : 0) + px(fs * 0.3)
+  const asc = px(fs * 1.05), text = asc + (units ? px(sm * LINE) : 0) + px(fs * 0.3)
   const pitch = max(px(fs * (units ? 2.3 : 1.8)), own ? max(text, b + tk + sm + 4) + px(fs * 0.6) : 0)
   const ruleY = head ? px(sm * 1.45) : 0, top = head ? ruleY + px(fs * 0.35) : 0
   const ratio = m => {
@@ -325,7 +323,7 @@ function table (input, o) {
     const cy = by + b / 2, lb = own ? y0 + asc : m.units ? cy - px(fs * 0.12) : cy + mid(fs), g = []
     if (sw) g.push(sparkMarks(m, st, 0, px(cy - lh / 2), sw, lh, o))
     if (dw) g.push(alertDot(xl - fs * (DOTGAP + DOT / 2), cy, fs, st.level))
-    if (lw) g.push(T(xl, lb, clip(m.label, lw, fs, 400, tw), fs), m.units ? T(xl, lb + px(sm * 1.3), clip(m.units, lw, sm, 400, tw), sm, 'dd-t2') : null)
+    if (lw) g.push(T(xl, lb, clip(m.label, lw, fs, 400, tw), fs), m.units ? T(xl, lb + px(sm * LINE), clip(m.units, lw, sm, 400, tw), sm, 'dd-t2') : null)
     if (rs[i] && sc) g.push(bulletMarks(rs[i], e.policy, sc, by, b, fs, line == null))
     if (own) {
       const t = ownScale(m, gx1 - gx0, e), s = lin(t.lo, t.hi, gx0, gx1)
@@ -365,7 +363,7 @@ function bullet (input, o) {
 }
 
 function spark (input, o) {
-  const e = env(o), { fs, gap } = e, m = norm(input, input.key), st = state(m, e.policy), ht = px(fs * 1.3)
+  const e = env(o), { fs, gap } = e, m = norm(input, input.key), st = state(m, e.policy), ht = px(fs * LINE)
   const val = fmt(m.value, m.format), vw = e.tw(val, fs, 700), text = o.text !== false
   const tw = text ? vw + gap + e.tw(m.label, fs) : 0
   const w = px(clamp(e.W - (text ? tw + gap : 0), ht * 4, ht * 10)), y = ht / 2 + mid(fs)
@@ -607,7 +605,7 @@ const alert = (level, o = {}) => icon(level, o, WORD[level] || level)
 const trend = (dir, o = {}) => icon(dir, o, `trend ${dir}`, (o.bad ? 'dd-dot-alert' : 'dd-icon') + ' dd-mark')
 const mark = (kind, o = {}) => icon(kind, o, kind, 'dd-icon-line')
 function legend (items, o) {
-  const e = env(o), { fs, tw, gap } = e, ht = px(fs * 1.3), cy = ht / 2, s = px(fs * 0.75), kids = []
+  const e = env(o), { fs, tw, gap } = e, ht = px(fs * LINE), cy = ht / 2, s = px(fs * 0.75), kids = []
   let x = 0
   for (const it of items) {
     const k = it.mark, bar = k === 'bar' || k === 'projection', w = k === 'dot' ? px(fs * DOT) : bar || k === 'line' ? px(s * 1.6) : k === 'target' ? 4 : s
@@ -815,6 +813,6 @@ if (typeof document !== 'undefined') {
     layout()
     document.querySelectorAll('.dd-mount').forEach(el => el.ddRender && el.ddRender())
   })
-  if (/[?&]dd-check\b/.test(location.search)) addEventListener('load', () => setTimeout(check, 300))
+  if (/[?&]dd-check\b/.test(location.search)) addEventListener('load', () => document.fonts.ready.then(check))
 }
 })()

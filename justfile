@@ -13,7 +13,7 @@ lint:
     python3 -m py_compile plugins/build-review-lens/skills/build-review-lens/scripts/mine_reviews.py
     python3 -m py_compile plugins/data-dashboard/skills/data-dashboard/scripts/dashboard.py
 
-# Check data-dashboard's own pages: each inlined library matches assets/, and each page fits one screen in headless Chrome.
+# Check data-dashboard's own pages: each inlined library matches assets/, and the test and example pages fit one screen in headless Chrome.
 dashboards:
     #!/usr/bin/env bash
     set -euo pipefail
