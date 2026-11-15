@@ -1,5 +1,7 @@
 schema_version: "1.1"
 name: refine-boxed-pie-dashboard
+plugins:
+  - ../..
 context:
   scaffold_script: scaffold.sh
 graders:
