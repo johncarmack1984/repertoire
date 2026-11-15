@@ -1,0 +1,21 @@
+{
+  "name": "data-dashboard",
+  "version": "0.1.0",
+  "description": "Build, refine, and review dashboards the way Stephen Few's Information Dashboard Design teaches: one screen read at a glance, every measure against its comparison, bullet graphs and sparklines, and color only for what needs attention.",
+  "author": {
+    "name": "John Carmack",
+    "url": "https://github.com/johncarmack1984"
+  },
+  "homepage": "https://github.com/johncarmack1984/repertoire/tree/main/plugins/data-dashboard",
+  "repository": "https://github.com/johncarmack1984/repertoire",
+  "license": "MIT",
+  "keywords": [
+    "dashboards",
+    "data-visualization",
+    "bullet-graphs",
+    "sparklines",
+    "kpi",
+    "monitoring",
+    "stephen-few"
+  ]
+}

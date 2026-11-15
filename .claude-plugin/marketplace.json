@@ -1,6 +1,6 @@
 {
   "name": "repertoire",
-  "description": "Skills for coding agents: worktrees beside the checkout, reviewer lenses mined from a repo's own review history, data told so a reader gets the point and can act on it, and prose written by Strunk's rules.",
+  "description": "Skills for coding agents: worktrees beside the checkout, reviewer lenses mined from a repo's own review history, data told so a reader gets the point and can act on it, dashboards read at a glance, and prose written by Strunk's rules.",
   "owner": {
     "name": "John Carmack",
     "url": "https://github.com/johncarmack1984"
@@ -20,6 +20,11 @@
       "name": "data-story",
       "source": "./plugins/data-story",
       "description": "Turn numbers into a point a reader gets in seconds and can act on: Storytelling with Data's lessons in order, one visual picked for the reader, and the words run through write-with-style."
+    },
+    {
+      "name": "data-dashboard",
+      "source": "./plugins/data-dashboard",
+      "description": "Build, refine, and review dashboards the way Stephen Few's Information Dashboard Design teaches: one screen read at a glance, every measure against its comparison, bullet graphs and sparklines, and color only for what needs attention."
     },
     {
       "name": "write-with-style",
