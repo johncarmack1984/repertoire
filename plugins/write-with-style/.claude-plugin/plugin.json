@@ -1,6 +1,6 @@
 {
   "name": "write-with-style",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Write and edit prose by Strunk's The Elements of Style (1918): the point first, a topic sentence to open each paragraph, definite sentences in the active voice, and no needless words.",
   "author": {
     "name": "John Carmack",
