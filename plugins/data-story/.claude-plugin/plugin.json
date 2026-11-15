@@ -10,7 +10,7 @@
   "repository": "https://github.com/johncarmack1984/repertoire",
   "license": "MIT",
   "dependencies": [
-    "write-with-style"
+    "write-with-style@repertoire"
   ],
   "keywords": [
     "storytelling-with-data",
