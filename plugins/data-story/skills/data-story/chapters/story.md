@@ -35,7 +35,7 @@ The alternatives and the objection get skipped, and a skeptical reader looks for
 
 ## The end is the ask
 
-Say exactly what you want done and by when, and tie it to the problem the piece opened with.
+Say exactly what you want done and by when, and tie it to the problem the piece opened with. State it as the action the reader takes: "End XML export on 30 September", "Approve two hires". "We recommend" leaves the reader asking who "we" is.
 
 ## Order
 
@@ -86,7 +86,7 @@ Objection:     "those three accounts pay $410k a year". The converter ships firs
 
 The headings, each with the figures it rests on:
 
-1. We recommend ending XML export on 30 September, with a converter first. This is the ask, and it says what the five minutes will cover.
+1. End XML export on 30 September, with a converter first. This is the ask, and it says what the five minutes will cover.
 2. Export problems are the largest category in support: 412 of 1,960 tickets last year.
 3. XML is under 4% of exports: 3,600 of 101,000 a month.
 4. It is 38% of the export tickets: 157 of 412.
@@ -112,6 +112,8 @@ Step 1 says what is coming. Steps 3 and 4 are one bar chart shown twice, the set
 
 - Read the headings alone, in order. They should tell the story.
 - Read each section against its heading.
+- Find the alternatives the reader will weigh. Each is on the page with what the data says about it, and the recommendation has a reason they lack.
+- Find the number that cuts against the recommendation. It is on the page where the reader would raise it, with its answer beside it. A weak spot named and left unanswered is the objection the room will raise.
 - Read the three sentences again. If the finished piece has become a different story, one of the two is wrong.
 - Write down the point of each section and compare the list with the outline you started from.
 - Give it to someone who doesn't know the subject and ask what they think it says and where they got lost.

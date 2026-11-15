@@ -9,10 +9,10 @@ Step 5 of the flow in `SKILL.md`, from chapter 5 of *Storytelling with Data*, "t
 
 ## Words
 
-- If they read only the title, do they have the point? The title is the Big Idea or the ask, as a sentence: "Please approve two hires", "The cache cuts p99 latency by a third". The label for what is plotted ("Ticket volume over time") goes under it, smaller.
+- If they read only the title, do they have the point? When the reader has something to decide or approve, the title is the ask, and the line under it is the Big Idea as its reason: "Please approve two hires", then "Tickets have outpaced the team every month since two people left in May". With nothing to decide, the title is the Big Idea: "The cache cuts p99 latency by a third". The label for what is plotted ("Ticket volume over time") goes under them, smaller.
 - Say the conclusion in words. Two people looking at the same chart will not reach the same one on their own.
 - Is everything labelled in the reader's words? Every chart gets a title, and every axis a title or values on the data. Plain words, units written out, acronyms spelled out once, and one name for one thing all the way through.
-- Is the reason written next to the evidence? Put a short note on the data where the thing happened: "two people left in May". A note beside the data also explains a caveat, or why this point is highlighted.
+- Is the reason written next to the evidence? Put a short note on the data where the thing happened: one line, above or beside that point, where the eye passes on its way in: "two people left in May". The note says what happened; what followed belongs in the title or the line under it. A note beside the data also explains a caveat, or why this point is highlighted.
 - Where did the numbers come from? A small line at the bottom: the source, the dates, how many, how it was measured, and what more is available. For numbers you measured, that line gives the statistic (medians, not means), how many runs and in what order, the spread, and the machine, as `reference/measurements.md` describes.
 
 Step 7 hands these lines to `write-with-style` once the visual is ready, so write them to say the right thing here and leave the polish to that pass.

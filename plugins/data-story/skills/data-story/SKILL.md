@@ -26,7 +26,7 @@ Visual:    the chooser's row, and why not the row above it
 
 Chapter 1. Read `chapters/context.md`. When the numbers are runs someone measured (benchmarks, timings, latency), read `reference/measurements.md` as well. When the piece will hold more than one visual, or is a deck, a talk or a long report, read `chapters/story.md` too and storyboard it now: its headings come before any visual.
 
-Done when the brief's first five lines are written, "after reading this, the reader will ..." completes with a named reader and a verb, and a piece with a story has its headings written as sentences.
+Done when `chapters/context.md` is read, the brief's first five lines are written, "after reading this, the reader will ..." completes with a named reader and a verb, and a piece with a story has its headings written as sentences.
 
 ## 2. Choose a visual
 
@@ -57,13 +57,13 @@ Chapters 3 to 5, one pass each. These steps are for a chart: a sentence or a tab
 
 3. **Declutter.** Read `chapters/declutter.md`. Done when removing one more element would lose information.
 4. **Focus.** Read `chapters/focus.md`. Done when, looking away and back, the eye goes first to what the Big Idea is about.
-5. **Design.** Read `chapters/design.md`, and `reference/chart-defaults.md` before drawing. Done when the title states the Big Idea or the ask, everything is labelled in the reader's words, and a note says where the numbers came from. The visual is ready.
+5. **Design.** Read `chapters/design.md`, and `reference/chart-defaults.md` before drawing. Done when the title states the ask, or the Big Idea when the reader has nothing to decide, everything is labelled in the reader's words, and a note says where the numbers came from. The visual is ready.
 
 ## 6. Story
 
 Chapter 7, for a piece with more than one visual, a deck, a talk or a long report. You storyboarded it in step 1; now run the checks at the end of `chapters/story.md` on what you built.
 
-Done when the headings alone, read in order, make the argument, everything under each heading supports it, and the last heading is the ask. For a talk, every step also has the sentence said with it.
+Done when the headings alone, read in order, make the argument; the recommendation has a reason the alternatives lack; the number that cuts against it is raised where the reader would raise it and answered there; everything under each heading supports it; and the last heading is the ask. For a talk, every step also has the sentence said with it.
 
 ## 7. Words
 
@@ -72,12 +72,12 @@ When the visual is ready, invoke the `write-with-style` skill on every line the 
 Ask it to revise the lines rather than rewrite them, and give it:
 
 - the brief's Reader, Ask and Big Idea, which answer its first step;
-- the lines, each marked with where it sits, and how much room a chart's text has;
-- what it must keep as it is: every number with its unit, sign and precision; the facts in the method line; each condition and limit ("at -j1", "cause not found"); the number that cuts against the point; the Big Idea and the ask, the Big Idea first and the ask last; a forecast or a cost of doing nothing that the data supports, with its basis ("at this rate the backlog passes 500 in March, on a straight line through the last five months"); every name that matches a chart label or a table header.
+- the lines, each marked with where it sits and how much room it has. Each stays a separate line in its place: a note on a chart is revised where it is and never merged into a paragraph;
+- what it must keep as it is: every number with its unit, sign and precision; the facts in the method line; each condition and limit ("at -j1", "cause not found"); the number that cuts against the point, and its answer; the Big Idea and the ask, the Big Idea first and the ask last; a forecast or a cost of doing nothing that the data supports, with its basis ("at this rate the backlog passes 500 in March, on a straight line through the last five months"); every name that matches a chart label or a table header.
 
 Put each revised line back where it came from, and render a chart again. If `write-with-style` isn't installed, go on to step 8: the earlier steps have already cut the prose.
 
-Done when every number in the draft is in the revision, unchanged.
+Done when `write-with-style`, where it's installed, has revised every line, and every number in the draft is in the revision, unchanged.
 
 ## 8. Check it as the reader
 
