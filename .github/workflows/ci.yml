@@ -34,6 +34,8 @@ jobs:
         run: |
           python3 -m py_compile plugins/build-review-lens/skills/build-review-lens/scripts/mine_reviews.py
           python3 plugins/build-review-lens/skills/build-review-lens/scripts/mine_reviews.py --help > /dev/null
+      - name: Compile the dashboard check
+        run: python3 -m py_compile plugins/data-dashboard/skills/data-dashboard/scripts/dashboard.py
       - name: Build every eval fixture
         run: |
           for scaffold in plugins/*/evals/*/scaffold.sh; do
@@ -41,6 +43,15 @@ jobs:
             (cd "$workspace" && bash "$GITHUB_WORKSPACE/$scaffold")
             echo "built $(dirname "$scaffold")"
           done
+
+  dashboards:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4
+      - name: Check data-dashboard's pages in headless Chrome
+        run: just dashboards
 
   nesting-lab:
     runs-on: ubuntu-latest
