@@ -33,7 +33,7 @@ Read the mode from the request. With no data and no dashboard to work from, ask 
 
   A screen that serves two roles takes the design of the more urgent one, and the other's group goes where it gets the least emphasis, the bottom right.
 - Which objectives does it serve? A measure that serves none doesn't go on the screen.
-- Where is it read, and how often? The default screen is a laptop browser, 1440 by 800 CSS px. A wall display or a large monitor changes it. A phone gets the page's one-column reflow, not a design of its own.
+- Where is it read, and how often? Design for the default screen, a laptop browser at 1440 by 800 CSS px. The page scales whole to fill any desktop screen, so a 1920 by 1080 monitor or a wall display shows the same page with larger type. Pass a larger `--viewport` only when the measures need more room than the default holds, since its type then stays laptop-sized on the bigger screen. A phone gets the page's one-column reflow, not a design of its own.
 - As of when? Give the time with its zone, at the precision the update cadence needs, never to the second.
 
 Take the answers from the request, the files, and their notes. Ask only when a wrong guess would change the dashboard, and state the assumptions in the report. Write the brief down before touching the data, and fill its Medium and Group columns at steps 4 and 5. It is working notes, never part of the page:
@@ -86,7 +86,7 @@ Done when nothing on the left-out list is used and every difference between medi
 ### 5. Arrangement
 
 - Group by business function, entity, or use, in three to nine groups, closer to four.
-- Put the always-important group in the top left, and keep the bottom right for what matters least. Never spend the top left on a logo, a title block, or controls. On an operational screen the title moves to the footer.
+- Put the always-important group in the top left, and keep the bottom right for what matters least. Never spend the top left on a logo or controls. A strategic or analytical screen keeps its title in a thin header strip, as Few's sales and marketing dashboards do; only an operational screen, watched all day for what needs action now, moves the title to the footer, as his telesales dashboard does.
 - Put what is compared side by side on one scale, and line up the rows of sections that share categories.
 - Separate groups with white space. Hairlines go under section titles and column headers only, never around a section.
 - Where history matters, show recent time finely and older time coarsely, such as this month by day beside the last 12 months by month.
@@ -126,7 +126,7 @@ dd.table('#stock', d.measures, {rows: ['oNeg', 'oPos', 'aNeg', 'aPos'], scale: '
 dd.legend('#stock-legend', [{mark: 'bar', label: 'On hand'}, {mark: 'target', label: 'Target'}])
 ```
 
-A graphical table's `scale` is `'pctTarget'` by default, every row as a percent of its target on one axis, which suits measures in different units. Rows in one unit, such as days of supply, take `'shared'`, one axis in that unit. On an operational screen, move `h1.dd-title` and `p.dd-asof` from the header into `footer.dd-foot`; the styles handle the rest.
+A graphical table's `scale` is `'pctTarget'` by default, every row as a percent of its target on one axis, which suits measures in different units. Rows in one unit, such as days of supply, take `'shared'`, one axis in that unit. The template's header holds the title, the as-of line, and `p.dd-flags`, where `dd.flags('#dd-flags')` counts what the page flags, such as "2 critical · 4 warnings", so a glance says whether to act. On an operational screen, move all three into `footer.dd-foot`; the styles handle the rest.
 
 `reference/api.md` gives every call, option, and data field, and the library's errors name the fix when a call is wrong. Draw nothing by hand: no `<svg>` shapes, no `<canvas>`, no chart library, nothing loaded from the network. The page opens from a file with no connection.
 

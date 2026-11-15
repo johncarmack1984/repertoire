@@ -52,7 +52,7 @@ Few invented the bullet graph to replace gauges and meters. It shows one key mea
 
 Tufte's word-sized line gives a measure its history without a scale. Use it beside a current value whenever the trend or the volatility matters, and in place of an up or down arrow, which never says what period it covers. Avoid it when the viewer needs values off the line. "Sparklines are not meant to provide the quantitative precision of a normal line graph."
 
-- It is one line of text tall and 8 to 11 times as wide, with a 1.5 px stroke and no axis or grid. A light gray `norm` band marks the acceptable range, so points outside it stand out. An end dot appears only when the measure alerts, in the alert color. The value sits as text to the right, and the column header states the window ("Past 12 months").
+- It is one line of text tall and 8 to 11 times as wide, with a 1.5 px stroke and no axis or grid. A light gray `norm` band marks the acceptable range when the line leaves it, so the points outside stand out; a line that stays inside its range gets no band, since the band would only fill the plot. An end dot appears only when the measure alerts, in the alert color. The value sits as text to the right, and the column header states the window ("Past 12 months").
 - `dd.spark("#defects", d.measures.defects)`
 
 ### Bars
