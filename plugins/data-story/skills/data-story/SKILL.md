@@ -73,7 +73,7 @@ Ask it to revise the lines rather than rewrite them, and give it:
 
 - the brief's Reader, Ask and Big Idea, which answer its first step;
 - the lines, each marked with where it sits, and how much room a chart's text has;
-- what it must keep as it is: every number with its unit, sign and precision; the facts in the method line; each condition and limit ("at -j1", "cause not found"), which rules against hedging and needless words would otherwise cut; the number that cuts against the point; the Big Idea first and the ask last; every name that matches a chart label or a table header.
+- what it must keep as it is: every number with its unit, sign and precision; the facts in the method line; each condition and limit ("at -j1", "cause not found"); the number that cuts against the point; the Big Idea and the ask, the Big Idea first and the ask last; a forecast or a cost of doing nothing that the data supports, with its basis ("at this rate the backlog passes 500 in March, on a straight line through the last five months"); every name that matches a chart label or a table header.
 
 Put each revised line back where it came from, and render a chart again. If `write-with-style` isn't installed, go on to step 8: the earlier steps have already cut the prose.
 
