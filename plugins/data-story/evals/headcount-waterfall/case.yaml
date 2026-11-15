@@ -29,7 +29,7 @@ graders:
   - name: growth-in-words
     type: regex
     target: { source: file, path: headcount.svg }
-    pattern: '<text\b[^>]*>(?:[^<]|<(?!/text>)[^>]*>)*?(?:\b16\s?(%|percent)|\b16 more\b|100 to 116|from 100\b)'
+    pattern: '<text\b[^>]*>(?:[^<]|<(?!/text>)[^>]*>)*?(?:\b16\s?(%|percent)|\+\s?16\b|\bup (by )?16\b|\b16 (more|people|net)\b|\b(grew|rose|increased|climbed) (by )?16\b|\b(grew|rose|increased|climbed|up) to 116\b|\b100 to 116\b|\bfrom 100\b)'
     flags: i
     weight: 2
   - name: no-rotated-text

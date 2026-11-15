@@ -54,7 +54,7 @@ The material is the section "Describing Performance": in the first edition under
 
 ## The worked example's method
 
-These rules come from rebuilding the table in the worked example in `visuals/table.md`, not from the books: the takeaway sentence carries what limits the result; one row per configuration, grouped and then ordered by the swept condition; the change in time next to the change in cost, each with its own Δ; the statistic, the run count, the spread and the machine in a line below the table; interleaved runs; an overlap statement as the spread; a difference inside the spread reported as no measurable difference; slow runs reported rather than dropped.
+These rules are this skill's own, first worked out by rebuilding a benchmark table and now shown in the worked example in `visuals/table.md`, not taken from the books: the takeaway sentence carries what limits the result; one row per configuration, grouped and then ordered by the swept condition; the change in time next to the change in cost, each with its own Δ; the statistic, the run count, the spread and the machine in a line below the table; interleaved runs; an overlap statement as the spread; a difference inside the spread reported as no measurable difference; slow runs reported rather than dropped.
 
 ## The evals
 

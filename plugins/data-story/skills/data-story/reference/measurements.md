@@ -26,5 +26,5 @@ A measurement is a distribution of runs, not a number. A report the reader can t
 
 ## Claims
 
-- Claim only what the runs show: the configurations measured, on the machine measured. A result that holds under a condition ("at -j1", "with the cache warm") carries the condition in the takeaway sentence.
+- Claim only what the runs show: the configurations measured, on the machine measured. A result that holds under a condition ("for large images", "with the cache warm") carries the condition in the takeaway sentence.
 - Say what limits the result before the reader finds it: the configuration where the win shrinks, the one not measured, the cold run.
