@@ -1,6 +1,6 @@
 {
   "name": "repertoire",
-  "description": "Skills for coding agents: worktrees beside the checkout, reviewer lenses mined from a repo's own review history, and data told so a reader gets the point and can act on it.",
+  "description": "Skills for coding agents: worktrees beside the checkout, reviewer lenses mined from a repo's own review history, data told so a reader gets the point and can act on it, and prose written by Strunk's rules.",
   "owner": {
     "name": "John Carmack",
     "url": "https://github.com/johncarmack1984"
@@ -20,6 +20,11 @@
       "name": "data-story",
       "source": "./plugins/data-story",
       "description": "Turn numbers into a point a reader gets in seconds and can act on: the questions from Storytelling with Data, then the form, the clutter cut, the emphasis on the point, and the conclusion in words."
+    },
+    {
+      "name": "write-with-style",
+      "source": "./plugins/write-with-style",
+      "description": "Write and edit prose by Strunk's The Elements of Style (1918): the point first, a topic sentence to open each paragraph, definite sentences in the active voice, and no needless words."
     }
   ]
 }

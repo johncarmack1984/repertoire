@@ -1,0 +1,94 @@
+schema_version: "1.1"
+name: tighten-a-pr-draft
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?write-with-style"'
+  - name: wrote-the-body
+    type: file_exists
+    path: pr-body.md
+    weight: 2
+  - name: under-two-thirds-of-the-draft
+    type: regex
+    target: { source: file, path: pr-body.md }
+    pattern: '^[\s\S]{800,}'
+    match: not_contains
+    weight: 2
+  - name: no-the-fact-that
+    type: regex
+    target: { source: file, path: pr-body.md }
+    pattern: 'the fact that'
+    flags: i
+    match: not_contains
+  - name: no-noting-preamble
+    type: regex
+    target: { source: file, path: pr-body.md }
+    pattern: 'worth noting|should be noted|important to note'
+    flags: i
+    match: not_contains
+  - name: no-one-of-the-most
+    type: regex
+    target: { source: file, path: pr-body.md }
+    pattern: 'one of the most'
+    flags: i
+    match: not_contains
+  - name: no-very
+    type: regex
+    target: { source: file, path: pr-body.md }
+    pattern: '\bvery\b'
+    flags: i
+    match: not_contains
+  - name: no-hedge
+    type: regex
+    target: { source: file, path: pr-body.md }
+    pattern: '\bpotentially\b|\bshould\s+(potentially\s+)?reduce\b'
+    flags: i
+    match: not_contains
+  - name: no-unmeasured-impact
+    type: regex
+    target: { source: file, path: pr-body.md }
+    pattern: 'fewer failed|number of failed'
+    flags: i
+    match: not_contains
+    weight: 2
+  - name: no-in-order-to
+    type: regex
+    target: { source: file, path: pr-body.md }
+    pattern: 'in order to'
+    flags: i
+    match: not_contains
+  - name: no-respectively
+    type: regex
+    target: { source: file, path: pr-body.md }
+    pattern: 'respectively'
+    flags: i
+    match: not_contains
+  - name: no-closing-recap
+    type: regex
+    target: { source: file, path: pr-body.md }
+    pattern: '^\s*(in summary|overall|to summarize|in short)\b'
+    flags: im
+    match: not_contains
+  - name: keeps-the-backoff
+    type: regex
+    target: { source: file, path: pr-body.md }
+    pattern: '200\s?ms'
+  - name: keeps-the-status-codes
+    type: regex
+    target: { source: file, path: pr-body.md }
+    pattern: '502[\s\S]*503[\s\S]*504'
+  - name: keeps-the-issue
+    type: regex
+    target: { source: file, path: pr-body.md }
+    pattern: '#142'
+  - name: keeps-the-option
+    type: regex
+    target: { source: file, path: pr-body.md }
+    pattern: 'max_retries'
+  - name: keeps-the-post-exception
+    type: regex
+    target: { source: file, path: pr-body.md }
+    pattern: '\bPOST\b'

@@ -9,10 +9,10 @@ validate:
 
 # Lint the shell scripts and the eval scaffolds, and compile the lens miner.
 lint:
-    shellcheck -x plugins/sidework/scripts/*.sh plugins/sidework/evals/_fixtures/lib.sh plugins/sidework/evals/*/scaffold.sh plugins/data-story/evals/*/scaffold.sh
+    shellcheck -x plugins/sidework/scripts/*.sh plugins/sidework/evals/_fixtures/lib.sh plugins/*/evals/*/scaffold.sh
     python3 -m py_compile plugins/build-review-lens/skills/build-review-lens/scripts/mine_reviews.py
 
-# Run a plugin's eval suite (sidework and data-story have one). Each case's scaffold runs as you and the agent gets a shell.
+# Run a plugin's eval suite (sidework, data-story, and write-with-style have one). Each case's scaffold runs as you and the agent gets a shell.
 eval plugin *args:
     claude plugin eval plugins/{{plugin}} --scaffold --allow-tools Bash Edit Write {{args}}
 

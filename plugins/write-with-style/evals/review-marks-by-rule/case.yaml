@@ -1,0 +1,37 @@
+schema_version: "1.1"
+name: review-marks-by-rule
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?write-with-style"'
+  - name: wrote-the-review
+    type: file_exists
+    path: review.md
+    weight: 2
+  - name: page-left-untouched
+    type: regex
+    target: { source: file, path: docs/overview.md }
+    pattern: 'Having installed the binary, the config file must be created at the workspace root before the first run\. `tidy` reads the config once per run, it never caches it between runs\.'
+    weight: 2
+  - name: marks-the-dangling-participle
+    type: regex
+    target: { source: file, path: review.md }
+    pattern: 'Having installed'
+  - name: marks-less-for-fewer
+    type: regex
+    target: { source: file, path: review.md }
+    pattern: '\bfewer\b'
+    flags: i
+  - name: marks-the-fact-that
+    type: regex
+    target: { source: file, path: review.md }
+    pattern: 'the fact that'
+    flags: i
+  - name: marks-due-to
+    type: regex
+    target: { source: file, path: review.md }
+    pattern: 'due to'
+    flags: i

@@ -1,0 +1,36 @@
+schema_version: "1.1"
+name: readme-section-from-notes
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?write-with-style"'
+  - name: wrote-the-section
+    type: file_exists
+    path: README-watch.md
+    weight: 2
+  - name: no-strunk-filler
+    type: regex
+    target: { source: file, path: README-watch.md }
+    pattern: '\bvery\b|\bcertainly\b|one of the most|the fact that|in order to|\bin nature\b'
+    flags: i
+    match: not_contains
+    weight: 2
+  - name: keeps-the-debounce
+    type: regex
+    target: { source: file, path: README-watch.md }
+    pattern: '300\s?ms'
+  - name: keeps-the-ignore-option
+    type: regex
+    target: { source: file, path: README-watch.md }
+    pattern: 'watch\.ignore'
+  - name: keeps-the-windows-issue
+    type: regex
+    target: { source: file, path: README-watch.md }
+    pattern: '#88'
+  - name: keeps-the-always-ignored-dirs
+    type: regex
+    target: { source: file, path: README-watch.md }
+    pattern: '\.git[\s\S]*target|target[\s\S]*\.git'
