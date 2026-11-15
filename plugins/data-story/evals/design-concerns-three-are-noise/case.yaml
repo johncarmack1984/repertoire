@@ -1,5 +1,8 @@
 schema_version: "1.1"
 name: design-concerns-three-are-noise
+plugins:
+  - ../..
+  - ../../../write-with-style
 context:
   scaffold_script: scaffold.sh
 graders:
@@ -18,20 +21,41 @@ graders:
   - name: values-on-the-bars
     type: regex
     target: { source: file, path: concerns.svg }
-    pattern: '12\.9[\s\S]*8\.2|8\.2[\s\S]*12\.9'
+    pattern: '^(?=[\s\S]*?<text\b[^>]*>(?:[^<]|<(?!/text>)[^>]*>)*?\b12\.9\b)(?=[\s\S]*?<text\b[^>]*>(?:[^<]|<(?!/text>)[^>]*>)*?\b8\.2\b)'
   - name: title-says-three
     type: regex
     target: { source: file, path: concerns.svg }
-    pattern: '\b(three|3)\b[^<]{0,80}\b(noise|ten|10)\b|\bnoise\b[^<]{0,60}\b(first|three|3)\b'
+    pattern: '<text\b[^>]*>(?:[^<]|<(?!/text>)[^>]*>)*?(?:\b(three|3)\b[^<]{0,80}\b(noise|ten|10)\b|\bnoise\b[^<]{0,60}\b(first|three|3)\b)'
     flags: i
     weight: 2
   - name: what-the-comments-say
     type: regex
     target: { source: file, path: concerns.svg }
-    pattern: '\brain\b|freeway|highway|\bsat\b|sitting|cold start'
+    pattern: '<text\b[^>]*>(?:[^<]|<(?!/text>)[^>]*>)*?(?:\brain\b|freeway|highway|\bsat\b|sitting|cold start)'
     flags: i
   - name: no-rotated-text
     type: regex
     target: { source: file, path: concerns.svg }
     pattern: 'rotate\('
     match: not_contains
+  # Routing indicators: reported, not scored. A skill file can be read with Read or with cat, so each never-read check has a shell twin.
+  - name: no-other-visuals
+    type: tool_used
+    tool: Read
+    input_match: 'visuals/(?!bars\.md)[\w-]+\.md'
+    min: 0
+    max: 0
+    arm: with-only
+  - name: no-other-visuals-in-shell
+    type: tool_used
+    tool: Bash
+    input_match: 'visuals/(?!bars\.md)[\w-]+\.md'
+    min: 0
+    max: 0
+    arm: with-only
+  - name: words-handed-off
+    type: tool_used
+    tool: Skill
+    input_match: 'write-with-style'
+    min: 1
+    arm: with-only

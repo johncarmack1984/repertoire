@@ -1,5 +1,8 @@
 schema_version: "1.1"
 name: summer-program-budget-ask
+plugins:
+  - ../..
+  - ../../../write-with-style
 context:
   scaffold_script: scaffold.sh
 graders:
@@ -51,3 +54,24 @@ graders:
     target: { source: file, path: budget-request.md }
     pattern: '\b100\b[^\n]*(student|kid|child|participant|pupil)|(student|kid|child|participant|pupil)[^\n]*\b100\b'
     flags: i
+  # Routing indicators: reported, not scored. A skill file can be read with Read or with cat, so each never-read check has a shell twin.
+  - name: no-other-visuals
+    type: tool_used
+    tool: Read
+    input_match: 'visuals/(?!(simple-text|stacked-bars|bars)\.md)[\w-]+\.md'
+    min: 0
+    max: 0
+    arm: with-only
+  - name: no-other-visuals-in-shell
+    type: tool_used
+    tool: Bash
+    input_match: 'visuals/(?!(simple-text|stacked-bars|bars)\.md)[\w-]+\.md'
+    min: 0
+    max: 0
+    arm: with-only
+  - name: words-handed-off
+    type: tool_used
+    tool: Skill
+    input_match: 'write-with-style'
+    min: 1
+    arm: with-only

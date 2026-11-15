@@ -1,0 +1,52 @@
+schema_version: "1.1"
+name: cost-per-mile-scatter
+plugins:
+  - ../..
+  - ../../../write-with-style
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?data-story"'
+  - name: wrote-the-chart
+    type: file_exists
+    path: fleet.svg
+    weight: 2
+  - name: points-drawn
+    type: regex
+    target: { source: file, path: fleet.svg }
+    pattern: '<(circle|ellipse)\b'
+  - name: average-labelled
+    type: regex
+    target: { source: file, path: fleet.svg }
+    pattern: '<text\b[^>]*>(?:[^<]|<(?!/text>)[^>]*>)*?\b(average|avg|mean)\b'
+    flags: i
+    weight: 2
+  - name: axes-say-what-they-are
+    type: regex
+    target: { source: file, path: fleet.svg }
+    pattern: '^(?=[\s\S]*?<text\b[^>]*>(?:[^<]|<(?!/text>)[^>]*>)*?miles)(?=[\s\S]*?<text\b[^>]*>(?:[^<]|<(?!/text>)[^>]*>)*?per mile)'
+    flags: i
+  # Routing indicators: reported, not scored. A skill file can be read with Read or with cat, so each never-read check has a shell twin.
+  - name: no-other-visuals
+    type: tool_used
+    tool: Read
+    input_match: 'visuals/(?!scatterplot\.md)[\w-]+\.md'
+    min: 0
+    max: 0
+    arm: with-only
+  - name: no-other-visuals-in-shell
+    type: tool_used
+    tool: Bash
+    input_match: 'visuals/(?!scatterplot\.md)[\w-]+\.md'
+    min: 0
+    max: 0
+    arm: with-only
+  - name: words-handed-off
+    type: tool_used
+    tool: Skill
+    input_match: 'write-with-style'
+    min: 1
+    arm: with-only

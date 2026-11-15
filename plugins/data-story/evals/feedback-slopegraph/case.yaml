@@ -1,0 +1,55 @@
+schema_version: "1.1"
+name: feedback-slopegraph
+plugins:
+  - ../..
+  - ../../../write-with-style
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?data-story"'
+  - name: wrote-the-chart
+    type: file_exists
+    path: feedback.svg
+    weight: 2
+  - name: lines-drawn
+    type: regex
+    target: { source: file, path: feedback.svg }
+    pattern: '<(line|polyline|path)\b'
+  - name: both-years-named
+    type: regex
+    target: { source: file, path: feedback.svg }
+    pattern: '^(?=[\s\S]*?<text\b[^>]*>(?:[^<]|<(?!/text>)[^>]*>)*?2014)(?=[\s\S]*?<text\b[^>]*>(?:[^<]|<(?!/text>)[^>]*>)*?2015)'
+  - name: career-development-named
+    type: regex
+    target: { source: file, path: feedback.svg }
+    pattern: '<text\b[^>]*>(?:[^<]|<(?!/text>)[^>]*>)*?career development'
+    flags: i
+  - name: no-rotated-text
+    type: regex
+    target: { source: file, path: feedback.svg }
+    pattern: 'rotate\('
+    match: not_contains
+  # Routing indicators: reported, not scored. A skill file can be read with Read or with cat, so each never-read check has a shell twin.
+  - name: no-other-visuals
+    type: tool_used
+    tool: Read
+    input_match: 'visuals/(?!slopegraph\.md)[\w-]+\.md'
+    min: 0
+    max: 0
+    arm: with-only
+  - name: no-other-visuals-in-shell
+    type: tool_used
+    tool: Bash
+    input_match: 'visuals/(?!slopegraph\.md)[\w-]+\.md'
+    min: 0
+    max: 0
+    arm: with-only
+  - name: words-handed-off
+    type: tool_used
+    tool: Skill
+    input_match: 'write-with-style'
+    min: 1
+    arm: with-only

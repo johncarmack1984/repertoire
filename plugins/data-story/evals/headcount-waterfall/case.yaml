@@ -1,0 +1,60 @@
+schema_version: "1.1"
+name: headcount-waterfall
+plugins:
+  - ../..
+  - ../../../write-with-style
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?data-story"'
+  - name: wrote-the-chart
+    type: file_exists
+    path: headcount.svg
+    weight: 2
+  - name: start-and-end
+    type: regex
+    target: { source: file, path: headcount.svg }
+    pattern: '>\s*100\s*<[\s\S]*>\s*116\s*<'
+  - name: additions-signed
+    type: regex
+    target: { source: file, path: headcount.svg }
+    pattern: '^(?=[\s\S]*?<text\b[^>]*>(?:[^<]|<(?!/text>)[^>]*>)*?\+\s?30\b)(?=[\s\S]*?<text\b[^>]*>(?:[^<]|<(?!/text>)[^>]*>)*?\+\s?8\b)'
+  - name: losses-signed
+    type: regex
+    target: { source: file, path: headcount.svg }
+    pattern: '^(?=[\s\S]*?<text\b[^>]*>(?:[^<]|<(?!/text>)[^>]*>)*?(−|-|–)\s?12\b)(?=[\s\S]*?<text\b[^>]*>(?:[^<]|<(?!/text>)[^>]*>)*?(−|-|–)\s?10\b)'
+  - name: growth-in-words
+    type: regex
+    target: { source: file, path: headcount.svg }
+    pattern: '<text\b[^>]*>(?:[^<]|<(?!/text>)[^>]*>)*?(?:\b16\s?(%|percent)|\b16 more\b|100 to 116|from 100\b)'
+    flags: i
+    weight: 2
+  - name: no-rotated-text
+    type: regex
+    target: { source: file, path: headcount.svg }
+    pattern: 'rotate\('
+    match: not_contains
+  # Routing indicators: reported, not scored. A skill file can be read with Read or with cat, so each never-read check has a shell twin.
+  - name: no-other-visuals
+    type: tool_used
+    tool: Read
+    input_match: 'visuals/(?!waterfall\.md)[\w-]+\.md'
+    min: 0
+    max: 0
+    arm: with-only
+  - name: no-other-visuals-in-shell
+    type: tool_used
+    tool: Bash
+    input_match: 'visuals/(?!waterfall\.md)[\w-]+\.md'
+    min: 0
+    max: 0
+    arm: with-only
+  - name: words-handed-off
+    type: tool_used
+    tool: Skill
+    input_match: 'write-with-style'
+    min: 1
+    arm: with-only

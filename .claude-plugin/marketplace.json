@@ -19,7 +19,7 @@
     {
       "name": "data-story",
       "source": "./plugins/data-story",
-      "description": "Turn numbers into a point a reader gets in seconds and can act on: the questions from Storytelling with Data, then the form, the clutter cut, the emphasis on the point, and the conclusion in words."
+      "description": "Turn numbers into a point a reader gets in seconds and can act on: Storytelling with Data's lessons in order, one visual picked for the reader, and the words run through write-with-style."
     },
     {
       "name": "write-with-style",

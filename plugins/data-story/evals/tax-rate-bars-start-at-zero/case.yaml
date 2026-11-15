@@ -1,5 +1,8 @@
 schema_version: "1.1"
 name: tax-rate-bars-start-at-zero
+plugins:
+  - ../..
+  - ../../../write-with-style
 context:
   scaffold_script: scaffold.sh
 graders:
@@ -14,7 +17,7 @@ graders:
   - name: both-rates-shown
     type: regex
     target: { source: file, path: top-rate-new.svg }
-    pattern: '\b35(\.0)?\s?%[\s\S]*39\.6|39\.6[\s\S]*\b35(\.0)?\s?%'
+    pattern: '^(?=[\s\S]*?<text\b[^>]*>(?:[^<]|<(?!/text>)[^>]*>)*?\b35(\.0)?\s?%)(?=[\s\S]*?<text\b[^>]*>(?:[^<]|<(?!/text>)[^>]*>)*?39\.6)'
     weight: 2
   - name: no-axis-starting-at-34
     type: regex
@@ -33,3 +36,24 @@ graders:
     pattern: 'zero|baseline|truncat|34\s?%|started at 34|cut off'
     flags: i
     weight: 2
+  # Routing indicators: reported, not scored. A skill file can be read with Read or with cat, so each never-read check has a shell twin.
+  - name: no-other-visuals
+    type: tool_used
+    tool: Read
+    input_match: 'visuals/(?!(bars|simple-text)\.md)[\w-]+\.md'
+    min: 0
+    max: 0
+    arm: with-only
+  - name: no-other-visuals-in-shell
+    type: tool_used
+    tool: Bash
+    input_match: 'visuals/(?!(bars|simple-text)\.md)[\w-]+\.md'
+    min: 0
+    max: 0
+    arm: with-only
+  - name: words-handed-off
+    type: tool_used
+    tool: Skill
+    input_match: 'write-with-style'
+    min: 1
+    arm: with-only
