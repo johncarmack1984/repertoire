@@ -18,11 +18,11 @@ graders:
   - name: lines-labelled-by-name
     type: regex
     target: { source: file, path: tickets.svg }
-    pattern: 'Received[\s\S]*Processed|Processed[\s\S]*Received'
+    pattern: '^(?=[\s\S]*?<text\b[^>]*>(?:[^<]|<(?!/text>)[^>]*>)*?Received)(?=[\s\S]*?<text\b[^>]*>(?:[^<]|<(?!/text>)[^>]*>)*?Processed)'
   - name: the-ask-in-words
     type: regex
     target: { source: file, path: tickets.svg }
-    pattern: 'approv|\bhir(e|es|ing)\b|backfill|headcount'
+    pattern: '<text\b[^>]*>(?:[^<]|<(?!/text>)[^>]*>)*?(?:approv|\bhir(e|es|ing)\b|backfill|headcount)'
     flags: i
     weight: 2
   - name: no-trailing-zeros-on-the-axis
@@ -38,7 +38,7 @@ graders:
   - name: source-noted
     type: regex
     target: { source: file, path: tickets.svg }
-    pattern: 'source|dashboard'
+    pattern: '<text\b[^>]*>(?:[^<]|<(?!/text>)[^>]*>)*?(?:source|dashboard)'
     flags: i
   # Routing indicators: reported, not scored. They show which of the skill's files the run read.
   - name: read-context

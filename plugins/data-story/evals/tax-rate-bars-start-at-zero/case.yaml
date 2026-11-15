@@ -14,7 +14,7 @@ graders:
   - name: both-rates-shown
     type: regex
     target: { source: file, path: top-rate-new.svg }
-    pattern: '\b35(\.0)?\s?%[\s\S]*39\.6|39\.6[\s\S]*\b35(\.0)?\s?%'
+    pattern: '^(?=[\s\S]*?<text\b[^>]*>(?:[^<]|<(?!/text>)[^>]*>)*?\b35(\.0)?\s?%)(?=[\s\S]*?<text\b[^>]*>(?:[^<]|<(?!/text>)[^>]*>)*?39\.6)'
     weight: 2
   - name: no-axis-starting-at-34
     type: regex

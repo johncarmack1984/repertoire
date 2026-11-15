@@ -18,13 +18,13 @@ graders:
   - name: average-labelled
     type: regex
     target: { source: file, path: fleet.svg }
-    pattern: '>[^<]*\b(average|avg|mean)\b[^<]*<'
+    pattern: '<text\b[^>]*>(?:[^<]|<(?!/text>)[^>]*>)*?\b(average|avg|mean)\b'
     flags: i
     weight: 2
   - name: axes-say-what-they-are
     type: regex
     target: { source: file, path: fleet.svg }
-    pattern: 'miles[\s\S]*per mile|per mile[\s\S]*miles'
+    pattern: '^(?=[\s\S]*?<text\b[^>]*>(?:[^<]|<(?!/text>)[^>]*>)*?miles)(?=[\s\S]*?<text\b[^>]*>(?:[^<]|<(?!/text>)[^>]*>)*?per mile)'
     flags: i
   - name: no-trailing-zeros-on-the-axis
     type: regex

@@ -18,15 +18,15 @@ graders:
   - name: additions-signed
     type: regex
     target: { source: file, path: headcount.svg }
-    pattern: '\+\s?30[\s\S]*\+\s?8\b|\+\s?8\b[\s\S]*\+\s?30'
+    pattern: '^(?=[\s\S]*?<text\b[^>]*>(?:[^<]|<(?!/text>)[^>]*>)*?\+\s?30\b)(?=[\s\S]*?<text\b[^>]*>(?:[^<]|<(?!/text>)[^>]*>)*?\+\s?8\b)'
   - name: losses-signed
     type: regex
     target: { source: file, path: headcount.svg }
-    pattern: '(−|-|–)\s?12\b[\s\S]*(−|-|–)\s?10\b|(−|-|–)\s?10\b[\s\S]*(−|-|–)\s?12\b'
+    pattern: '^(?=[\s\S]*?<text\b[^>]*>(?:[^<]|<(?!/text>)[^>]*>)*?(−|-|–)\s?12\b)(?=[\s\S]*?<text\b[^>]*>(?:[^<]|<(?!/text>)[^>]*>)*?(−|-|–)\s?10\b)'
   - name: growth-in-words
     type: regex
     target: { source: file, path: headcount.svg }
-    pattern: '\b16\s?(%|percent)|\b16 more\b|100 to 116|from 100\b'
+    pattern: '<text\b[^>]*>(?:[^<]|<(?!/text>)[^>]*>)*?(?:\b16\s?(%|percent)|\b16 more\b|100 to 116|from 100\b)'
     flags: i
     weight: 2
   - name: no-rotated-text

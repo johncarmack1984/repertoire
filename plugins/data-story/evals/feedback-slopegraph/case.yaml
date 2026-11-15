@@ -18,11 +18,11 @@ graders:
   - name: both-years-named
     type: regex
     target: { source: file, path: feedback.svg }
-    pattern: '2014[\s\S]*2015'
+    pattern: '^(?=[\s\S]*?<text\b[^>]*>(?:[^<]|<(?!/text>)[^>]*>)*?2014)(?=[\s\S]*?<text\b[^>]*>(?:[^<]|<(?!/text>)[^>]*>)*?2015)'
   - name: career-development-named
     type: regex
     target: { source: file, path: feedback.svg }
-    pattern: 'career development'
+    pattern: '<text\b[^>]*>(?:[^<]|<(?!/text>)[^>]*>)*?career development'
     flags: i
   - name: no-rotated-text
     type: regex
