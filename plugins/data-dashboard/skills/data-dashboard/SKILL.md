@@ -60,7 +60,7 @@ Done when every measure answers "compared to what", serves an objective, and has
 - Choose the measure that carries the message. When the gap from target is the point, show the variance itself, as a percentage of target or a deviation from a baseline.
 - Give every measure its comparison: a target, the same period last year, a normal range, a forecast, or a projection to the end of the period. Never invent one. When the data has none, use the prior period, or ask for the target.
 - Write the alert rule into the data, with at most two levels. Use the page's `policy` when one ratio of the comparison serves every measure, and each measure's `ranges` when the thresholds differ. Some measures never alert, and an analytical screen may have no alerts at all.
-- Round to the precision the viewer acts on, such as $3.8M rather than $3,848,305.93, with one scale per column named in its header.
+- Round to the precision the viewer acts on, such as 3.8 million dollars rather than 3,848,305.93, with one scale per column named in its header.
 
 Done when every value on the page comes from code and every alert follows a rule written in the brief.
 
