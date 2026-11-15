@@ -68,6 +68,7 @@ graders:
     type: tool_used
     tool: Read
     input_match: 'visuals/(?!(simple-text|stacked-bars|bars)\.md)[\w-]+\.md'
+    min: 0
     max: 0
     arm: with-only
   - name: words-handed-off
