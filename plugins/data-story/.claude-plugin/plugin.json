@@ -1,6 +1,6 @@
 {
   "name": "data-story",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Turn numbers into a point a reader gets in seconds and can act on: Storytelling with Data's lessons in order, one visual picked for the reader, and the words run through write-with-style.",
   "author": {
     "name": "John Carmack",
