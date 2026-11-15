@@ -12,9 +12,9 @@ lint:
     shellcheck -x plugins/sidework/scripts/*.sh plugins/sidework/evals/_fixtures/lib.sh plugins/*/evals/*/scaffold.sh
     python3 -m py_compile plugins/build-review-lens/skills/build-review-lens/scripts/mine_reviews.py
 
-# Run a plugin's eval suite (sidework, data-story, and write-with-style have one). Each case's scaffold runs as you and the agent gets a shell.
+# Run a plugin's eval suite (sidework, data-story, and write-with-style have one). Each case's scaffold runs as you and the agent gets a shell. It runs from the repo root so that a case can load a plugin it depends on from beside it.
 eval plugin *args:
-    claude plugin eval plugins/{{plugin}} --scaffold --allow-tools Bash Edit Write {{args}}
+    claude plugin eval . --eval-dir plugins/{{plugin}}/evals --scaffold --allow-tools Bash Edit Write {{args}}
 
 # Reproduce the nested-worktree failures sidework's README lists.
 lab:

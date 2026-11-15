@@ -1,5 +1,8 @@
 schema_version: "1.1"
 name: tax-rate-bars-start-at-zero
+plugins:
+  - ../..
+  - ../../../write-with-style
 context:
   scaffold_script: scaffold.sh
 graders:
@@ -33,22 +36,17 @@ graders:
     pattern: 'zero|baseline|truncat|34\s?%|started at 34|cut off'
     flags: i
     weight: 2
-  # Routing indicators: reported, not scored. They show which of the skill's files the run read.
-  - name: read-context
-    type: tool_used
-    tool: Read
-    input_match: 'chapters/context\.md'
-    min: 1
-    arm: with-only
-  - name: read-bars-or-simple-text
-    type: tool_used
-    tool: Read
-    input_match: 'visuals/(bars|simple-text)\.md'
-    min: 1
-    arm: with-only
+  # Routing indicators: reported, not scored. A skill file can be read with Read or with cat, so each never-read check has a shell twin.
   - name: no-other-visuals
     type: tool_used
     tool: Read
+    input_match: 'visuals/(?!(bars|simple-text)\.md)[\w-]+\.md'
+    min: 0
+    max: 0
+    arm: with-only
+  - name: no-other-visuals-in-shell
+    type: tool_used
+    tool: Bash
     input_match: 'visuals/(?!(bars|simple-text)\.md)[\w-]+\.md'
     min: 0
     max: 0
