@@ -59,7 +59,7 @@ Past about 50,000 points or lines, draw that layer with a deck.gl layer instead 
 - `MapboxOverlay` crashes on maplibre-gl 6, because it reads `map.transform`, which 6 removed. The page uses `deck.MapLibreOverlay`.
 - The overlay must be interleaved on the globe, as the prototypes found.
 - The globe culls back faces, and 9.4.1's arc strips wind clockwise, so the arc layer sets `parameters: {cullMode: 'none'}` or every arc vanishes (deck.gl issue 10670).
-- deck.gl layers draw above every MapLibre layer unless they name a `beforeId`. The arcs name the arrowhead layer.
+- deck.gl layers draw above every MapLibre layer unless they name a `beforeId`. The arcs name the nodes layer, so they draw under the nodes, the names, and the arrowheads, as the maplibre page's lines do.
 - deck.gl loads as a script before the page's module and defines `window.deck`. If it fails to load, the module throws and `dataMap.ready` rejects.
 - The flows lever also writes `<layer>-arcs.json`. The page builds its arcs from the lines and the nodes instead, so that file only travels along.
 

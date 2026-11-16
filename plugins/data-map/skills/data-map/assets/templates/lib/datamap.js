@@ -627,7 +627,8 @@ function arcLayers(deck, t, show) {
       id: name, data: arcs, greatCircle: true, numSegments: 64,
       // The globe culls back faces and 9.4.1's arc strips wind clockwise, so without this they vanish (deck.gl #10670).
       parameters: {cullMode: 'none'},
-      beforeId: data[f.arrows] ? name + '-arrows' : undefined,
+      // Where the maplibre page draws its lines: under the nodes, their names, and the arrowheads.
+      beforeId: data[f.nodes] ? name + '-nodes' : data[f.arrows] ? name + '-arrows' : undefined,
       getSourcePosition: a => a.from, getTargetPosition: a => a.to, getHeight: height,
       getWidth: a => a.dm_width, widthUnits: 'pixels',
       getSourceColor: a => [...rgb(a.dm_fill || L.color || t.flow), 255 * (a.dm_opacity ?? 1)],
