@@ -69,7 +69,7 @@ python3 <skill>/scripts/datamap.py flows routes.csv --nodes airports.csv --origi
 
 - Hover a flow for its origin, destination, and volume, with both directions when `--net` is set (Muehlenhaus ch. 13).
 - Hover a node to bring its flows forward and dim the rest (Munzner §12.5.2).
-- A control for N, from 10 to 100, keeps the kept line in step (Slocum §20.7.1).
+- A control for N, from 10 to 100, keeps the kept line in step (Slocum §20.7.1). `--reveal` with `--top` or `--share` writes the flows below the cut as well, up to `--reveal-max` (500), and `legend.json` gains `reveal` with the first view's N and the count written. The page opens on the flows whose `dm_rank` is at most N and the control shows more. Widths, fades, arrowheads, draw order, and clearance cover every written flow, so a flow keeps its look as others appear, while the kept line and the legend's sample widths describe the first view. The clearance WARN names first-view flows only and counts the rest.
 - On the globe, let the reader rotate it. Re-centering helped readers of flat maps too (Yang §5.3).
 
 ## Companions

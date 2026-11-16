@@ -771,6 +771,10 @@ def run_flows(args) -> int:
     totals = flows.node_totals(all_flows)
     drawn = flows.net(all_flows) if args.net else all_flows
     kept, share = flows.keep_top(drawn, args.top, args.share)
+    if args.reveal and args.top is None and args.share is None:
+        raise InputError("--reveal writes more flows than the page shows at first, so it needs --top or --share for that first view")
+    # With --reveal every encoding below covers the written flows, and the kept line and the legend's samples the first view.
+    written = flows.keep_top(drawn, max(len(kept), min(args.reveal_max, len(drawn))))[0] if args.reveal else kept
     unit = args.unit or vcol
     node_colors = node_color_pair(args, findings)
     note = flows.omitted_note(len(kept), len(drawn), share, unit)
@@ -779,26 +783,30 @@ def run_flows(args) -> int:
         findings.append(WARN("top-n", f"{len(drawn)} flows drawn at once tangle into a hairball", f"pass --top or --share; past {limit} flows the lines stop reading", 18))
     else:
         findings.append(PASS("top-n", note, 18))
-    vmax = max(f.value for f in kept)
+    if args.reveal:
+        findings.append(PASS("reveal", f"wrote the next {len(written) - len(kept):,} flows too, {len(written):,} in all, each with its dm_rank, "
+                                       f"for a control that reveals them; the page opens on the first {len(kept):,}", 18))
+    vmax = max(f.value for f in written)
     vmin = min(f.value for f in kept)
+    vfade = min(f.value for f in written)
     fade_min = 1.0 if args.no_fade else args.fade_min
     color = args.color
-    pair_set = {(f.o, f.d) for f in kept}
-    widths = {f: round(flows.width(f.value, vmax, args.max_width, args.min_width), 2) for f in kept}
-    offsets = {f: flows.side_offset(widths[f]) if (f.d, f.o) in pair_set else 0 for f in kept}
-    # Curves clear only the nodes the map draws, which are the ends of the kept flows.
-    node_ids = {key: i + 1 for i, key in enumerate(sorted({x for f in kept for x in (f.o, f.d)}))}
+    pair_set = {(f.o, f.d) for f in written}
+    widths = {f: round(flows.width(f.value, vmax, args.max_width, args.min_width), 2) for f in written}
+    offsets = {f: flows.side_offset(widths[f]) if (f.d, f.o) in pair_set else 0 for f in written}
+    # Curves clear only the nodes the map draws, which are the ends of the written flows.
+    node_ids = {key: i + 1 for i, key in enumerate(sorted({x for f in written for x in (f.o, f.d)}))}
     measure = flows.NODE_VALUES[args.node_value]
     sized = {k: measure.size(totals[k]) for k in node_ids}
     size_max = max(sized.values())
     node_r = {k: symbols.radius(sized[k], size_max, flows.NODE_RMAX) for k in node_ids}
     shown = {k: nodes[k] for k in node_ids}
     if args.geometry == "curved":
-        placed, scale = flows.place_in_view(kept, shown, args.view, node_r, widths, offsets)
+        placed, scale = flows.place_in_view(written, shown, args.view, node_r, widths, offsets)
     else:
-        placed, scale = flows.place(kept, shown, args.geometry), None
+        placed, scale = flows.place(written, shown, args.geometry), None
     order = {p.flow: rank for rank, p in enumerate(sorted(placed, key=lambda p: (-p.flow.value, p.flow.o, p.flow.d)))}
-    reciprocal = sum(1 for f in kept if (f.d, f.o) in pair_set) // 2
+    reciprocal = sum(1 for f in written if (f.d, f.o) in pair_set) // 2
     lines, arrows, arcs = [], [], []
     split = 0
     for fid, p in enumerate(sorted(placed, key=lambda p: order[p.flow]), start=1):
@@ -810,7 +818,7 @@ def run_flows(args) -> int:
         text = f"{label}: {num(f.value)} {unit}"
         if f.forward is not None and f.reverse:
             text += f" net ({num(f.forward)} out, {num(f.reverse)} back)"
-        alpha = flows.opacity(f.value, vmin, vmax, fade_min)
+        alpha = flows.opacity(f.value, vfade, vmax, fade_min)
         props = {"dm_o": f.o, "dm_d": f.d, "dm_value": f.value, "dm_width": w, "dm_offset": offset, "dm_opacity": alpha,
                  "dm_order": order[f], "dm_rank": order[f] + 1, "dm_km": round(p.km, 1), "dm_fill": color,
                  "dm_label": label, "dm_tip": text}
@@ -837,15 +845,15 @@ def run_flows(args) -> int:
     else:
         findings.append(PASS("great-circles", f"great circles densified every {flows.DENSIFY_DEG:g} degree; {reciprocal} reciprocal {'pair' if reciprocal == 1 else 'pairs'} offset to either side", 15))
     moved = [p for p in placed if p.clear and (p.side, p.curvature) != (1, flows.curvature_for(p.km, *km_range(placed)))]
-    findings += clearance_lines(placed, moved, args, scale)
+    findings += clearance_lines(placed, moved, args, scale, len(kept), order)
     findings.append(PASS("antimeridian", f"{split} flows split into two parts at 180, with a vertex on the meridian", 20))
     findings.append(PASS("arrows", f"one arrowhead per flow at its destination, {flows.ARROW_RATIO:g} times the width and at least {flows.ARROW_MIN_PX:g} px", 17))
     findings.append(PASS("order", "small flows draw on top of large ones", 19))
     if fade_min < 1:
-        findings.append(PASS("fade", f"opacity runs from {fade_min:g} at the smallest kept flow ({num(vmin)}) to 1 at the largest ({num(vmax)}), linear in value"))
+        findings.append(PASS("fade", f"opacity runs from {fade_min:g} at the smallest {'written' if args.reveal else 'kept'} flow ({num(vfade)}) to 1 at the largest ({num(vmax)}), linear in value"))
     lvals = flows.legend_values(vmin, vmax, args.max_width, args.min_width)
     lwidths = [round(flows.width(v, vmax, args.max_width, args.min_width), 2) for v in lvals]
-    lopacities = [flows.opacity(v, vmin, vmax, fade_min) for v in lvals]
+    lopacities = [flows.opacity(v, vfade, vmax, fade_min) for v in lvals]
     positive = [v for v in sized.values() if v > 0]
     nvals = symbols.legend_values(min(positive), size_max) if positive else []
     node_legend = {"rmax": flows.NODE_RMAX, "scaling": "area", "value": args.node_value,
@@ -860,10 +868,11 @@ def run_flows(args) -> int:
     layer = {"kind": "flows", "title": args.title or unit, "unit": unit, "geometry": args.geometry, "color": color,
              "kept": len(kept), "total": len(drawn), "kept_share": round(share, 4), "omitted_note": note, "net": bool(args.net),
              "width": {"min_px": args.min_width, "max_px": args.max_width, "vmax": vmax, "scale": "linear"},
-             "fade": {"min": fade_min, "vmin": vmin, "vmax": vmax, "scale": "linear"},
+             "fade": {"min": fade_min, "vmin": vfade, "vmax": vmax, "scale": "linear"},
              "legend_values": lvals, "legend_widths": lwidths, "legend_opacities": lopacities,
              "arrow": {"ratio": flows.ARROW_RATIO, "min_px": flows.ARROW_MIN_PX},
              "nodes": node_legend,
+             **({"reveal": {"default": len(kept), "count": len(written)}} if args.reveal else {}),
              "clearance": {"view": list(args.view), "zoom": round(math.log2(scale), 2), "gap_px": flows.CLEAR_PX} if scale
              else {"share_of_length": flows.CLEARANCE_SHARE},
              "files": {"lines": f"{name}.geojson", "nodes": f"{name}-nodes.geojson", "arrows": f"{name}-arrows.geojson", "arcs": f"{name}-arcs.json"}}
@@ -882,23 +891,27 @@ def run_flows(args) -> int:
     return write_layer(args, lines, layer, flows.answers(all_flows, nodes, totals), decisions, findings, files)
 
 
-def clearance_lines(placed: list, moved: list, args, scale: float | None) -> list:
-    """What the curves did to clear nodes they don't connect, and each flow that still couldn't, by its worst gap."""
-    stuck = [p for p in placed if not p.clear]
+def clearance_lines(placed: list, moved: list, args, scale: float | None, first: int, order: dict) -> list:
+    """What the curves did to clear nodes they don't connect, and each flow of the first view that still couldn't,
+    by its worst gap. Flows a reader can reveal are counted after them."""
+    stuck = sorted((p for p in placed if not p.clear), key=lambda p: order[p.flow])
+    shown = [p for p in stuck if order[p.flow] < first]
+    later = len(stuck) - len(shown)
     if scale is None:
         where, unit = f"{flows.CLEARANCE_SHARE:.0%} of their length", "km"
         fix = "move or drop the node, use --net, or pick another geometry"
     else:
         where, unit = f"{flows.CLEAR_PX:g} px at the {args.view[0]:g} x {args.view[1]:g} px view (zoom {math.log2(scale):.2f})", "px"
         fix = "zoom in (each step doubles every gap), give the map more room with --view, move or drop the node, or use --net"
+    revealed = f"; of the {len(placed) - first:,} flows a reader can reveal, {later:,} come closer" if args.reveal else ""
     out = []
     if scale is not None:
         out.append(PASS("clearance", f"{len(moved)} flows flipped or bent further to clear nodes they don't connect", 16))
-    if not stuck:
-        return out + [PASS("clearance", f"every flow keeps {where} from each node it doesn't connect", 16)]
-    names = ", ".join(f"{p.flow.o} to {p.flow.d} ({k} {g:+.1f} {unit})" for p in stuck[:8] for k, g in [min(p.near.items(), key=lambda kv: kv[1])])
-    return out + [WARN("clearance", f"{len(stuck)} flows still come within {where} of a node they don't connect: {names}; "
-                       "each gap runs from the line's edge to the node's, and is negative where they overlap", fix, 16)]
+    if not shown:
+        return out + [PASS("clearance", f"every flow {'of the first view ' if args.reveal else ''}keeps {where} from each node it doesn't connect{revealed}", 16)]
+    names = ", ".join(f"{p.flow.o} to {p.flow.d} ({k} {g:+.1f} {unit})" for p in shown[:8] for k, g in [min(p.near.items(), key=lambda kv: kv[1])])
+    return out + [WARN("clearance", f"{len(shown)} flows {'of the first view ' if args.reveal else ''}still come within {where} of a node they don't connect: {names}; "
+                       f"each gap runs from the line's edge to the node's, and is negative where they overlap{revealed}", fix, 16)]
 
 
 def node_color_pair(args, findings: list) -> tuple | None:
@@ -1048,6 +1061,8 @@ def register(sub) -> None:
     g = p.add_mutually_exclusive_group()
     g.add_argument("--top", type=int, metavar="N", help="keep the N largest flows")
     g.add_argument("--share", type=share, metavar="S", help="keep the largest flows carrying share S of the total")
+    p.add_argument("--reveal", action="store_true", help="also write the flows below --top or --share, for a page control that reveals them")
+    p.add_argument("--reveal-max", type=int, default=500, metavar="M", help="with --reveal, write at most the M largest flows (default 500)")
     p.add_argument("--net", action="store_true", help="one flow per pair, in the net direction")
     p.add_argument("--geometry", choices=["curved", "great-circle"], default="curved")
     p.add_argument("--max-width", type=positive, default=12.0, metavar="PX")

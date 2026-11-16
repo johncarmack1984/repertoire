@@ -66,7 +66,7 @@ def turns(line):
 
 
 
-def screen_gaps(out, layer, view):
+def screen_gaps(out, layer, view, top=None):
     """Fits a flows layer the way the maplibre template does (every vertex and node, padded 14 px past the largest
     circle) and returns, per line, its smallest gap in px from its edge to the circle of a node it doesn't connect.
     Each line is sampled every quarter pixel, shifted by its dm_offset, and left out under its two end circles."""
@@ -80,6 +80,8 @@ def screen_gaps(out, layer, view):
     gaps = {}
     for f in lines:
         p = f["properties"]
+        if top is not None and p["dm_rank"] > top:
+            continue
         ends = [at[p["dm_o"]], at[p["dm_d"]]]
         shown = []
         for part in parts(f["geometry"]):
@@ -451,6 +453,18 @@ class Flows(unittest.TestCase):
 
 
 
+def assert_named_as_measured(case, text, gaps):
+    """The flows the clearance WARN names are exactly those the screen shows within 2 px, each with its gap."""
+    measured = {pair: g for pair, g in gaps.items() if g < 2 - 0.05}
+    warn = re.search(r"(?m)^WARN clearance \[P16\]: (\d+) flows .*$", text)
+    case.assertTrue(warn and measured, text)
+    named = {(o, d): float(g) for o, d, g in re.findall(r"(S\d+) to (S\d+) \(S\d+ ([-+][\d.]+) px\)", warn.group(0))}
+    case.assertEqual(int(warn.group(1)), len(named))
+    case.assertEqual(set(named), set(measured))
+    for pair, g in named.items():
+        case.assertAlmostEqual(g, measured[pair], delta=0.15)
+
+
 class ScreenClearance(unittest.TestCase):
     """Flows clear the stations they don't serve by 2 px on screen, at the view the page opens on."""
 
@@ -471,15 +485,63 @@ class ScreenClearance(unittest.TestCase):
         with tempfile.TemporaryDirectory() as out:
             code, text = BikeCase.flows(out, "--top", 40, "--max-width", 10, "--view", "600x450")
             self.assertEqual(code, 0, text)
-            measured = {pair: g for pair, g in screen_gaps(out, "bike", (600, 450)).items() if g < 2 - 0.05}
-        warn = re.search(r"(?m)^WARN clearance \[P16\]: (\d+) flows .*$", text)
-        self.assertTrue(warn, text)
-        named = {(o, d): float(g) for o, d, g in re.findall(r"(S\d+) to (S\d+) \(S\d+ ([-+][\d.]+) px\)", warn.group(0))}
-        self.assertEqual(int(warn.group(1)), len(named))
-        self.assertEqual(set(named), set(measured))
-        self.assertTrue(measured)
-        for pair, g in named.items():
-            self.assertAlmostEqual(g, measured[pair], delta=0.15)
+            assert_named_as_measured(self, text, screen_gaps(out, "bike", (600, 450)))
+
+
+
+class Reveal(unittest.TestCase):
+    """--reveal writes the flows under the cut for a page control, while the legend still describes the first view."""
+
+    def run_bike(self, out, *args):
+        code, text = BikeCase.flows(out, "--top", 40, "--max-width", 10, *args)
+        self.assertEqual(code, 0, text)
+        read = lambda name: [f["properties"] for f in json.loads((Path(out) / name).read_text())["features"]]
+        layer = json.loads((Path(out) / "legend.json").read_text())["layers"]["bike"]
+        return read("bike.geojson"), read("bike-arrows.geojson"), read("bike-nodes.geojson"), layer, text
+
+    def test_reveal_writes_every_flow_ranked_and_keeps_the_first_view_in_the_legend(self):
+        trips = sorted((float(r["trips"]) for r in data.read_table(BikeCase.folder() / "trips_od.csv").rows), reverse=True)
+        with tempfile.TemporaryDirectory() as out:
+            _, _, _, plain, _ = self.run_bike(out)
+        with tempfile.TemporaryDirectory() as out:
+            lines, arrows, nodes, layer, text = self.run_bike(out, "--reveal")
+            gaps = screen_gaps(out, "bike", (844, 634), top=40)
+        self.assertEqual(layer["reveal"], {"default": 40, "count": 380})
+        self.assertEqual((layer["kept"], layer["total"]), (40, 380))
+        self.assertAlmostEqual(layer["kept_share"], round(sum(trips[:40]) / sum(trips), 4))
+        self.assertEqual(layer["omitted_note"], "The 40 largest of 380 flows, 63% of all trips")
+        # The legend samples the first view's widths, and each sample's fade matches the written lines'.
+        self.assertEqual(layer["legend_values"], plain["legend_values"])
+        self.assertEqual(layer["legend_widths"], plain["legend_widths"])
+        for v, a in zip(layer["legend_values"], layer["legend_opacities"]):
+            self.assertAlmostEqual(a, 0.45 + 0.55 * (v - 1) / (1486 - 1), places=3)
+        for feats in (lines, arrows):
+            self.assertEqual(sorted(p["dm_rank"] for p in feats), list(range(1, 381)))
+            by_rank = sorted(feats, key=lambda p: p["dm_rank"])
+            self.assertEqual([p["dm_value"] for p in by_rank], trips)
+            for p in feats:
+                self.assertAlmostEqual(p["dm_width"], max(1, 10 * p["dm_value"] / 1486), places=2)
+                self.assertAlmostEqual(p["dm_opacity"], 0.45 + 0.55 * (p["dm_value"] - 1) / (1486 - 1), places=3)
+                self.assertEqual(p["dm_order"], p["dm_rank"] - 1)
+        self.assertEqual(len(nodes), 20)
+        # All 20 stations widen the fit. South Waterfront to Union Station must bow opposite its 1,486-trip reverse,
+        # and no bend on that side clears Pioneer Square, so it is the one first-view flow the lever names.
+        assert_named_as_measured(self, text, gaps)
+        self.assertRegex(text, r"of the 340 flows a reader can reveal, \d+ come closer")
+
+    def test_reveal_stops_at_its_cap_and_needs_a_first_view(self):
+        with tempfile.TemporaryDirectory() as out:
+            lines, _, _, layer, _ = self.run_bike(out, "--reveal", "--reveal-max", 100)
+        self.assertEqual((len(lines), layer["reveal"]), (100, {"default": 40, "count": 100}))
+        with tempfile.TemporaryDirectory() as out:
+            lines, _, _, layer, _ = self.run_bike(out)
+        self.assertEqual(len(lines), 40)
+        self.assertNotIn("reveal", layer)
+        with tempfile.TemporaryDirectory() as out, redirect_stderr(io.StringIO()):
+            d = BikeCase.folder()
+            code, _ = cli("flows", d / "trips_od.csv", "--nodes", d / "stations.csv", "--origin", "start_station_id", "--dest", "end_station_id",
+                          "--value", "trips", "--id", "station_id", "--reveal", "--out-dir", out)
+        self.assertEqual(code, 2)
 
 
 class NodeValues(unittest.TestCase):
