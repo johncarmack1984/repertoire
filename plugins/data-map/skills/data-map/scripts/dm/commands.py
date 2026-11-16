@@ -891,6 +891,7 @@ def run_flows(args) -> int:
     where = (f"at the {args.view[0]:g} x {args.view[1]:g} px view (zoom {math.log2(scale):.2f})" if scale
              else f"on a globe {globe:.0f} px in radius (the {args.view[0]:g} x {args.view[1]:g} px view)")
     findings += clearance_lines(placed, moved, args, where, len(kept), order)
+    findings += pole_lines(placed, order, len(kept), args.reveal)
     findings.append(PASS("antimeridian", f"{split} flows split into two parts at 180, with a vertex on the meridian", 20))
     findings.append(PASS("arrows", f"one arrowhead per flow at its destination, {flows.ARROW_RATIO:g} times the width and at least {flows.ARROW_MIN_PX:g} px", 17))
     findings.append(PASS("order", "small flows draw on top of large ones", 19))
@@ -951,6 +952,23 @@ def clearance_lines(placed: list, moved: list, args, where: str, first: int, ord
     names = ", ".join(f"{p.flow.o} to {p.flow.d} ({k} {g:+.1f} {unit})" for p in shown[:8] for k, g in [min(p.near.items(), key=lambda kv: kv[1])])
     return out + [WARN("clearance", f"{len(shown)} flows {'of the first view ' if args.reveal else ''}still come within {where} of a node they don't connect: {names}; "
                        f"each gap runs from the line's edge to the node's, and is negative where they overlap{revealed}", fix, 16)]
+
+
+def pole_lines(placed: list, order: dict, first: int, reveal: bool) -> list:
+    """A WARN naming each great circle of the first view that would rise past POLE_LAT, with how high its own bend
+    would run and how high it is drawn; flows a reader can reveal are counted after them."""
+    over = sorted((p for p in placed if p.pole is not None), key=lambda p: order[p.flow])
+    shown = [p for p in over if order[p.flow] < first]
+    later = f"; of the {len(placed) - first:,} flows a reader can reveal, {len(over) - len(shown):,} do too" if reveal else ""
+    if not shown:
+        return [WARN("pole", f"no flow of the first view rises past {flows.POLE_LAT:g}°{later}", "say in a note that revealed flows leave their great circles near the pole", 20)] if over else []
+    drawn = lambda p: max(abs(lat) for _, lat in p.coords)
+    names = ", ".join(f"{p.flow.o} to {p.flow.d} ({p.pole:.1f}° unbent, {drawn(p):.1f}° {'still' if p.high else 'bent'})" for p in shown[:8])
+    stuck = sum(p.high for p in shown)
+    fix = (f"{stuck} still {'crosses' if stuck == 1 else 'cross'}; move {'its' if stuck == 1 else 'their'} ends below {flows.POLE_LAT:g}°, or draw the map in a polar projection" if stuck
+           else "say in a note or the legend that these flows leave their great circles near the pole")
+    return [WARN("pole", f"{len(shown)} {'flow' if len(shown) == 1 else 'flows'} {'of the first view ' if reveal else ''}would rise past {flows.POLE_LAT:g}°, where the globe's "
+                         f"tiles end and a line loops round the pole, so each bends below it where a bend can: {names}{later}", fix, 20)]
 
 
 def node_color_pair(args, findings: list) -> tuple | None:

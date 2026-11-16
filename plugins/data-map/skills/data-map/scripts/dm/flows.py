@@ -45,6 +45,9 @@ BENDS = (1.0, 0.5, 0.75, 1.5, 2.0, 2.5, 3.0)
 BEND_SHARE = CURVE_MIN / 2
 # A great circle that runs too near a node bends off it, as a curve with one of these curvatures, the flat map's range.
 GC_BENDS = (0.05, 0.1, 0.15, 0.2, 0.3)
+# The globe's tiles end at 85.0511 degrees, in MapLibre and mln-rs alike, and a line drawn past them loops round the
+# pole, so a great circle that would rise higher bends below this.
+POLE_LAT = 85.0
 
 
 @dataclass(frozen=True)
@@ -78,6 +81,8 @@ class Placed:
     near: dict = field(default_factory=dict)
     moved: bool = False
     capped: bool = False
+    high: bool = False
+    pole: float | None = None
 
     @property
     def clear(self) -> bool:
@@ -385,7 +390,9 @@ def place(flows: list, nodes: dict, geometry: str, clearance) -> list:
     """Geometry for every flow, largest first; reciprocal flows always bow to opposite sides. A flow tries its own
     bend, held to the clearance's cap, then other sides and bends within the cap until one keeps its clearance: a
     curve its BENDS, a great circle its GC_BENDS and the cap. When none does, it keeps the one nearest to clearing
-    that bends no deeper than its own."""
+    that bends no deeper than its own. A great circle never rises past POLE_LAT if a bend keeps it below, then its
+    own bend is the least that does, and a reciprocal flow takes its partner's side of the pole if only that clears it.
+    Such a flow records in pole how high its own bend would have run."""
     kms = {f: geo.distance_km(nodes[f.o].pos, nodes[f.d].pos) for f in flows}
     dmin, dmax = min(kms.values(), default=0), max(kms.values(), default=0)
     pairs = {(f.o, f.d) for f in flows}
@@ -400,20 +407,31 @@ def place(flows: list, nodes: dict, geometry: str, clearance) -> list:
         if geometry == "great-circle":
             own = base = GC_OFFSET if reciprocal else 0.0
             bends = sorted({base} | {c for c in GC_BENDS + (top,) if base < c <= top})
-            options = [(s, c) for c in bends for s in (sides if c else (1,))]
+            options = [(s, c, False) for c in bends for s in (sides if c else (1,))]
+            options += [(-partner, c, True) for c in bends] if partner else []
         else:
             own = curvature_for(kms[f], dmin, dmax)
             base = min(own, top)
-            options = [(s, base * m) for m in BENDS for s in sides if base * m <= top]
-        best = None
-        for s, c in options:
+            options = [(s, base * m, False) for m in BENDS for s in sides if base * m <= top]
+        best = first = floor = None
+        for s, c, other in options:
+            if other and floor is not None:
+                break
             coords = curve(a, b, s, c) if c else geo.densify_gc([a, b], DENSIFY_DEG)
-            p = Placed(f, coords, kms[f], s, c, clearance.gaps(coords, f), (s, c) != options[0], geometry == "curved" and base < own)
+            p = Placed(f, coords, kms[f], s, c, clearance.gaps(coords, f), (s, c) != options[0][:2], geometry == "curved" and base < own,
+                       geometry == "great-circle" and max(abs(lat) for _, lat in coords) > POLE_LAT)
+            first = first or p
+            if p.high:
+                continue
+            floor = c if floor is None else floor
             if p.clear:
                 best = p
                 break
-            if c <= options[0][1] and (best is None or (len(p.near), -p.worst) < (len(best.near), -best.worst)):
+            if c <= floor and (best is None or (len(p.near), -p.worst) < (len(best.near), -best.worst)):
                 best = p
+        best = best or first
+        if first.high:
+            best.pole = max(abs(lat) for _, lat in first.coords)
         chosen[(f.o, f.d)] = best.side
         out.append(best)
     return out

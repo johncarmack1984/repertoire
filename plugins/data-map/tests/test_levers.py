@@ -754,6 +754,38 @@ class GlobeClearance(unittest.TestCase):
         self.assertRegex(text, rf"(?m)^WARN clearance \[P16\]: 1 flows still come within 2 px on a globe 293 px in radius \(the 844 x 634 px view\) "
                                rf"of a node they don't connect: CHN to USA \(JPN {gap:+.1f} px\)")
 
+    def test_a_great_circle_past_85_degrees_bends_below_it_and_the_warn_says_how_far(self):
+        # Delhi to the middle of the United States, 176 degrees of longitude apart, rises to 87 N; the globe's tiles
+        # end at 85.05, and a line past them loops round the pole.
+        ind = [77.2, 28.6]
+        top = max(abs(to_lonlat(slerp(sphere(ind), sphere(self.USA), i / 2000))[1]) for i in range(2001))
+        self.assertAlmostEqual(top, 87, delta=0.1)
+        nodes = {"IND": ind, "USA": self.USA, "CHN": self.CHN}
+        with tempfile.TemporaryDirectory() as out:
+            text = self.run_globe(out, nodes, [("IND", "USA", 1000), ("CHN", "USA", 400)])
+            lines, _ = globe_lines(out, "g", flows.VIEW)
+        _, drawn, length = lines[("IND", "USA")]
+        self.assertLessEqual(drawn, 85)
+        self.assertLess(length, 1.05)
+        warn = re.search(r"(?m)^WARN pole \[P20\]: 1 flow would rise past 85°, .*: IND to USA \(([\d.]+)° unbent, ([\d.]+)° bent\)\. Fix: ", text)
+        self.assertTrue(warn, text)
+        self.assertAlmostEqual(float(warn.group(1)), top, delta=0.6)
+        self.assertAlmostEqual(float(warn.group(2)), drawn, delta=0.1)
+
+    def test_a_flow_from_beyond_85_degrees_stays_and_the_warn_says_so(self):
+        # An end at 87 N leaves no bend below 85, so the flow keeps its great circle, which crosses the pole on its way
+        # to China, and the fix names its ends.
+        with tempfile.TemporaryDirectory() as out:
+            text = self.run_globe(out, {"ALT": [-62.3, 87.0], "USA": self.USA, "CHN": self.CHN}, [("ALT", "CHN", 100), ("USA", "CHN", 50)])
+            lines, _ = globe_lines(out, "g", flows.VIEW)
+        _, drawn, length = lines[("ALT", "CHN")]
+        self.assertAlmostEqual(length, 1, places=3)
+        warn = re.search(r"(?m)^WARN pole \[P20\]: 1 flow would rise past 85°.*ALT to CHN \(([\d.]+)° unbent, ([\d.]+)° still\)\. "
+                         r"Fix: 1 still crosses; move its ends below 85°, or draw the map in a polar projection\.", text)
+        self.assertTrue(warn, text)
+        self.assertEqual(warn.group(1), warn.group(2))
+        self.assertAlmostEqual(float(warn.group(2)), drawn, delta=0.1)
+
 
 class Reveal(unittest.TestCase):
     """--reveal writes the flows under the cut for a page control, while the legend still describes the first view."""
