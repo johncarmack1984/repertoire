@@ -77,7 +77,7 @@ Under a registered CRS in maplibre-gl:
 
 - GeoJSON sources are reprojected in the workers once proj4 is loaded there, through `importScriptInWorkers` and `setProjectionHandler`. `stacks/maplibre.md` has the code.
 - Web Mercator tiles draw in the wrong place. Use GeoJSON layers, or tiles cut in the CRS's own grid, such as martin's `tile_grids`. List every tile source with its grid in `dm-spec.tiles`; `check` fails a mismatch (P11).
-- With no Mercator basemap, draw the ocean and the frame from `geo --sphere --graticule 30`, with the definition's `+lon_0` as `--lon0`.
+- A world map draws no frame by default (`dm-spec.frame: "none"`): land on the page color, cropped to the data's latitudes, which reads larger at a newsletter's width. For the sphere's outline, ocean, and graticule, set `"frame": "sphere"` and write them with `geo --sphere --graticule 30`, with the definition's `+lon_0` as `--lon0`.
 - Densify long edges with `geo --densify 100`, because the renderer joins vertices with straight segments and a long one skips the curve the projection gives it (P12). `flows` writes densified lines already.
 - Clip the data to the hemisphere a view shows, in the prep script. The renderer doesn't clip it.
 - Call `fitBounds` in the map's `load` event. Bounds given to the constructor are fitted in Web Mercator and draw the world at half size.

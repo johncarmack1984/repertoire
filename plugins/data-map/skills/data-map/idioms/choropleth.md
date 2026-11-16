@@ -44,7 +44,7 @@ python3 <skill>/scripts/datamap.py classes turnout.csv --field ballots --per eli
 
 ```sh
 python3 <skill>/scripts/datamap.py crs --extent world --idiom area
-python3 <skill>/scripts/datamap.py geo --countries --densify 100 --sphere --graticule 30 --out map/data/base.geojson
+python3 <skill>/scripts/datamap.py geo --countries --densify 100 --lon0 11.6 --out map/data/base-countries.geojson
 ```
 
 **Small denominators and certainty.** Set `--min-den` to the smallest denominator whose rate the brief trusts, draw flagged units with a light hatch or a dashed outline, and print the count and denominator in the tooltip beside the rate (Muehlenhaus ch. 13). Flag only the units whose rate the reader could misread: a hatch over a large, thinly settled unit with an ordinary rate, such as Greenland at zero, becomes the loudest texture on the map and points at nothing. Keep a flagged unit on the map with its counts in an annotation, such as "1,177 per million, from 4 cases among 3,400 people", rather than dropping it; a dropped unit hides both the place and the reason to doubt it. For survey estimates, compute the coefficient of variation (the 90 percent margin of error over 1.645, divided by the estimate) and show it as a pattern overlay or an adjacent map, labeled certainty rather than uncertainty (Slocum §26.6.1.1, §26.6.2). The low estimates are usually the unstable ones (Slocum §26.6.1.1).
