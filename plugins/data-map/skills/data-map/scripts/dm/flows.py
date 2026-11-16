@@ -16,6 +16,7 @@ CURVE_MIN, CURVE_MAX = 0.12, 0.30
 GC_OFFSET = 0.05
 CLEARANCE_SHARE = 0.04
 DENSIFY_DEG = 1.0
+TURN_DEG = 2.5
 ARROW_RATIO, ARROW_MIN_PX = 2.5, 6.0
 NODE_RMAX = 10.0
 # A dark warm orange-brown: warm hues are for the data, blue sinks on thin lines, and red reads as alarm.
@@ -144,10 +145,24 @@ def curve(a: list, b: list, side: int, c: float) -> list:
     m = geo.slerp(va, vb, 0.5)
     h = c * w
     ctrl = geo.unit(tuple(m[i] * math.cos(h) - side * n[i] * math.sin(h) for i in range(3)))
-    steps = max(8, math.ceil(math.degrees(w * (1 + c)) / DENSIFY_DEG))
-    pts = [geo.lonlat(geo.slerp(geo.slerp(va, ctrl, t), geo.slerp(ctrl, vb, t), t)) for t in (i / steps for i in range(steps + 1))]
+    steps = math.ceil(math.degrees(w * (1 + c)) / DENSIFY_DEG)
+    ts = sorted({round(t, 9) for t in [i / steps for i in range(steps + 1)] + turn_samples(c)})
+    pts = [geo.lonlat(geo.slerp(geo.slerp(va, ctrl, t), geo.slerp(ctrl, vb, t), t)) for t in ts]
     pts[0], pts[-1] = list(a), list(b)
     return pts
+
+
+def turn_samples(c: float) -> list:
+    """Bézier parameters at equal steps of the tangent's angle, so no vertex turns more than about TURN_DEG.
+
+    With the control point c times the chord off its middle, the tangent's angle is atan(2c(1 - 2t)), so
+    equal steps of t would put the sharpest turns at the apex.
+    """
+    if c <= 0:
+        return [0.0, 1.0]
+    top = math.atan(2 * c)
+    k = max(2, math.ceil(math.degrees(2 * top) / TURN_DEG))
+    return [(1 - math.tan(top - 2 * top * i / k) / (2 * c)) / 2 for i in range(k + 1)]
 
 
 def side_of(p: list, a: list, b: list) -> int:

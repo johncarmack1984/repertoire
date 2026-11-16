@@ -217,9 +217,9 @@ def round_coords(c, nd: int = 5):
     return [round_coords(x, nd) for x in c]
 
 
-def feature(fid, props: dict, geom: dict) -> dict:
+def feature(fid, props: dict, geom: dict, nd: int = 5) -> dict:
     return {"type": "Feature", "id": fid, "properties": props,
-            "geometry": {"type": geom["type"], "coordinates": round_coords(geom["coordinates"])}}
+            "geometry": {"type": geom["type"], "coordinates": round_coords(geom["coordinates"], nd)}}
 
 
 def sort_key(f: dict) -> tuple:

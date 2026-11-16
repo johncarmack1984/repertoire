@@ -6,6 +6,7 @@ import json
 import math
 import random
 import re
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -19,6 +20,7 @@ import datamap  # noqa: E402
 from dm import classify, commands, crs, data, flows, geo, symbols  # noqa: E402
 
 FIX = HERE / "fixtures"
+EVALS = HERE.parent / "evals"
 SLOCUM = [11, 12, 13, 14, 31, 32, 33, 99, 100]
 
 
@@ -45,6 +47,41 @@ def midpoint(coords):
 
 def midpoint_lat(placed):
     return midpoint(placed.coords)[1]
+
+
+def mercator(p):
+    """Web Mercator at zoom 0, in 512 px tiles: what a flat map draws, with angles kept."""
+    lat = math.radians(p[1])
+    return ((p[0] + 180) / 360 * 512, (0.5 - math.log(math.tan(math.pi / 4 + lat / 2)) / (2 * math.pi)) * 512)
+
+
+def turns(line):
+    """The angle, in degrees, through which a line turns at each inner vertex, as drawn in Web Mercator."""
+    xy = [mercator(p) for p in line]
+    out = []
+    for a, b, c in zip(xy, xy[1:], xy[2:]):
+        h = math.atan2(c[1] - b[1], c[0] - b[0]) - math.atan2(b[1] - a[1], b[0] - a[0])
+        out.append(abs((math.degrees(h) + 180) % 360 - 180))
+    return out
+
+
+class BikeCase:
+    """The bike-share eval's own data, scaffolded once: 20 Portland stations and 380 OD pairs."""
+
+    tmp = None
+
+    @classmethod
+    def folder(cls) -> Path:
+        if cls.tmp is None:
+            cls.tmp = tempfile.TemporaryDirectory()
+            subprocess.run(["bash", str(EVALS / "bike-share-od-flows" / "scaffold.sh")], cwd=cls.tmp.name, check=True)
+        return Path(cls.tmp.name) / "bike-data"
+
+    @classmethod
+    def flows(cls, out, *args):
+        d = cls.folder()
+        return cli("flows", d / "trips_od.csv", "--nodes", d / "stations.csv", "--origin", "start_station_id", "--dest", "end_station_id",
+                   "--value", "trips", "--id", "station_id", "--unit", "trips", "--layer", "bike", "--out-dir", out, *args)
 
 
 class Classing(unittest.TestCase):
@@ -256,6 +293,17 @@ class Flows(unittest.TestCase):
             self.assertEqual((layer["total"], layer["omitted_note"]), (2, "The 1 largest of 2 flows, 99% of all movers"))
             totals = {f["properties"]["dm_key"]: f["properties"]["dm_value"] for f in json.loads((Path(tmp) / "f-nodes.geojson").read_text())["features"]}
             self.assertEqual(totals, {"A": 100, "B": 100})
+
+    def test_curves_turn_by_at_most_three_degrees_at_any_vertex(self):
+        # Nine points per curve kinked the long Sellwood loops by up to 12.8 degrees at the bike map's opening zoom.
+        with tempfile.TemporaryDirectory() as out:
+            code, text = BikeCase.flows(out, "--top", 40, "--max-width", 10)
+            self.assertEqual(code, 0, text)
+            lines = json.loads((Path(out) / "bike.geojson").read_text())["features"]
+            self.assertEqual(len(lines), 40)
+            worst = max(max(turns(f["geometry"]["coordinates"])) for f in lines)
+            self.assertLessEqual(worst, 3.0)
+            self.assertGreater(worst, 0)
 
     def test_widths_are_linear_in_value_with_a_floor(self):
         self.assertAlmostEqual(flows.width(3000, 3400, 12, 1), 12 * 3000 / 3400)
