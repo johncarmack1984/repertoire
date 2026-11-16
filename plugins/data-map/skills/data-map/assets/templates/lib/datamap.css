@@ -65,6 +65,11 @@ footer p { margin: 0; }
 .dm-tip { position: absolute; z-index: 2; pointer-events: none; max-width: 260px; padding: 4px 7px; background: var(--dm-page);
   border: 1px solid var(--dm-rule); color: var(--dm-text); white-space: pre-line; display: none; }
 
+body.dm-figure { margin: 0 auto; }
+body.dm-narrow { grid-template: "head" auto "map" minmax(55%, 1fr) "side" auto "foot" auto / minmax(0, 1fr); padding: 16px; }
+body.dm-narrow aside { padding-top: 16px; }
+body.dm-narrow footer { flex-direction: column; gap: 4px; }
+
 @media (max-width: 720px) {
   body { height: auto; grid-template: "head" auto "map" 62vh "side" auto "foot" auto / minmax(0, 1fr); padding: 16px; }
   body.dm-chart { grid-template: "head" auto "side" auto "foot" auto / minmax(0, 1fr); }

@@ -94,8 +94,12 @@ const LEGENDS = {
     if (L.nodata) extra.push({kind: 'nodata', color: L.nodata.color, text: L.nodata.label || 'No data', expect: (L.nodata.count || 0) > 0});
     if (L.low_n?.count > 0) extra.push({kind: 'low-n', hatch: true,
       text: L.low_n.label || `Hatched: fewer than ${fmt(L.low_n.threshold)} in the denominator`});
-    const top = colors.length * sh + (extra.length ? 10 : 0), line = parseFloat(tok('t4')) * 1.25;
-    const room = (sec.getBoundingClientRect().width || parseFloat(tok('side'))) - sw - gap;
+    const line = parseFloat(tok('t4')) * 1.25, width = sec.getBoundingClientRect().width || parseFloat(tok('side'));
+    // A narrow figure is short of height, so its swatches run across, touching, low on the left, each class's
+    // lower limit below its left edge (Slocum §14.7); the side panel is short of width, so its swatches stack.
+    const across = document.body.classList.contains('dm-narrow'), cell = Math.min(64, width / Math.max(colors.length, 1));
+    const top = (across ? sh + line + 4 : colors.length * sh) + (extra.length ? 10 : 0);
+    const room = width - sw - gap;
     let y = top;
     for (const x of extra) {
       x.lines = wrap(x.text, room);
@@ -106,8 +110,16 @@ const LEGENDS = {
     const pattern = svg('pattern', {id: `dm-hatch-${name}`, width: 6, height: 6, patternUnits: 'userSpaceOnUse', patternTransform: 'rotate(45)'}, svg('defs', {}, s));
     svg('line', {x1: 0, y1: 0, x2: 0, y2: 6, stroke: 'rgba(40,40,40,0.5)', 'stroke-width': 1.2}, pattern);
     colors.forEach((c, i) => {
-      mark(svg('rect', {x: 0, y: i * sh, width: sw, height: sh, fill: c}, s), name, 'class', c, labels[i], (counts[i] ?? 1) > 0);
-      label(s, sw + gap, i * sh + sh / 2, labels[i] ?? '');
+      if (across) {
+        mark(svg('rect', {x: i * cell, y: 0, width: cell, height: sh, fill: c}, s), name, 'class', c, labels[i], (counts[i] ?? 1) > 0);
+        const low = String(labels[i] ?? '').match(/^-?[\d,.]+/)?.[0] ?? '';
+        label(s, i * cell, sh + line / 2 + 2, low, i ? {'text-anchor': 'middle'} : {});
+        const high = i === colors.length - 1 && String(labels[i] ?? '').match(/ to (-?[\d,.]+)$/)?.[1];
+        if (high) label(s, (i + 1) * cell, sh + line / 2 + 2, high, {'text-anchor': 'end'});
+      } else {
+        mark(svg('rect', {x: 0, y: i * sh, width: sw, height: sh, fill: c}, s), name, 'class', c, labels[i], (counts[i] ?? 1) > 0);
+        label(s, sw + gap, i * sh + sh / 2, labels[i] ?? '');
+      }
     });
     for (const x of extra) {
       const y = x.y;
@@ -951,9 +963,19 @@ function baseColors(style) {
 
 // A wide projection in a tall cell leaves bands above and below the map; give the map row the map's own
 // height and center the figure on the page instead.
+// A static figure is an image of one size, so the page lays itself out at dm-spec.figure.size in any window,
+// one column when that is narrow.
+function layOutFigure() {
+  const size = /^(\d+)x(\d+)$/.exec(spec.figure?.size || '');
+  if (!size) return;
+  document.body.classList.add('dm-figure');
+  document.body.classList.toggle('dm-narrow', Number(size[1]) <= 720);
+  Object.assign(document.body.style, {width: `${size[1]}px`, height: `${size[2]}px`});
+}
+
 function hugMap(map) {
   const cell = $('dm-map-cell'), {clientWidth: w, clientHeight: h} = cell;
-  if (spec.projection.type === 'globe' || innerWidth <= 720) return false;
+  if (spec.projection.type === 'globe' || spec.figure?.size || innerWidth <= 720) return false;
   const e = spec.extent, pts = [];
   const b = e === 'world' ? [-180, -90, 180, 90] : Array.isArray(e) ? e : bbox(thematicPoints()).flat();
   for (let i = 0; i <= 36; i++) {
@@ -980,6 +1002,7 @@ const once = (target, event) => new Promise(r => target.once(event, r));
 
 async function start(libs, extend) {
   document.body.classList.toggle('dm-chart', !spec.projection);
+  layOutFigure();
   drawLegend();
   drawCompanions();
   if (!spec.projection) {

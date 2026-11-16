@@ -45,7 +45,7 @@ python3 <skill>/scripts/datamap.py check map --scale 2
 | `decisions` | each departure, with the pitfall it touches and why |
 | `center` | the globe's center as `[lon, lat]`, when the data's mean position is the wrong one |
 | `tooltips` | `false` to take the hover tooltips off; the page shows them unless told |
-| `figure` | a static figure's destination size, such as `{"size": "1200x700", "scale": 2}`; `check` renders there unless `--size` or `--scale` says otherwise |
+| `figure` | a static figure's destination size, such as `{"size": "640x700", "scale": 2}`. The page lays itself out at that size in any window, in one column with the classes running across when it is 720 px wide or less, and the map keeps at least 55% of the height. `check` renders there unless `--size` or `--scale` says otherwise, and fails any text cut off or run off the figure |
 
 ## What the page draws from data
 

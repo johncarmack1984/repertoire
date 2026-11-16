@@ -385,7 +385,11 @@ def judge_report(rep: dict, page: Page) -> list:
                         "cut the companions to what fits beside the map at this size, or move one below the map", 24))
     vw, vh = (rep.get("viewport") or {}).get("w"), (rep.get("viewport") or {}).get("h")
     if vw and (off := [b["text"] for b in rep.get("textBoxes", []) if b["x"] < -1 or b["y"] < -1 or b["x"] + b["w"] > vw + 1 or b["y"] + b["h"] > vh + 1]):
-        out.append(WARN("offscreen", f"text runs off the page: {'; '.join(off[:3])}", "shorten it, or let it wrap", 24))
+        if (page.spec or {}).get("figure"):
+            out.append(FAIL("offscreen", f"text runs off the {vw}x{vh} figure: {'; '.join(off[:3])}",
+                            "a static figure has one size: cut a companion or a note until everything fits, keeping the map at least half the height", 24))
+        else:
+            out.append(WARN("offscreen", f"text runs off the page: {'; '.join(off[:3])}", "shorten it, or let it wrap", 24))
     return out
 
 
