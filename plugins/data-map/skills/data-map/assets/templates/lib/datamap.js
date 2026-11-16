@@ -692,9 +692,10 @@ function meanCenter(pts) {
   }
   return [Math.atan2(y, x) / RAD, Math.atan2(z, Math.hypot(x, y)) / RAD];
 }
-// The globe opens on the center, on a 5-degree grid, that keeps the most inflow within 64 degrees of the middle,
-// where the disk still reads, and on a tie the one that brings it nearest the middle. A mean position can leave the
-// largest destinations on the far side, and a mean of far-flung places can fall near a pole.
+// The globe opens on the center, on a 5-degree grid no more than 45 degrees from the equator, that keeps the most
+// inflow within 64 degrees of the middle, where the disk still reads, and on a tie the one that brings it nearest the
+// middle. A mean position can leave the largest destinations on the far side, and a center near a pole turns the
+// continents on their sides.
 function globeCenter(pts) {
   const inflow = new Map();
   for (const [name, L] of layersOf()) {
@@ -707,7 +708,7 @@ function globeCenter(pts) {
   }
   if (!inflow.size) return meanCenter(pts);
   let best = null;
-  for (let lat = -60; lat <= 60; lat += 5) for (let lon = -180; lon < 180; lon += 5) {
+  for (let lat = -45; lat <= 45; lat += 5) for (let lon = -180; lon < 180; lon += 5) {
     let seen = 0, near = 0;
     for (const {at, v} of inflow.values()) {
       const deg = angularKm(at, [lon, lat]) / EARTH_KM / RAD;
