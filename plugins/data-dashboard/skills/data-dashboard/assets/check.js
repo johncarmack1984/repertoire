@@ -25,6 +25,14 @@ function check () {
     for (; el && el.nodeType === 1; el = el.parentElement) { const c = rgba(cs(el).backgroundColor); if (c && c[3] > 0) return over(c, [255, 255, 255, 1]) }
     return [255, 255, 255, 1]
   }
+  const under = el => {
+    const r = el.getBoundingClientRect()
+    for (const u of document.elementsFromPoint(r.left + r.width / 2, r.top + r.height / 2)) {
+      const c = u instanceof SVGGeometryElement && rgba(cs(u).fill)
+      if (c && c[3] > 0) return over(c, bgOf(u.ownerSVGElement))
+    }
+    return bgOf(el.ownerSVGElement)
+  }
   const secOf = el => el.closest('main section, .dd-sec, header, footer')
   const nameOf = s => !s ? 'page' : ((s.querySelector('h1, h2, h3') || {}).textContent || s.id || s.tagName.toLowerCase()).trim().replace(/\s+/g, ' ').slice(0, 48)
   const where = el => `${nameOf(secOf(el))} ${el.tagName.toLowerCase()}${el.getAttribute('class') ? '.' + el.getAttribute('class').split(/\s+/)[0] : ''}`
@@ -61,7 +69,7 @@ function check () {
     const label = `"${t.slice(0, 40)}" in ${nameOf(secOf(el))}`, size = parseFloat(s.fontSize), fg = rgba(isSvg ? s.fill : s.color)
     if (size < 9) rep.small.push({ text: label, px: size })
     if (fg) {
-      const bg = bgOf(frameEl), ratio = contrast(over(fg, bg), bg), need = size >= 24 || (size >= 18.66 && +s.fontWeight >= 700) ? 3 : 4.5
+      const bg = isSvg ? under(el) : bgOf(frameEl), ratio = contrast(over(fg, bg), bg), need = size >= 24 || (size >= 18.66 && +s.fontWeight >= 700) ? 3 : 4.5
       if (ratio < need) rep.contrast.push({ text: label, ratio, need, color: hex(fg), bg: hex(bg) })
     }
     let out = 0

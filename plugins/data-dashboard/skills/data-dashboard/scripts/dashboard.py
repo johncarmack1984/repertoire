@@ -32,7 +32,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 ASSETS = Path(__file__).resolve().parent.parent / "assets"
 LIB = {"css": ("style", "dashboard.css"), "lib": ("script", "dashboard.js")}
 UNIT = 20
@@ -213,7 +213,7 @@ def hue(c: tuple[int, int, int]) -> str | None:
 
 def tokens() -> set[tuple[int, int, int]]:
     css = asset("css")
-    return {rgb(m[1]) for m in re.finditer(r"--dd-(?:alert|warn):\s*(#[0-9A-Fa-f]{3,6})", css)}
+    return {rgb(m[1]) for m in re.finditer(r"--dd-(?:alert|warn|heat-\d):\s*(#[0-9A-Fa-f]{3,6})", css)}
 
 
 def static_pass(text: str) -> list[dict]:
@@ -401,7 +401,7 @@ def judge(rep: dict, w: int, h: int, theme: str) -> list[dict]:
     for c in sat:
         out.append(finding("FAIL", "color", 12, f"saturated {c['color']} on {c['count']} element(s), first at {c['where']}", "keep everything gray; only alerts carry saturated red"))
     if not sat and "green" not in hues:
-        out.append(finding("PASS", "color", 12, f"the only saturated colors are the alert tokens ({', '.join(c['color'] for c in rep['colors']) or 'none drawn'})"))
+        out.append(finding("PASS", "color", 12, f"the only saturated colors are the alert reds and the treemap's tints of them ({', '.join(c['color'] for c in rep['colors']) or 'none drawn'})"))
     rows, warn, alert = rep["rows"]["total"], rep["rows"]["warn"], rep["rows"]["alert"]
     if rows:
         share = (len(warn) + len(alert)) / rows

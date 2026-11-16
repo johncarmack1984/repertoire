@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="dd-viewport" content="1440x800">
 <title>Dashboard</title>
-<!-- data-dashboard:css 0.1.0 sha256:747d9b13b40267fb3cc2c0aeb437c6c5dbaa6a55661e1282472ee1df036f2ef6 -->
+<!-- data-dashboard:css 0.2.0 sha256:fcc0f3fcdbae804dbee2d8bdfd70e92e9741672a29fa3b49885df7730fa97c9b -->
 <style>
 :root {
   --dd-cols: 72;
@@ -41,6 +41,11 @@
   --dd-norm: #E4E4E1;
   --dd-tint: #EDEDEA;
   --dd-box: #D8D8D6;
+  --dd-heat-0: #E3E3E0;
+  --dd-heat-1: #E5C6BE;
+  --dd-heat-2: #E4A89D;
+  --dd-heat-3: #E18A7B;
+  --dd-heat-4: #DB6A5A;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -74,6 +79,11 @@
     --dd-norm: #2F2F2D;
     --dd-tint: #282826;
     --dd-box: #3A3A38;
+    --dd-heat-0: #2F2F2E;
+    --dd-heat-1: #4B3632;
+    --dd-heat-2: #673B35;
+    --dd-heat-3: #844038;
+    --dd-heat-4: #A1433A;
   }
 }
 :root[data-theme="dark"] {
@@ -106,6 +116,11 @@
   --dd-norm: #2F2F2D;
   --dd-tint: #282826;
   --dd-box: #3A3A38;
+  --dd-heat-0: #2F2F2E;
+  --dd-heat-1: #4B3632;
+  --dd-heat-2: #673B35;
+  --dd-heat-3: #844038;
+  --dd-heat-4: #A1433A;
 }
 
 :root[data-dd-layout="column"] { --u: 19.2px; }
@@ -247,6 +262,13 @@ html { background: var(--dd-bg); }
 .dd-svg .dd-fit { fill: none; stroke: var(--dd-tone-0); stroke-width: 1.5; }
 .dd-svg .dd-icon { fill: var(--dd-ink-2); }
 .dd-svg .dd-icon-line { fill: none; stroke: var(--dd-ink-2); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.dd-svg .dd-heat-0 { fill: var(--dd-heat-0); }
+.dd-svg .dd-heat-1 { fill: var(--dd-heat-1); }
+.dd-svg .dd-heat-2 { fill: var(--dd-heat-2); }
+.dd-svg .dd-heat-3 { fill: var(--dd-heat-3); }
+.dd-svg .dd-heat-4 { fill: var(--dd-heat-4); }
+.dd-svg .dd-heat-a { fill: var(--dd-alert); }
+.dd-svg text.dd-knock { fill: var(--dd-bg); }
 
 .dd-text { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
 .dd-text th {
@@ -308,12 +330,12 @@ document.querySelector('#dd-asof').textContent = d.asOf ? `Data as of ${dd.asOf(
 dd.flags('#dd-flags')
 </script>
 <!-- /data-dashboard:page -->
-<!-- data-dashboard:lib 0.1.0 sha256:77a5b7685d89fe1383f2c3221e5540e85c428f765eebb551b6b8e45a3b176bb6 -->
+<!-- data-dashboard:lib 0.2.0 sha256:79fc775fafec9b9b7257873fc39b021ef38024c41f25544843fb1d71f7eb0709 -->
 <script>
-/* data-dashboard 0.1.0: Stephen Few's dashboard display media, drawn as SVG. MIT license. */
+/* data-dashboard 0.2.0: Stephen Few's dashboard display media, drawn as SVG. MIT license. */
 (() => {
 'use strict'
-const VERSION = '0.1.0'
+const VERSION = '0.2.0'
 const POLICY = { warn: 0.95, alert: 0.85 }
 const WORD = { good: 'good', ok: 'satisfactory', warn: 'warning', alert: 'critical', none: 'no comparison' }
 const DOTC = { warn: 'dd-dot-warn', alert: 'dd-dot-alert' }
@@ -883,6 +905,80 @@ function scatter (input, o) {
   return svg(W, H, join(o.title, sets.map(s => `${s.name || 'points'}, ${s.points.length} points`).join('; ')), kids, 'dd-scatter')
 }
 
+function squarify (sizes, x, y, w, h) {
+  const k = w * h / (sizes.reduce((a, b) => a + b, 0) || 1), out = []
+  const worst = (sum, hi, lo, side) => max(side * side * hi / (sum * sum), sum * sum / (side * side * lo))
+  for (let i = 0; i < sizes.length;) {
+    const side = min(w, h)
+    let j = i + 1, sum = sizes[i] * k, hi = sum, lo = sum
+    for (; j < sizes.length; j++) {
+      const a = sizes[j] * k
+      if (worst(sum + a, max(hi, a), min(lo, a), side) > worst(sum, hi, lo, side)) break
+      sum += a; hi = max(hi, a); lo = min(lo, a)
+    }
+    const thick = sum / side
+    let at = w >= h ? y : x
+    for (let n = i; n < j; n++) {
+      const len = sizes[n] * k / thick
+      out.push(w >= h ? { x, y: at, w: thick, h: len } : { x: at, y, w: len, h: thick })
+      at += len
+    }
+    if (w >= h) { x += thick; w -= thick } else { y += thick; h -= thick }
+    i = j
+  }
+  return out
+}
+const HEAT = { ok: 1, warn: 3 }
+function heat (m, st, policy) {
+  if (st.level === 'alert') return 'a'
+  if (!HEAT[st.level]) return 0
+  const t = m.better === 'in' || !isNum(st.ratio) ? NaN : (1 - goodness(st.ratio, m.better)) / (1 - pol(m, policy).alert)
+  return t > 0 && t < 1 ? 1 + min(3, Math.floor(t * 4)) : HEAT[st.level]
+}
+function treemap (input, o) {
+  const e = env(o), { fs, sm, W, tw } = e, H = px((o.height || 10) * e.u)
+  const grouped = input.some(g => Array.isArray(g.children))
+  if (grouped && !input.every(g => Array.isArray(g.children))) throw new Error('dd.treemap: give every top-level entry children, or none')
+  const cell = r => {
+    if (r.children) throw new Error('dd.treemap: one level of grouping; fold the deeper levels into their groups')
+    const m = norm(r, r.key), st = state(m, e.policy)
+    return { m, st, size: isNum(r.size) ? r.size : m.value, heat: heat(m, st, e.policy) }
+  }
+  const groups = (grouped ? input : [{ children: input }]).map(g => {
+    const cells = g.children.map(cell).filter(c => c.size > 0).sort((a, b) => b.size - a.size)
+    return { label: g.label, cells, total: cells.reduce((s, c) => s + c.size, 0) }
+  }).filter(g => g.total > 0).sort((a, b) => b.total - a.total)
+  const gap = 1, gg = grouped ? max(2, px(fs * 0.4)) : 0, strip = grouped ? px(sm * 1.5) : 0, pad = max(2, px(sm * 0.3)), pitch = px(sm * 1.25)
+  const sum = groups.reduce((s, g) => s + g.total, 0), WH = (W + gg) * (H + gg)
+  const head = b => b.h - gg >= 2 * strip ? strip : 0, inner = b => max(0, b.w - gg) * max(0, b.h - gg - head(b))
+  // A group's box also holds its header strip and gaps, which cost the most in a small group. Size each box as if square,
+  // area − edge·√area + corner = k·total, then correct from the boxes' real shapes and keep the closest pass, since squarify jumps between arrangements.
+  const edge = strip + 2 * gg, corner = gg * (strip + gg), need = k => groups.map(g => ((edge + Math.sqrt(max(0, edge * edge - 4 * corner + 4 * k * g.total))) / 2) ** 2)
+  let lo = 0, hi = WH / sum
+  for (let n = 0; n < 40; n++) { const k = (lo + hi) / 2; if (need(k).reduce((a, b) => a + b, 0) > WH) hi = k; else lo = k }
+  let weights = need(lo), best = null
+  for (let n = 0; n < 4; n++) {
+    const boxes = squarify(weights, 0, 0, W + gg, H + gg), ins = boxes.map(inner), k = ins.reduce((a, b) => a + b, 0) / sum
+    const err = max(...groups.map((g, i) => Math.abs(ins[i] / (k * g.total) - 1)))
+    if (!best || err < best.err) best = { boxes, err }
+    weights = groups.map((g, i) => g.total + (boxes[i].w * boxes[i].h - ins[i]) / k)
+  }
+  const kids = groups.map((g, i) => {
+    const b = best.boxes[i], top = head(b), x0 = px(b.x), y0 = px(b.y), x1 = px(b.x + b.w) - gg, y1 = px(b.y + b.h) - gg
+    const name = top && x1 > x0 ? clip(g.label ?? '', x1 - x0, sm, 600, tw) : ''
+    const rs = x1 > x0 && y1 > y0 + top ? squarify(g.cells.map(c => c.size), x0, y0 + top, x1 - x0 + gap, y1 - y0 - top + gap) : []
+    return h('g', { class: 'dd-tm-group' }, name && name !== '…' ? T(x0, y0 + top - px(sm * 0.45), name, sm, 'dd-t2', { 'font-weight': 600 }) : null, rs.map((r, j) => {
+      const c = g.cells[j], m = c.m, st = c.st, cx = px(r.x), cy = px(r.y), w = px(r.x + r.w) - cx - gap, ht = px(r.y + r.h) - cy - gap
+      const val = fmt(m.value, m.format), cls = c.heat === 'a' ? 'dd-knock' : 'dd-t', base = cy + pad + px(sm * 0.95)
+      const one = tw(m.label, sm) + 2 * pad <= w && 2 * pad + pitch <= ht, two = one && tw(val, sm, DOTC[st.level] ? 700 : 400) + 2 * pad <= w && 2 * pad + 2 * pitch <= ht
+      const title = [st.text, isNum(m.target) && `target ${fmt(m.target, m.format)}`, c.size !== m.value && `${o.sizeLabel || 'size'} ${fmt(c.size, o.sizeFormat || m.format)}`]
+      return row(st.level, m.label, title.filter(Boolean).join('; '), [R(cx, cy, w, ht, `dd-heat-${c.heat} dd-crisp${c.heat === 'a' ? ' dd-mark' : ''}`),
+        one ? T(cx + pad, base, m.label, sm, cls) : null, two ? T(cx + pad, base + pitch, val, sm, cls, bold(st.level)) : null], m.key)
+    }))
+  })
+  return svg(W, H, join(o.title, groups.map(g => (g.label ? `${g.label}: ` : '') + g.cells.map(c => c.st.text).join('; ')).join('. ')), kids, 'dd-treemap')
+}
+
 function text (rows, o) {
   const cols = (o.cols || Object.keys(rows[0] || {})).map(c => typeof c === 'string' ? (([key, format, label]) => ({ key, format, label }))(c.split(':')) : c)
   const sts = rows.map(r => r.state || basis(r) ? state(norm(r), o.policy) : null), dots = sts.some(Boolean)
@@ -922,7 +1018,7 @@ function legend (items, o) {
   for (const it of items) {
     const k = it.mark, bar = k === 'bar' || k === 'projection', w = k === 'dot' ? px(fs * DOT) : bar || k === 'line' ? px(s * 1.6) : k === 'target' ? 4 : s
     const th = bar ? max(3, px(s / 3)) : k === 'line' ? 2 : k === 'target' ? s + 2 : s
-    const cls = { bar: 'dd-bar', projection: 'dd-proj', target: 'dd-tgt', band: `dd-band dd-band-${it.tone ?? 2}`, fill: 'dd-fill', highlight: 'dd-fill-hi', part: `dd-part-${it.tone ?? 0}`, line: `dd-part-${it.tone ?? 0}` }[k]
+    const cls = { bar: 'dd-bar', projection: 'dd-proj', target: 'dd-tgt', band: `dd-band dd-band-${it.tone ?? 2}`, fill: 'dd-fill', highlight: 'dd-fill-hi', part: `dd-part-${it.tone ?? 0}`, line: `dd-part-${it.tone ?? 0}`, heat: `dd-heat-${it.tone ?? 0}` }[k]
     kids.push(k === 'dot' ? alertDot(x + w / 2, cy, fs, it.level || 'alert') : cls ? R(x + (k === 'target' ? 1 : 0), px(cy - th / 2), k === 'target' ? 2 : w, th, cls) : null,
       T(x + w + 4, cy + mid(fs), it.label, fs, 'dd-t2'))
     x += w + 4 + tw(it.label, fs) + gap
@@ -980,7 +1076,7 @@ function layout () {
   doc.dataset.ddLayout = innerWidth / cols * 0.625 < 11 ? 'column' : 'grid'
 }
 
-const media = { table, bullet, spark, bars, stacked, line, box, scatter, text, legend, alert, trend, mark }
+const media = { table, bullet, spark, bars, stacked, line, box, scatter, treemap, text, legend, alert, trend, mark }
 function fmtIn (v, s, locale) {
   const was = now.locale
   now.locale = locale || was

@@ -7,11 +7,11 @@ This file holds the detail for step 6: every call, option, and data field. The l
 `dashboard.py new` writes the page. Its parts, in order:
 
 - `<meta name="dd-viewport" content="1440x800">`, the design viewport in CSS px.
-- `<!-- data-dashboard:css 0.1.0 sha256:… -->` `<style>` … `</style>` `<!-- /data-dashboard:css -->`, the inlined `dashboard.css`. Never edit it by hand: `check` fails a region whose content no longer matches its sha256, and `sync` rewrites it.
+- `<!-- data-dashboard:css 0.2.0 sha256:… -->` `<style>` … `</style>` `<!-- /data-dashboard:css -->`, the inlined `dashboard.css`. Never edit it by hand: `check` fails a region whose content no longer matches its sha256, and `sync` rewrites it.
 - `<!-- data-dashboard:page-style -->` … `<!-- /data-dashboard:page-style -->`, the page's own CSS. Its first rule is `:root { --dd-cols: 72; --dd-rows: 40; }`, the design viewport divided by 20 px, which `new` writes and `check` compares against the meta. The grid's `grid-template-columns` and `grid-template-areas` go here.
 - `<!-- data-dashboard:page -->` … `<!-- /data-dashboard:page -->`, holding `header.dd-head`, `main.dd-grid`, `footer.dd-foot`, the data block `<script type="application/json" id="dd-data">`, and the page script `<script type="module">`. The page script is a module so that it runs after the library, which is inlined after it.
 - The header holds `h1.dd-title`, `p.dd-asof` and `p.dd-flags`, the count of flagged rows beside the as-of line. The page script fills the as-of and calls `dd.flags('#dd-flags')`, so a new page says "Nothing flagged" until its sections flag a row.
-- `<!-- data-dashboard:lib 0.1.0 sha256:… -->` `<script>` … `</script>` `<!-- /data-dashboard:lib -->`, the inlined `dashboard.js`.
+- `<!-- data-dashboard:lib 0.2.0 sha256:… -->` `<script>` … `</script>` `<!-- /data-dashboard:lib -->`, the inlined `dashboard.js`.
 
 ## Data
 
@@ -80,7 +80,7 @@ An alert dot is one line of text across, 1.3 times the type size: 16 px at 12.5 
 | `dd.state(m, policy?)` | `{level, ratio, text}`, as above. |
 | `dd.flags(target)` | Writes the count of flagged rows into `target`, as above, and keeps it current. `dd.svg.flags({alert, warn})` returns the line as HTML from two lists of labels. |
 | `dd.flagged(root = document)` | `{total, alert: [labels], warn: [labels]}`, the rows under `root` with each row counted once, as above. `dd.flags` and the check's alert count both read it. |
-| `dd.version` | `"0.1.0"`. |
+| `dd.version` | `"0.2.0"`. |
 
 Format specs:
 
@@ -191,6 +191,36 @@ A row with a `target` gets a target tick and a state, and a dot when it is `warn
 
 Points are `{x, y, label?}`; `sets` are `{name, points}`, at most two. Hollow circles, a least-squares line per set labeled with the set's name at its right end, axes that need not start at zero, axis titles written horizontally. Options: `height` (u, default 8), `formatX`, `formatY`, `labels` (labels points that have one, on the side away from the fit line, dropped when no free spot exists), `fit` (`false`), `xLabel`, `yLabel`, `name`.
 
+### `treemap(input, opts)`
+
+Few's treemap (figure 6-43) is for spotting conditions across many items, not for comparing values. Nested rectangles fill the space, a cell's area is one quantity, such as revenue, and its color is a condition, such as percent of quota, so the eye goes to the large red cells.
+
+`input` is a list of items, or of groups one level deep:
+
+```json
+[{"label": "West", "children": [
+   {"label": "California", "key": "ca", "value": 5900000, "target": 7200000, "format": "usd0k"},
+   {"label": "Oregon", "key": "or", "value": 980000, "target": 900000, "format": "usd0k"}]},
+ {"label": "South", "children": [
+   {"label": "Texas", "key": "tx", "value": 4600000, "target": 4500000, "format": "usd0k"}]}]
+```
+
+An item is a measure record (`label`, `value`, a comparison such as `target`, and optionally `better`, `policy`, `state`, `format` and `key`) plus `size`, the quantity its area shows, which defaults to `value`. An item without a positive size is left out. A list that mixes groups and items, or a group inside a group, throws.
+
+Color follows the item's state, on the alert hue. A cell at or above its basis is the neutral `--dd-heat-0`. A cell under the alert threshold is the alert red, `--dd-alert`, with its text in `--dd-bg`. Between them, an `ok` or `warn` cell takes one of four tints, `--dd-heat-1` to `--dd-heat-4`, by how far its ratio falls from the basis toward the alert threshold; a cell whose state comes from `state`, `ranges` or `norm` takes tint 1 for `ok` and 3 for `warn`. So the full-red cells are exactly the critical ones, which `dd.flagged()` counts. The tints stop at a red light enough to keep text on it at 4.5:1, and the alert cells step past them to the full red.
+
+The layout is squarified (Bruls, Huizing and van Wijk): the groups first, then each group's cells inside it, largest first, so cells come out near square, with a mean aspect ratio of about 1.4 for a flat list. Each group has a header strip with its label in semibold gray, and a gap of 0.4 type sizes to the next group; a group too short to hold its header drops it. Cells sit 1 px apart. Within a group, a cell's area, its gap included, is its share of the group to within the rounding of its edges to whole pixels. Across groups, each group's header and gap are paid for out of its weight, so 95% of cells come within 3% of their share of the whole and the median within 1%; a small group squeezed into a thin band at the end of a row can be off by as much as 30%.
+
+Each cell shows its label and, under it, its value in the item's format, at small type in its top-left corner, only when they fit inside the cell. A label that doesn't fit is left out, never cut short. The value is bold when the cell is flagged. Every cell's `<title>` holds its exact values: the state text, the target, and the size when it differs from the value.
+
+| Option | Meaning |
+|---|---|
+| `height` | In u (default 10). |
+| `sizeLabel`, `sizeFormat` | The name and format of `size` in a cell's title, when it differs from `value` (default "size" and the item's format). |
+| `policy`, `title` | As for `table`. |
+
+Key the colors with `dd.legend` and the `heat` mark, such as `[{mark: 'heat', tone: 0, label: 'Quota met'}, {mark: 'heat', tone: 3, label: 'Short'}, {mark: 'heat', tone: 'a', label: 'Under 85%'}]`.
+
 ### `text(rows, opts)`
 
 An HTML `<table class="dd-text">`: right-aligned numbers, bottom-aligned headers, one hairline under them, and one stretching column that takes the width left over, ellipsized with its full text in `title`. Every other column keeps its content width on one line.
@@ -206,7 +236,7 @@ Rows with a `state` or a `target` get a dot column and bold cells when `warn` or
 
 ### `legend(items, opts)`
 
-For the `.dd-legend` slot on a section title. Items are `{mark, label, tone?, level?}` with `mark` one of `bar`, `projection` (the lighter segment beyond the bar), `target`, `band` (tone 0 to 4, darkest 0), `fill`, `highlight`, `part` (tone 0 to 2), `line` (tone 0 to 2), `dot` (level `warn` or `alert`, the same size as the page's alert dots at the legend's type size).
+For the `.dd-legend` slot on a section title. Items are `{mark, label, tone?, level?}` with `mark` one of `bar`, `projection` (the lighter segment beyond the bar), `target`, `band` (tone 0 to 4, darkest 0), `fill`, `highlight`, `part` (tone 0 to 2), `line` (tone 0 to 2), `heat` (a treemap color: tone 0 to 4, or `'a'` for the alert red), `dot` (level `warn` or `alert`, the same size as the page's alert dots at the legend's type size).
 
 ### Icons
 
@@ -234,7 +264,7 @@ The page follows the viewer's color scheme. The light values sit on `:root`. The
 | `--dd-title` | page title (large text) | #7D8FA0, 3.2:1 | #627384, 3.5:1 |
 | `--dd-rule` | hairlines | #D5D5D0, 1.4:1 | #3A3A38, 1.5:1 |
 | `--dd-axis` | axes and ticks | #B5B5B5, 2.0:1 | #575755, 2.4:1 |
-| `--dd-alert` | critical dots | #A8261E, 6.8:1 | #EF5B50, 5.1:1 |
+| `--dd-alert` | critical dots and treemap cells | #A8261E, 6.8:1 | #EF5B50, 5.1:1 |
 | `--dd-warn` | warning dots | #DB6A5A, 3.3:1 | #B24B41, 3.2:1 |
 | `--dd-bar` | bullet bar and target | #363636, 11.7:1 | #E2E2E2, 13.2:1 |
 | `--dd-proj` | projection segment | #7A7A7A, 4.1:1 | #8E8E8E, 5.2:1 |
@@ -252,6 +282,11 @@ The page follows the viewer's color scheme. The light values sit on `:root`. The
 | `--dd-norm` | normal band | #E4E4E1, 1.2:1 | #2F2F2D, 1.3:1 |
 | `--dd-tint` | below-zero tint | #EDEDEA, 1.1:1 | #282826, 1.2:1 |
 | `--dd-box` | box-plot box | #D8D8D6, 1.4:1 | #3A3A38, 1.5:1 |
+| `--dd-heat-0` | treemap cell at or above its basis | #E3E3E0, 1.2:1 | #2F2F2E, 1.3:1 |
+| `--dd-heat-1` | treemap tint, lightest | #E5C6BE, 1.5:1 | #4B3632, 1.5:1 |
+| `--dd-heat-2` | treemap tint | #E4A89D, 2.0:1 | #673B35, 1.8:1 |
+| `--dd-heat-3` | treemap tint | #E18A7B, 2.5:1 | #844038, 2.3:1 |
+| `--dd-heat-4` | treemap tint, strongest | #DB6A5A, 3.3:1 | #A1433A, 2.7:1 |
 
 Classes: `dd-page` (on body), `dd-head`, `dd-title`, `dd-asof`, `dd-flags`, `dd-grid`, `dd-stack` (a column of sections inside a grid cell), `dd-sec`, `dd-sec-title`, `dd-qual`, `dd-legend`, `dd-foot`, `dd-sr` (screen-reader-only).
 
@@ -271,7 +306,7 @@ The page carries no check code. `check` writes a copy of the page beside it, nam
 
 The static pass checks the regions' hashes, the data block, comparisons (mistake 2), refused media calls (5), hand-drawn `<rect>`, `<circle>`, `<path>`, `<line>`, `<polyline>`, `<polygon>` or `<ellipse>` (7), network loads, gradients and shadows (11), canvas and rotated text (7), rounded or fully bordered boxes (11), saturated or red-and-green colors in the page's CSS (12), and that `--dd-cols` and `--dd-rows` match the viewport meta.
 
-The browser pass judges the page's report for fit against the viewport and the footer (1), overlapping sections (9), clipped or colliding text and type under 9 px (7), text contrast under 4.5:1 (3:1 for large text) and marks under 3:1 (12), saturated colors other than the two alert reds (12), alert share over 20% (10), groups outside 3 to 9 (9), mounts that drew nothing (2), and script errors, which carry their own mistake number.
+The browser pass judges the page's report for fit against the viewport and the footer (1), overlapping sections (9), clipped or colliding text and type under 9 px (7), text contrast under 4.5:1 (3:1 for large text), with SVG text judged against the fill beneath it, such as a treemap cell, and marks under 3:1 (12), saturated colors other than the alert reds and the treemap's tints of them (12), alert share over 20% (10), groups outside 3 to 9 (9), mounts that drew nothing (2), and script errors, which carry their own mistake number.
 
 ### The report
 
