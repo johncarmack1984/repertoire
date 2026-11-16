@@ -54,6 +54,8 @@ aside svg { display: block; overflow: visible; }
 aside svg text { font: 400 var(--dm-t4) var(--dm-font); fill: var(--dm-text); }
 aside svg text.dm-muted { fill: var(--dm-muted); }
 .dm-note { margin: 6px 0 0; color: var(--dm-muted); }
+.dm-reveal { display: flex; flex-direction: column; gap: 4px; margin-top: 10px; }
+.dm-reveal input { width: 100%; margin: 0; accent-color: var(--dm-flow); }
 .dm-table { border-collapse: collapse; width: 100%; font-size: var(--dm-t4); }
 .dm-table th { font-weight: 600; text-align: left; padding: 0 8px 4px 0; border-bottom: 1px solid var(--dm-rule); }
 .dm-table td { padding: 3px 8px 3px 0; }

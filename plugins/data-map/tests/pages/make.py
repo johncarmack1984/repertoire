@@ -202,6 +202,82 @@ def build_maplibre_mercator(out: Path, tmp: Path) -> None:
                "companions": [{"type": "table", "layer": "capacity", "title": "Capacity by reservoir", "top": 6}]})
 
 
+STATIONS = {
+    "S01": ("Union Station", -122.6766, 45.5318, 1), "S02": ("Pearl District", -122.6828, 45.5290, 1),
+    "S03": ("Pioneer Square", -122.6790, 45.5190, 1), "S04": ("PSU Urban Center", -122.6823, 45.5120, 1),
+    "S05": ("Waterfront Park", -122.6716, 45.5150, 1), "S06": ("Rose Quarter", -122.6668, 45.5310, 1),
+    "S07": ("Lloyd Center", -122.6535, 45.5320, 0), "S08": ("Buckman", -122.6540, 45.5160, 0),
+    "S09": ("Hosford", -122.6490, 45.5050, 0), "S10": ("South Waterfront", -122.6713, 45.4990, 1),
+    "S11": ("Goose Hollow", -122.6930, 45.5180, 0), "S12": ("Northwest 23rd", -122.6985, 45.5300, 0),
+    "S13": ("Eliot", -122.6650, 45.5440, 0), "S14": ("Kerns", -122.6440, 45.5235, 0),
+}
+# Both apart from the flows' orange-brown, so a circle never reads as the end of a line.
+GAIN, LOSS = "#2166ac", "#762a83"
+
+
+def build_maplibre_flows(out: Path, tmp: Path) -> None:
+    """Trips between bike stations: curved flows with the flows lever's --reveal and net-node contract added by hand.
+
+    Until the lever writes them, this adds what the page reads: dm_rank on every line and arrow, a reveal block for
+    the 25 largest of 100 written flows, and nodes in net mode (signed dm_net, a gain or loss dm_fill, sizes by the
+    size of the net, and the legend's value, legend_values, legend_radii, and colors). Synthetic.
+    """
+    rng = random.Random(20261116)
+    nodes = write_csv(tmp / "stations.csv", ["id", "name", "lon", "lat"], [[k, v[0], v[1], v[2]] for k, v in STATIONS.items()])
+    rows = []
+    for o, (_, lon1, lat1, low1) in STATIONS.items():
+        for d, (_, lon2, lat2, low2) in STATIONS.items():
+            if o != d:
+                km = math.hypot((lon2 - lon1) * 78.0, (lat2 - lat1) * 111.2)
+                # Riders coast down into the low stations and take the bus back up.
+                lean = (1.7 if low2 and not low1 else 1.0) * (0.6 + 0.8 * rng.random())
+                rows.append([o, d, max(1, round(900 * lean / (km + 0.6) ** 1.6))])
+    od = write_csv(tmp / "trips.csv", ["origin", "dest", "trips"], rows)
+    dm("new", "maplibre", out, "--preset", "mercator", "--force")
+    dm("flows", od, "--nodes", nodes, "--origin", "origin", "--dest", "dest", "--value", "trips", "--label-field", "name",
+       "--geometry", "curved", "--top", 100, "--max-width", 7, "--layer", "trips", "--out-dir", out / "data",
+       "--title", "Trips in October", "--unit", "trips")
+    folder = out / "data"
+    shown = 25
+    lines, arrows, node_fc = (json.loads((folder / f).read_text()) for f in ("trips.geojson", "trips-arrows.geojson", "trips-nodes.geojson"))
+    legend = json.loads((folder / "legend.json").read_text())
+    L = legend["layers"]["trips"]
+    for fc in (lines, arrows):
+        for f in fc["features"]:
+            f["properties"]["dm_rank"] = f["properties"]["dm_order"] + 1
+    written = sorted(f["properties"]["dm_value"] for f in lines["features"])[::-1]
+    whole = sum(written) / L["kept_share"]
+    share = sum(written[:shown]) / whole
+    L.update(kept=shown, kept_share=round(share, 4), omitted_note=f"The {shown} largest of {L['total']:,} flows, {share:.0%} of all trips",
+             reveal={"default": shown, "count": len(written)})
+    net = {k: 0 for k in STATIONS}
+    for o, d, v in rows:
+        net[d] += v
+        net[o] -= v
+    top = max(abs(v) for v in net.values())
+    radius = {k: round(max(2.0, 10 * math.sqrt(abs(v) / top)), 2) for k, v in net.items()}
+    for f in node_fc["features"]:
+        p = f["properties"]
+        v = net[p["dm_key"]]
+        p.update(dm_net=v, dm_value=abs(v), dm_r=radius[p["dm_key"]], dm_fill=GAIN if v > 0 else LOSS,
+                 dm_tip=f"{p['dm_label']}: {v:+,} trips, more {'in than out' if v > 0 else 'out than in'}")
+    for f in arrows["features"]:
+        f["properties"]["dm_setback"] = radius[f["properties"]["dm_d"]]
+    values = [v for v in (1000, 500, 100) if v <= top]
+    L["nodes"] = {"rmax": 10, "scaling": "area", "value": "net", "title": "Circle area: trips gained or lost in October",
+                  "legend_values": values, "legend_radii": [round(10 * math.sqrt(v / top), 2) for v in values], "colors": {"gain": GAIN, "loss": LOSS}}
+    for name, doc in (("trips.geojson", lines), ("trips-arrows.geojson", arrows), ("trips-nodes.geojson", node_fc), ("legend.json", legend)):
+        (folder / name).write_text(json.dumps(doc))
+    gainer = max(net, key=net.get)
+    fill(out, title="Riders coast downtown and leave the east side short of bikes",
+         subtitle="Trips between 14 bike-share stations in October, the largest of every route",
+         source="Source: synthetic test data for the data-map plugin.",
+         credits="Basemap: none.",
+         spec={"idiom": ["flows"], "extent": "region", "controls": ["reveal"],
+               "annotations": [{"text": f"{STATIONS[gainer][0]} gains the most bikes", "at": f"node:{gainer}"}],
+               "companions": [{"type": "bars", "layer": "trips", "title": "The largest routes", "top": 6}]})
+
+
 def build_maplibre_chart(out: Path, tmp: Path) -> None:
     dm("new", "maplibre", out, "--preset", "chart", "--force")
     rows = [["Bergen", 2250], ["Glasgow", 1240], ["Dublin", 760], ["Paris", 640], ["Madrid", 420], ["Athens", 400]]
@@ -214,7 +290,7 @@ def build_maplibre_chart(out: Path, tmp: Path) -> None:
 
 
 FIXTURES = {"maplibre-crs": build_maplibre_crs, "maplibre-globe": build_maplibre_globe, "deck-globe": build_deck_globe,
-            "maplibre-mercator": build_maplibre_mercator, "maplibre-chart": build_maplibre_chart}
+            "maplibre-mercator": build_maplibre_mercator, "maplibre-flows": build_maplibre_flows, "maplibre-chart": build_maplibre_chart}
 
 
 def main(names: list, root: Path = HERE) -> int:

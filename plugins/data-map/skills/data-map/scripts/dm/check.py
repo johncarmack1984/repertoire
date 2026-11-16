@@ -206,7 +206,12 @@ def rule_controls(page: Page) -> list:
     extra = sorted(used - declared)
     if extra:
         return [WARN("controls", f"the page adds {', '.join(extra)} controls that dm-spec.controls doesn't list", "remove them, or list each with the question it answers", 23)]
-    return [PASS("controls", f"controls: {', '.join(sorted(used)) or 'none'} beyond compact attribution", 23)]
+    # The page's own reveal slider draws the N largest flows of a layer whose lever wrote the rest too.
+    layers = ((page.legend or {}).get("layers") or {}).values()
+    if "reveal" in declared and not any(L.get("kind") == "flows" and (L.get("reveal") or {}).get("count") for L in layers):
+        return [WARN("controls", "dm-spec.controls lists reveal, but no flows layer in legend.json has a reveal block, so the page draws no slider",
+                     "rerun flows with --reveal, or take reveal out of controls", 23)]
+    return [PASS("controls", f"controls: {', '.join(sorted(used | (declared & {'reveal'}))) or 'none'} beyond compact attribution", 23)]
 
 
 def rule_fonts(page: Page) -> list:
@@ -374,6 +379,7 @@ def judge_report(rep: dict, page: Page) -> list:
         if rep.get("projection") != want:
             out.append(FAIL("projection", f"the map draws {rep.get('projection')}, dm-spec says {want}", "make the style's projection match dm-spec", 10))
         shown = {CONTROL_CLASSES[c[len("maplibregl-ctrl-"):]] for c in rep.get("controls", []) if c[len("maplibregl-ctrl-"):] in CONTROL_CLASSES}
+        shown |= set(rep.get("dmControls") or [])
         if extra := sorted(shown - set(spec.get("controls") or [])):
             out.append(WARN("controls", f"the render shows {', '.join(extra)} controls that dm-spec doesn't list", "remove them, or list each with the question it answers", 23))
         if (rep.get("pitch") or 0) > 0 and not decided(spec, 22, "pitch|3-?d|tilt"):

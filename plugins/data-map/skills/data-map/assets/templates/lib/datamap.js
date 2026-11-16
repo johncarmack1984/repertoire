@@ -31,6 +31,13 @@ const stems = [...document.querySelectorAll('script[id^="dm-data-"]')].map(e => 
 const data = Object.fromEntries(stems.map(s => [s, parse('dm-data-' + s)]));
 const legend = data.legend || {layers: {}};
 const layersOf = () => Object.entries(legend.layers || {});
+// The largest dm_rank each flows layer draws, for a layer whose lever wrote more flows than it draws at load
+// (flows --reveal); the reveal control moves it.
+const ranks = Object.fromEntries(layersOf().filter(([, L]) => L.kind === 'flows' && L.reveal?.count > 0).map(([name, L]) => [name, L.reveal.default]));
+const drawnFlow = (name, p) => !(p.dm_rank > (ranks[name] ?? Infinity));
+const rankFilter = name => ['<=', ['coalesce', ['get', 'dm_rank'], 0], ranks[name]];
+// What the page holds once the map exists, for controls that change it.
+const live = {};
 const tok = name => getComputedStyle(document.documentElement).getPropertyValue('--dm-' + name).trim();
 const fontStack = () => tok('font').split(',').map(s => s.trim().replace(/^["']|["']$/g, ''));
 const fmt = v => v == null || v === '' ? '' : typeof v === 'number'
@@ -153,20 +160,84 @@ const LEGENDS = {
       label(s, run + longest + 10, cy, fmt(r.v));
       y += r.h + 6;
     }
-    if (L.omitted_note) html('p', {class: 'dm-note'}, sec, L.omitted_note);
+    const kept = ranks[name] != null ? keptNote(name, L, ranks[name]) : L.omitted_note;
+    const note = kept ? html('p', {class: 'dm-note', id: `dm-kept-${name}`}, sec, kept) : null;
+    if (note && ranks[name] != null && (spec.controls || []).includes('reveal')) revealControl(sec, name, L, note);
     if (pageLibs.deck && (spec.arcs?.apex ?? ARC_APEX) > 0) html('p', {class: 'dm-note'}, sec, `Arc height shows distance, not ${L.unit || 'size'}.`);
-    const nodes = data[filesOf(name, L).nodes]?.features || [];
-    const sized = nodes.filter(n => n.properties.dm_r > 0 && n.properties.dm_value > 0);
+    const nodes = data[filesOf(name, L).nodes]?.features || [], N = L.nodes || {}, unit = L.unit || 'flows';
+    const size = n => Math.abs(n.properties.dm_value || 0), sized = nodes.filter(n => n.properties.dm_r > 0 && size(n) > 0);
     if (sized.length > 1) {
-      html('h3', {}, sec, L.nodes?.title || `Circle area: all ${L.unit || 'flows'} in and out`);
-      const top = sized.reduce((a, n) => n.properties.dm_value > a.properties.dm_value ? n : a);
-      const rmax = top.properties.dm_r, vmax = top.properties.dm_value;
-      const values = L.nodes?.legend_values || niceSteps(vmax);
-      const radii = L.nodes?.legend_radii || values.map(v => rmax * Math.sqrt(v / vmax));
-      nested(sec, name + '-nodes', values, radii, top.properties.dm_fill || tok('node'));
+      html('h3', {}, sec, N.title || NODE_TITLES[N.value || 'gross'](unit));
+      const top = sized.reduce((a, n) => size(n) > size(a) ? n : a);
+      const rmax = top.properties.dm_r, vmax = size(top);
+      const values = N.legend_values || niceSteps(vmax);
+      const radii = N.legend_radii || values.map(v => rmax * Math.sqrt(v / vmax));
+      // In a net mode the fill says gain or loss, so the size key is drawn as outlines and the two colors get a key.
+      const net = N.value === 'net' && N.colors;
+      nested(sec, name + '-nodes', values, radii, net ? null : top.properties.dm_fill || tok('node'));
+      if (net) signs(sec, name + '-nodes', N.colors, unit, nodes);
     }
   }
 };
+
+const NODE_TITLES = {gross: u => `Circle area: all ${u} in and out`, in: u => `Circle area: ${u} arriving`,
+  out: u => `Circle area: ${u} leaving`, net: u => `Circle area: ${u} gained or lost`};
+
+function signs(sec, layer, colors, unit, nodes) {
+  const has = sign => nodes.some(n => Math.sign(n.properties.dm_net || 0) === sign);
+  const step = parseFloat(tok('t4')) * 1.7, s = svg('svg', {width: '100%', height: 2 * step}, sec);
+  [[colors.gain, `More ${unit} in than out`, has(1)], [colors.loss, `More ${unit} out than in`, has(-1)]].forEach(([c, text, on], i) => {
+    mark(svg('circle', {cx: 7, cy: (i + 0.5) * step, r: 6, fill: c, stroke: tok('page'), 'stroke-width': 0.75}, s), layer, 'sign', c, text, on);
+    label(s, 22, (i + 0.5) * step, text);
+  });
+}
+
+// "The 40 largest of 380 flows, 63% of all trips", for the N largest. The lever's kept_share is its default cut's share
+// of every flow, so the whole comes back even when the lever wrote fewer flows than there are.
+function keptNote(name, L, n) {
+  const lines = data[filesOf(name, L).main]?.features || [], total = L.total ?? L.reveal.count;
+  const sum = k => lines.reduce((a, f) => a + (f.properties.dm_rank <= k ? f.properties.dm_value || 0 : 0), 0);
+  const all = L.kept_share > 0 ? sum(L.reveal.default) / L.kept_share : sum(Infinity);
+  if (n >= total) return `All ${fmt(total)} flows`;
+  return `The ${n === 1 ? '' : fmt(n) + ' '}largest of ${fmt(total)} flows, ${Math.round(100 * sum(n) / all)}% of all ${L.unit || 'flows'}`;
+}
+
+// A slider that draws the N largest flows. It moves nothing on its own; the kept line under it reads out each value.
+function revealControl(sec, name, L, note) {
+  const id = `dm-reveal-${name}`, box = html('div', {class: 'dm-reveal', 'data-dm-control': 'reveal'});
+  sec.insertBefore(box, note);
+  html('label', {for: id}, box, 'Flows drawn, largest first');
+  const input = html('input', {type: 'range', id, min: 1, max: L.reveal.count, step: 1, value: ranks[name],
+    'aria-describedby': note.id, 'aria-valuetext': note.textContent}, box);
+  input.addEventListener('input', () => {
+    setRank(name, Number(input.value));
+    note.textContent = keptNote(name, L, ranks[name]);
+    input.setAttribute('aria-valuetext', note.textContent);
+  });
+  input.addEventListener('change', () => replaceNames());
+}
+
+function setRank(name, n) {
+  ranks[name] = n;
+  const map = live.map;
+  if (!map) return;
+  for (const id of [name, name + '-arrows']) if (map.getLayer(id)) map.setFilter(id, rankFilter(name));
+  if (live.overlay) {
+    live.arcs = arcLayers(pageLibs.deck, live.t, live.show);
+    live.overlay.setProps({layers: live.arcs.map(a => a.layer)});
+  }
+}
+
+// Once the flows drawn change, the names and notes find their places again, one pass at a time.
+let placing = Promise.resolve();
+function replaceNames() {
+  placing = placing.then(async () => {
+    if (!live.map || !labelPlan) return;
+    await placeLabels(live.map, labelPlan.labels, labelPlan.deck);
+    placeNotes(live.map);
+  });
+  return placing;
+}
 
 function firstFill(stem) {
   return data[stem]?.features?.find(f => f.properties?.dm_fill)?.properties.dm_fill;
@@ -182,6 +253,7 @@ function niceCeil(v) {
 }
 function nested(sec, layer, values, radii, color) {
   if (!values.length) return;
+  const fill = color ? {fill: color, stroke: tok('page'), 'stroke-width': 0.75} : {fill: 'none', stroke: tok('muted'), 'stroke-width': 0.75};
   const rmax = Math.max(...radii), cx = rmax + 1, lx = 2 * rmax + 18, step = parseFloat(tok('t4')) + 2;
   const rows = values.map((v, i) => ({v, r: radii[i]})).sort((a, b) => b.r - a.r);
   let base = 2 * rmax + 2;
@@ -190,7 +262,7 @@ function nested(sec, layer, values, radii, color) {
   const below = Math.max(0, rows.at(-1).y + step / 2 - base);
   const s = svg('svg', {width: '100%', height: base + below + 2}, sec);
   for (const {v, r, y} of rows) {
-    mark(svg('circle', {cx, cy: base - r, r, fill: color, stroke: tok('page'), 'stroke-width': 0.75}, s), layer, 'size', color, fmt(v), true);
+    mark(svg('circle', {cx, cy: base - r, r, ...fill}, s), layer, 'size', color || tok('muted'), fmt(v), !!color);
     svg('polyline', {points: `${cx},${base - 2 * r} ${lx - 10},${base - 2 * r} ${lx - 4},${y}`, fill: 'none', stroke: tok('muted'), 'stroke-width': 0.5}, s);
     label(s, lx, y, fmt(v));
   }
@@ -400,7 +472,7 @@ function buildKinds(t, crs, deck) {
       if (lines && !deck) {
         part.sources[f.main] = lines;
         part.line.push(
-          {id: name, type: 'line', source: f.main, layout: {'line-sort-key': ['get', 'dm_order'], 'line-join': 'round'},
+          {id: name, type: 'line', source: f.main, ...(ranks[name] != null && {filter: rankFilter(name)}), layout: {'line-sort-key': ['get', 'dm_order'], 'line-join': 'round'},
             paint: {'line-color': color, 'line-width': ['get', 'dm_width'], 'line-offset': ['coalesce', ['get', 'dm_offset'], 0],
               'line-opacity': ['coalesce', ['get', 'dm_opacity'], 1]}},
           {id: name + '-hover', type: 'line', source: f.main, filter: NONE,
@@ -423,7 +495,7 @@ function buildKinds(t, crs, deck) {
         // Each head turns to a screen angle measured from projected points (screenArrows). A bearing is not a
         // screen angle under a non-conformal CRS, and MapLibre's map-aligned icons drift from local north on the
         // globe away from the view's center (11 to 88 degrees in a pixel test at 55 to 72 degrees out).
-        part.arrow.push({id: name + '-arrows', type: 'symbol', source: f.arrows,
+        part.arrow.push({id: name + '-arrows', type: 'symbol', source: f.arrows, ...(ranks[name] != null && {filter: rankFilter(name)}),
           layout: {'icon-image': 'dm-arrow', 'icon-size': ['get', 'dm_icon_size'], 'icon-anchor': 'top',
             'icon-offset': ['array', 'number', 2, ['get', 'dm_icon_offset']], 'icon-rotate': ['get', 'dm_screen'],
             'icon-rotation-alignment': 'viewport', 'icon-pitch-alignment': 'viewport',
@@ -709,7 +781,7 @@ function arcLayers(deck, t, show) {
     if (L.kind !== 'flows') continue;
     const f = filesOf(name, L), nodes = data[f.nodes]?.features || [];
     const at = Object.fromEntries(nodes.map(n => [n.properties.dm_key ?? n.id, n.geometry.coordinates]));
-    const arcs = (data[f.main]?.features || []).map(l => l.properties).filter(p => at[p.dm_o] && at[p.dm_d])
+    const arcs = (data[f.main]?.features || []).map(l => l.properties).filter(p => at[p.dm_o] && at[p.dm_d] && drawnFlow(name, p))
       .map(p => ({...p, from: at[p.dm_o], to: at[p.dm_d]})).sort((a, b) => a.dm_order - b.dm_order);
     if (!arcs.length) continue;
     const longest = Math.max(...arcs.map(a => a.dm_km || 1));
@@ -755,6 +827,7 @@ function labelScene(map, labels, deck) {
     if (L.kind !== 'flows') continue;
     const names = Object.fromEntries(points.map(n => [n.properties.dm_key ?? n.id, n.properties.dm_label ?? n.id]));
     for (const line of deck ? [] : data[f.main]?.features || []) {
+      if (!drawnFlow(name, line.properties)) continue;
       const g = line.geometry, hw = (line.properties.dm_width || 1) / 2;
       for (const part of g.type === 'MultiLineString' ? g.coordinates : [g.coordinates]) {
         for (let i = 1; i < part.length; i++) {
@@ -764,7 +837,7 @@ function labelScene(map, labels, deck) {
     }
     for (const a of data[f.arrows]?.features || []) {
       const at = a.geometry.coordinates, q = a.properties;
-      if (!front(at)) continue;
+      if (!front(at) || !drawnFlow(name, q)) continue;
       // The head draws turned to dm_screen with its tip dm_setback + 1 px back from the node (prepArrows).
       const p = xy(at), turn = (q.dm_screen ?? q.dm_bearing ?? 0) * RAD, u = [-Math.sin(turn), Math.cos(turn)];
       const len = q.dm_arrow || 8, half = len * ARROW.base / ARROW.len / 2, back = (q.dm_setback || 0) + 1;
@@ -1050,7 +1123,6 @@ function placeNotes(map) {
     const text = svg('text', {'text-anchor': sx > 0 ? 'start' : sx < 0 ? 'end' : 'middle'}, g);
     rows.forEach((row, i) => svg('tspan', {x, y: box[1] + line * (i + 0.5), dy: '0.35em'}, text, row));
     if (a.far) {
-      Object.assign(g.dataset, {dmControl: 'turn'});
       for (const [k, v] of Object.entries({tabindex: 0, role: 'button', 'aria-label': `Turn the globe to ${n.text}`})) g.setAttribute(k, v);
       g.addEventListener('click', () => turnTo(map, n.at));
       g.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); turnTo(map, n.at); } });
@@ -1070,6 +1142,17 @@ function moveNotes(map) {
     n.g.style.display = a && a.far === n.far ? '' : 'none';
     if (a) n.g.setAttribute('transform', `translate(${a.p[0] - n.anchor[0]} ${a.p[1] - n.anchor[1]})`);
   }
+}
+
+// Per flows layer the reveal control moves: the flows it draws, of how many, the kept line, and the flows on the map.
+function revealReport(map) {
+  return Object.entries(ranks).map(([name, n]) => {
+    const L = legend.layers[name], arcs = (live.arcs || []).find(a => a.name === name);
+    const drawn = arcs ? arcs.layer.props.data.length
+      : map.getLayer(name) ? new Set(map.queryRenderedFeatures({layers: [name]}).map(f => f.properties.dm_rank)).size : 0;
+    return {layer: name, shown: n, of: L.reveal.count, note: $(`dm-kept-${name}`)?.textContent ?? null, drawn,
+      label: document.querySelector(`label[for="dm-reveal-${name}"]`)?.textContent ?? null};
+  });
 }
 
 function notesReport(map) {
@@ -1102,6 +1185,7 @@ function crossings(map) {
       .map(n => ({key: n.properties.dm_key ?? n.id, c: xy(n.geometry.coordinates), r: n.properties.dm_r || 3}));
     for (const line of data[f.main]?.features || []) {
       const p = line.properties, hw = (p.dm_width || 1) / 2, off = p.dm_offset || 0, worst = new Map();
+      if (!drawnFlow(name, p)) continue;
       for (const part of line.geometry.type === 'MultiLineString' ? line.geometry.coordinates : [line.geometry.coordinates]) {
         for (let i = 1; i < part.length; i++) {
           if (!front(part[i - 1]) || !front(part[i])) continue;
@@ -1171,6 +1255,8 @@ function report(map, arcs) {
     annotations: map ? notesReport(map) : [],
     crossings: map ? crossings(map) : [],
     figure: figureSlack(),
+    dmControls: [...document.querySelectorAll('[data-dm-control]')].map(e => e.dataset.dmControl),
+    reveal: map ? revealReport(map) : [],
     tooltips: !!document.querySelector('.dm-tip'),
     rendered: renderedCounts(map),
     viewport: {w: innerWidth, h: innerHeight, dpr: devicePixelRatio}
@@ -1195,6 +1281,7 @@ function arrowAgreement(map) {
     if (!drawn) continue;
     const rows = [];
     for (const a of arrows) {
+      if (!drawnFlow(name, a.properties)) continue;
       const at = a.geometry.coordinates, p = map.project(at);
       if (p.x < 0 || p.y < 0 || p.x > w || p.y > h) continue;
       if (spec.projection.type === 'globe' && angularKm(at, c) > 0.42 * Math.PI * EARTH_KM) continue;
@@ -1337,10 +1424,12 @@ async function start(libs, extend) {
     let frame;
     drawn = new Promise(r => { frame = r; });
     arcs = arcLayers(deck, t, show);
+    Object.assign(live, {arcs, t, show});
     overlay = new deck.MapLibreOverlay({interleaved: true, layers: arcs.map(a => a.layer),
       onAfterRender: () => frame(), onError: err => rejectReady(err)});
     map.addControl(overlay);
   }
+  Object.assign(live, {map, overlay});
   await placeLabels(map, labels, !!deck);
   placeNotes(map);
   map.on('move', () => moveNotes(map));

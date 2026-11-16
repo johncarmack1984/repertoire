@@ -28,7 +28,7 @@ import datamap  # noqa: E402
 import make  # noqa: E402
 from dm import chrome, png  # noqa: E402
 
-GOOD = ["maplibre-crs", "maplibre-globe", "deck-globe", "maplibre-mercator", "maplibre-chart"]
+GOOD = ["maplibre-crs", "maplibre-globe", "deck-globe", "maplibre-mercator", "maplibre-flows", "maplibre-chart"]
 # The warnings each good page renders with. A great circle can't bend around a node, and three of the Pacific
 # globe's run over Seoul, Los Angeles, and San Francisco at the opening view; the lever warns of it as well.
 EXPECTED_WARNS = {"maplibre-globe": [("WARN", "flows-over-nodes", 16)]}
@@ -194,6 +194,7 @@ STATIC_BAD = [
     ("the library edited by hand", "deck-globe", lib_edit, ("FAIL", "library", None)),
     ("dm-spec that doesn't parse", "maplibre-crs", page('"version": 1,', '"version": 1,,'), ("FAIL", "spec", None)),
     ("a note with no place", "maplibre-crs", spec(annotations=[{"text": "Bangladesh"}]), ("FAIL", "annotations", 24)),
+    ("a reveal control with nothing to reveal", "maplibre-globe", spec(controls=["reveal"]), ("WARN", "controls", 23)),
 ]
 
 BROWSER_BAD = [
@@ -725,6 +726,56 @@ class Render(unittest.TestCase):
         self.assertEqual(code, 0, findings(result, "FAIL"))
         self.assertNotIn("figure", {f["check"] for f in result["findings"]})
         self.assertLessEqual(result["report"]["figure"]["slack"], 2)
+
+    def test_the_reveal_slider_draws_the_n_largest_flows_and_keeps_the_kept_line_true(self):
+        folder = copy("maplibre-flows", self.tmp / "default")
+        layer = json.loads((folder / "data" / "legend.json").read_text())["layers"]["trips"]
+        values = sorted((f["properties"]["dm_value"] for f in json.loads((folder / "data" / "trips.geojson").read_text())["features"]), reverse=True)
+        whole = sum(values[:layer["reveal"]["default"]]) / layer["kept_share"]
+
+        def kept(n):
+            return f"The {n} largest of {layer['total']} flows, {round(100 * sum(values[:n]) / whole)}% of all trips"
+        for n in (25, 60, 100):
+            with self.subTest(n=n):
+                folder = copy("maplibre-flows", self.tmp / str(n))
+                if n != 25:
+                    extend(f"const s = document.getElementById('dm-reveal-trips'); s.value = {n}; "
+                           "s.dispatchEvent(new Event('input')); s.dispatchEvent(new Event('change'))")(folder)
+                code, result = self.render(folder)
+                self.assertEqual(code, 0, findings(result, "FAIL"))
+                (reveal,) = result["report"]["reveal"]
+                self.assertEqual((reveal["shown"], reveal["of"], reveal["drawn"], reveal["note"]), (n, 100, n, kept(n)))
+                self.assertTrue(reveal["label"])
+                self.assertIn("reveal", result["report"]["dmControls"])
+                self.assertNotIn("controls", {f["check"] for f in result["findings"] if f["status"] == "WARN"})
+
+    def test_the_reveal_slider_filters_deck_arcs_too(self):
+        def ranked(doc):
+            for f in doc["features"]:
+                f["properties"]["dm_rank"] = f["properties"]["dm_order"] + 1
+
+        def reveal(doc):
+            doc["layers"]["movers"]["reveal"] = {"default": 10, "count": 30}
+        for n in (10, 30):
+            with self.subTest(n=n):
+                folder = copy("deck-globe", self.tmp / str(n))
+                for stem in ("movers", "movers-arrows"):
+                    data(stem, ranked, resync=False)(folder)
+                data("legend", reveal)(folder)
+                spec(controls=["reveal"])(folder)
+                if n != 10:
+                    extend(f"const s = document.getElementById('dm-reveal-movers'); s.value = {n}; s.dispatchEvent(new Event('input'))")(folder)
+                rep = self.render(folder)[1]["report"]
+                self.assertEqual((rep["reveal"][0]["shown"], rep["reveal"][0]["drawn"]), (n, n))
+
+    def test_net_nodes_take_the_gain_and_loss_colors_with_a_key_for_each(self):
+        folder = copy("maplibre-flows", self.tmp)
+        colors = json.loads((folder / "data" / "legend.json").read_text())["layers"]["trips"]["nodes"]["colors"]
+        code, result = self.render(folder)
+        self.assertEqual(code, 0, findings(result, "FAIL"))
+        signs = {e["color"]: e["expect"] for e in result["report"]["legendEntries"] if e["kind"] == "sign"}
+        self.assertEqual(signs, {colors["gain"]: True, colors["loss"]: True})
+        self.assertIn(("PASS", "legend-colors", 9), findings(result))
 
     def test_a_title_place_hidden_at_load_warns_until_a_note_marks_it(self):
         retitle = page('stay on its western side</h1>', 'stay on its western side, and few reach Lima</h1>')
