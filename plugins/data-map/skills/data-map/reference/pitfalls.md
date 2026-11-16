@@ -134,7 +134,7 @@ Each entry says what the pitfall looks like, why it fails, with its source, and 
 - **Looks like.** A pitched camera, extruded prisms, or raised arcs with no recorded reason, or arc height tied to the value.
 - **Why it fails.** Perspective breaks comparisons of size and position, and occlusion hides data (Munzner §6.3); height by value was Yang's slowest condition and height by distance his best (Yang §4.3).
 - **Fix.** Pitch 0 and flat layers, with raised arcs only at world extent, height from distance, and a recorded reason.
-- **Held by.** The template, the check, and the lever. The template sets pitch 0, `check` fails pitch or extrusion without a recorded decision, and `dm_height` comes from distance only.
+- **Held by.** The template, the check, and the lever. The template sets pitch 0, `check` fails pitch or extrusion without a recorded decision, and the deck.gl page sets each arc's height from `dm_km` alone.
 
 ## The LLM default look and elements nobody decided on (P23)
 - **Looks like.** Gray fills with thin black outlines, light-blue water, and Roboto, or a north arrow, zoom buttons, or a scale bar on a world map, or three font families.

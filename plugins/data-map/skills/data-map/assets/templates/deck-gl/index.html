@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>[A title that states the point]</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@6.18.0/dist/maplibre-gl.css">
+<script src="https://cdn.jsdelivr.net/npm/deck.gl@9.4.1/dist.min.js"></script>
+<!-- data-map:lib css -->
+<!-- /data-map:lib css -->
+<script type="application/json" id="dm-spec">
+{
+ "version": 1,
+ "idiom": [
+  "flows"
+ ],
+ "extent": "world",
+ "projection": {
+  "type": "globe"
+ },
+ "pitch": 0,
+ "arcs": {
+  "apex": 0.08
+ },
+ "controls": [],
+ "animation": null,
+ "omit": [
+  "north-arrow",
+  "scale-bar",
+  "zoom-buttons"
+ ],
+ "tiles": [],
+ "fonts": [
+  "system-ui"
+ ],
+ "zoom": {
+  "min": "fit",
+  "max": "fit+3"
+ },
+ "legend": "data/legend.json",
+ "companions": [],
+ "decisions": [
+  {
+   "pitfall": 22,
+   "rule": "raised arcs",
+   "choice": "great-circle arcs raised in proportion to length, the longest to 8% of the Earth's radius",
+   "why": ""
+  }
+ ]
+}
+</script>
+</head>
+<body>
+<header>
+<h1 id="dm-title">[A title that states the point]</h1>
+<p id="dm-subtitle">[What is mapped, where, and when]</p>
+</header>
+<div id="dm-map-cell"><div id="map"></div></div>
+<aside id="dm-side">
+<div id="dm-legend"></div>
+<div id="dm-companions"></div>
+</aside>
+<footer>
+<p id="dm-source">Source: [who published the data, its title, and its date]</p>
+<p id="dm-credits">[Basemap and boundary credits]</p>
+</footer>
+<!-- data-map:data -->
+<!-- /data-map:data -->
+<!-- data-map:lib js -->
+<!-- /data-map:lib js -->
+<script type="module">
+if (!window.deck) throw new Error('deck.gl 9.4.1 did not load from cdn.jsdelivr.net');
+const spec = DataMap.spec;
+const libs = {deck: window.deck};
+libs.maplibregl = await import('https://cdn.jsdelivr.net/npm/maplibre-gl@6.18.0/dist/maplibre-gl.mjs');
+if ((spec.tiles || []).some(t => /\.pmtiles$/.test(t.url || ''))) {
+  libs.pmtiles = await import('https://cdn.jsdelivr.net/npm/pmtiles@4.5.0/+esm');
+  libs.basemaps = await import('https://cdn.jsdelivr.net/npm/@protomaps/basemaps@5.7.2/+esm');
+}
+await DataMap.start(libs);
+</script>
+</body>
+</html>

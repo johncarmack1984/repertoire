@@ -730,7 +730,7 @@ def run_flows(args) -> int:
         if f.forward is not None and f.reverse:
             text += f" net ({num(f.forward)} out, {num(f.reverse)} back)"
         props = {"dm_o": f.o, "dm_d": f.d, "dm_value": f.value, "dm_width": w, "dm_order": order[f],
-                 "dm_km": round(p.km, 1), "dm_height": round(flows.height_m(p.km)), "dm_fill": flows.FLOW_COLOR,
+                 "dm_km": round(p.km, 1), "dm_fill": flows.FLOW_COLOR,
                  "dm_label": label, "dm_tip": text}
         lines.append(data.feature(fid, props, g))
         arrows.append(data.feature(fid, {"dm_o": f.o, "dm_d": f.d, "dm_value": f.value, "dm_bearing": round(geo.end_bearing(p.coords), 2),
@@ -738,7 +738,7 @@ def run_flows(args) -> int:
                                          "dm_setback": round(node_r[f.d], 2), "dm_fill": flows.FLOW_COLOR},
                                    {"type": "Point", "coordinates": nodes[f.d].pos}))
         arcs.append({"source": data.round_coords(nodes[f.o].pos), "target": data.round_coords(nodes[f.d].pos), "value": f.value,
-                     "width": w, "color": flows.FLOW_COLOR, "height": round(flows.height_m(p.km)), "km": round(p.km, 1)})
+                     "width": w, "color": flows.FLOW_COLOR, "km": round(p.km, 1)})
     node_order = symbols.order_largest_first([totals[k]["gross"] for k in node_ids])
     node_feats = []
     for (key, nid), rank in zip(node_ids.items(), node_order):
@@ -773,7 +773,6 @@ def run_flows(args) -> int:
              "legend_values": lvals, "legend_widths": lwidths,
              "arrow": {"ratio": flows.ARROW_RATIO, "min_px": flows.ARROW_MIN_PX},
              "nodes": {"rmax": flows.NODE_RMAX, "scaling": "area", "value": "gross"},
-             "height": {"share_of_length": flows.HEIGHT_SHARE, "unit": "m"},
              "files": {"lines": f"{name}.geojson", "nodes": f"{name}-nodes.geojson", "arrows": f"{name}-arrows.geojson", "arcs": f"{name}-arcs.json"}}
     decisions = [
         legend.decision("geometry", args.geometry, "curves separate reciprocal and overlapping flows" if args.geometry == "curved" else "great circles on a globe", "Jenny et al. 2018 §4.1"),

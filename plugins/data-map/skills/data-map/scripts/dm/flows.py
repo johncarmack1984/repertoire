@@ -18,7 +18,6 @@ CLEARANCE_SHARE = 0.04
 DENSIFY_DEG = 1.0
 ARROW_RATIO, ARROW_MIN_PX = 2.5, 6.0
 NODE_RMAX = 10.0
-HEIGHT_SHARE = 0.25
 FLOW_COLOR = "#08519c"
 NODE_COLOR = "#525252"
 HAIRBALL = {"curved": 100, "great-circle": 300}
@@ -210,11 +209,6 @@ def width(v: float, vmax: float, max_px: float, min_px: float) -> float:
 def arrow_size(w: float) -> float:
     """Arrowheads scale with width and grow on thin flows (Jenny §4.2, Figure 10)."""
     return max(ARROW_RATIO * w, ARROW_MIN_PX)
-
-
-def height_m(km: float) -> float:
-    """Raised-arc apex tied to length alone, never to value (Yang et al. 2019, §4.3)."""
-    return HEIGHT_SHARE * km * 1000
 
 
 def legend_values(vmin: float, vmax: float, max_px: float, min_px: float) -> list:

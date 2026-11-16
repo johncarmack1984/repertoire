@@ -31,7 +31,7 @@ python3 <skill>/scripts/datamap.py check --png map.png --legend data/legend.json
 - `style.json` is the style, with `{{DATA}}` where the data folder's path goes.
 - `brief.md` is the brief to fill in.
 
-Give the package in `Cargo.toml` the project folder's name before the first build. The binary takes that name, as `target/release/map` above, under `$CARGO_TARGET_DIR` when that is set. Cargo hashes a root package's path relative to its own folder, so two projects with one package name in one target folder share a binary, and the binary reads the data folder it was built from. A fresh copy whose files keep their old times builds nothing and runs the other project's map.
+`datamap.py new mln-rs OUT` names the package in `Cargo.toml` after the project folder and gives the copied files fresh times. Keep that name unique. The binary takes the name, as `target/release/map` above, under `$CARGO_TARGET_DIR` when that is set. Cargo hashes a root package's path relative to its own folder, so two projects with one package name in one target folder share a binary, and the binary reads the data folder it was built from. A fresh copy whose files keep their old times builds nothing and runs the other project's map.
 
 A first release build took 38 s on an M2 Max in a target folder that had built mln-rs before, and the prototype's cold build took 57 s, 32 of them in `read-fonts`. A rebuild takes about 1.5 s, and a snapshot 0.4 to 0.8 s.
 
