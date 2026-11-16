@@ -434,6 +434,7 @@ def judge_report(rep: dict, page: Page) -> list:
         out += judge_annotations(rep)
         out += judge_title_places(rep, page)
         out += judge_crossings(rep)
+        out += judge_lead(rep, page)
     fonts = rep.get("fonts") or []
     if len(fonts) > 2:
         out.append(WARN("fonts", f"{len(fonts)} font families in use: {', '.join(fonts)}", "use at most two families", 23))
@@ -528,6 +529,62 @@ def judge_annotations(rep: dict) -> list:
     if notes and not out:
         far = sum(1 for a in notes if a.get("farSide"))
         out.append(PASS("annotations", f"{len(notes)} notes drawn on the map" + (f", {far} at the globe's rim for places on its far side" if far else ""), 24))
+    return out
+
+
+LEAD = 0.55
+# A world map 640 px wide under a two-line title, a classed legend, and a two-line source line draws 40% of its figure's
+# height, and nothing there can go; the round-3 figures the judges marked down drew 31% and 32%.
+FIGURE_LEAD = 0.4
+
+
+def covered(blocks: list, at: str, size: str) -> float:
+    """The length of the union of the blocks' spans along one axis."""
+    total, reach = 0.0, float("-inf")
+    for b in sorted(blocks, key=lambda b: b[at]):
+        lo, hi = max(b[at], reach), b[at] + b[size]
+        if hi > lo:
+            total += hi - lo
+        reach = max(reach, hi)
+    return total
+
+
+def judge_lead(rep: dict, page: Page) -> list:
+    """The map leads: a static figure's map fills its column and at least FIGURE_LEAD of its height, and an interactive map takes
+    most of the window each way (Slocum §11.4.2). It warns only where other blocks take the room: a wide map in a
+    tall window leaves bands that are the projection's shape, not crowding. Each warning names those blocks."""
+    lead, vp = rep.get("lead"), rep.get("viewport") or {}
+    if not lead or not vp.get("w"):
+        return []
+    c, d, blocks = lead["canvas"], lead["drawn"], lead["blocks"]
+    rows = lambda b: b["y"] < c["y"] + c["h"] and c["y"] < b["y"] + b["h"]
+    cols = lambda b: b["x"] < c["x"] + c["w"] and c["x"] < b["x"] + b["w"]
+    beside = [b for b in blocks if rows(b) and not cols(b)]
+    stacked = [b for b in blocks if cols(b) and not rows(b)]
+
+    def crowd(found: list, side: str) -> str:
+        return ", ".join(f"{b['what']} ({round(b[side])} px)" for b in sorted(found, key=lambda b: -b[side])[:4])
+
+    fig = rep.get("figure")
+    W, H = (fig["w"], fig["h"]) if fig else (vp["w"], vp["h"])
+    crowded_down = covered(stacked, "y", "h") >= 0.5 * (H - c["h"])
+    out = []
+    if fig:
+        said = []
+        if d["w"] < c["w"] - 2 * 14 - 24:
+            said.append(f"draws {round(d['w'])} px wide in its {round(c['w'])} px column, held to {round(d['h'])} px of height")
+        if d["h"] < FIGURE_LEAD * H:
+            said.append(f"draws {round(d['h'])} px tall, {d['h'] / H:.0%} of the {H} px figure")
+        if said and crowded_down:
+            out.append(WARN("map-leads", f"the map {' and '.join(said)}; above and below it: {crowd(stacked, 'h')}",
+                            f"give the map more of the figure: cut a companion or a legend line, or change the figure's size, until the map fills its column and at least {FIGURE_LEAD:.0%} of the figure's height"))
+        return out
+    if c["w"] < LEAD * W and covered(beside, "x", "w") >= 0.5 * (W - c["w"]):
+        out.append(WARN("map-leads", f"the map takes {round(c['w'])} of the window's {W} px across, {c['w'] / W:.0%}; beside it: {crowd(beside, 'w')}",
+                        f"narrow the side panel, or move a companion below the map, until the map takes at least {LEAD:.0%} of the width"))
+    if c["h"] < LEAD * H and crowded_down:
+        out.append(WARN("map-leads", f"the map takes {round(c['h'])} of the window's {H} px down, {c['h'] / H:.0%}; above and below it: {crowd(stacked, 'h')}",
+                        f"shorten the title block, or move what sits above or below the map beside it, until the map takes at least {LEAD:.0%} of the height"))
     return out
 
 

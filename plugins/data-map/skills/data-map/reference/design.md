@@ -31,7 +31,7 @@ The quietest basemap is none. A world choropleth needs only its own polygons, cr
 
 ## Map elements
 
-Each element answers a need of the reader, or it stays off (Slocum §11.4). Place them largest first, keep the mapped area as large as the frame allows, and avoid a top-heavy layout (Slocum §11.4.2, §13.3.5).
+Each element answers a need of the reader, or it stays off (Slocum §11.4). Place them largest first, keep the mapped area as large as the frame allows, and avoid a top-heavy layout (Slocum §11.4.2, §13.3.5). The map is the largest element: on an interactive page it takes most of the window, and in a static figure it fills its column. A companion that pushes it under about two fifths of a figure's height, or a side panel that leaves it under about half the window's width, costs more than it adds, and `check` names the block that crowds it.
 
 - **Title.** It states the point, in a sentence the data supports: *Homes heat with wood most in the northern hills* rather than *Wood heating by county*. A subtitle under it gives the theme, the unit, the region, and the date. Leave out the word *map* and any abbreviation (Muehlenhaus ch. 9; Slocum §11.4.4).
 - **Legend.** It defines every thematic symbol at the map's own size and color, and it says how to read them, with the unit, the method and class count, what high and low mean, and no data (Muehlenhaus ch. 9; Slocum §11.4.5). It shows at load, and no heading reads Legend.

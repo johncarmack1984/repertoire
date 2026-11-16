@@ -1342,6 +1342,7 @@ function report(map, arcs) {
     annotations: map ? notesReport(map) : [],
     crossings: map ? crossings(map) : [],
     figure: figureSlack(),
+    lead: map ? leadReport(map) : null,
     edgeCut: map ? edgeCut(map) : null,
     dmControls: [...document.querySelectorAll('[data-dm-control]')].map(e => e.dataset.dmControl),
     reveal: map ? revealReport(map) : [],
@@ -1451,6 +1452,30 @@ function hugMap(map) {
   }
   map.resize();
   return true;
+}
+
+// How much of the page the map takes: its canvas, the part of it the data's extent draws on (the globe's disk, or
+// the fitted box), and every block around it, named, for check to say what crowds the map.
+function leadReport(map) {
+  const canvas = rect(map.getCanvas()), {clientWidth: W, clientHeight: H} = map.getCanvas();
+  let xs, ys;
+  if (spec.projection.type === 'globe') {
+    const c = map.project(map.getCenter()), r = globeScale(map);
+    xs = [c.x - r, c.x + r]; ys = [c.y - r, c.y + r];
+  } else {
+    const xy = boxEdge(fitBox(thematicPoints())).map(q => map.project(q));
+    xs = xy.map(q => q.x); ys = xy.map(q => q.y);
+  }
+  const clip = (v, hi) => Math.min(Math.max(v, 0), hi);
+  const x0 = clip(Math.min(...xs), W), x1 = clip(Math.max(...xs), W), y0 = clip(Math.min(...ys), H), y1 = clip(Math.max(...ys), H);
+  const blocks = [];
+  const add = (e, what) => { if (e?.getClientRects().length) blocks.push({what, ...rect(e)}); };
+  const titled = (sec, kind) => `${kind} "${(sec.querySelector('h2')?.textContent || sec.querySelector('h3')?.textContent || '').slice(0, 48)}"`;
+  add(document.querySelector('header'), 'the title block');
+  for (const sec of document.querySelectorAll('#dm-legend > section')) add(sec, titled(sec, 'the legend'));
+  for (const sec of document.querySelectorAll('#dm-companions > section')) add(sec, titled(sec, 'the companion'));
+  add(document.querySelector('footer'), 'the source line');
+  return {canvas, drawn: {x: canvas.x + x0, y: canvas.y + y0, w: x1 - x0, h: y1 - y0}, blocks};
 }
 
 // The empty page below a static figure's source line, in px: the height its size asks for and nothing fills.

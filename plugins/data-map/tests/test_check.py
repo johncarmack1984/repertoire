@@ -797,6 +797,30 @@ class Render(unittest.TestCase):
                     self.assertGreater(result["report"]["edgeCut"], 1)
                     self.assertIn(("FAIL", "edge", 33), findings(result))
 
+    def test_a_map_crowded_by_the_side_panel_or_a_companion_warns_and_names_what_crowds_it(self):
+        wide_side = page("</head>", "<style>:root { --dm-side: 700px; }</style>\n</head>")
+        for what, name, edits, says in (
+                ("a side panel 700 px wide", "maplibre-flows", [wide_side], ("across", 'the companion "The largest routes"')),
+                ("a bar chart under a world figure", "maplibre-crs", [spec(figure={"size": "640x780"})],
+                 ("of the 780 px figure", 'the companion "The ten most crowded countries"'))):
+            with self.subTest(what):
+                folder = copy(name, self.tmp / what.replace(" ", "-"))
+                for edit in edits:
+                    edit(folder)
+                result = self.render(folder)[1]
+                warns = [f["message"] for f in result["findings"] if (f["status"], f["check"]) == ("WARN", "map-leads")]
+                self.assertEqual(len(warns), 1, warns)
+                self.assertTrue(all(s in warns[0] for s in says), warns[0])
+        # The same figure with no companion, at the height its content fills, leads with its map.
+        folder = copy("maplibre-crs", self.tmp / "tall")
+        spec(figure={"size": "640x900"}, companions=[])(folder)
+        size = re.search(r'figure.size to "(\d+x\d+)"', next(f["fix"] for f in self.render(folder)[1]["findings"] if f["check"] == "figure"))[1]
+        folder = copy("maplibre-crs", self.tmp / "fits")
+        spec(figure={"size": size}, companions=[])(folder)
+        code, result = self.render(folder)
+        self.assertEqual(code, 0, findings(result, "FAIL"))
+        self.assertNotIn("map-leads", {f["check"] for f in result["findings"]}, (size, findings(result)))
+
     def test_a_figure_taller_than_its_content_warns_with_the_height_that_fits(self):
         folder = copy("maplibre-crs", self.tmp / "tall")
         spec(figure={"size": "640x900"}, companions=[])(folder)
