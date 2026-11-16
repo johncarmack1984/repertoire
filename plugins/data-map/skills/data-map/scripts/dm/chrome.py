@@ -48,6 +48,9 @@ PROBE_JS = """(() => {
           hook: typeof window.dataMap === 'object' && window.dataMap !== null};
 })()"""
 
+# Every host name fails to resolve, so nothing loads from the network; file:// and data: URLs still work.
+NO_NETWORK = "--host-resolver-rules=MAP * ~NOTFOUND , EXCLUDE 127.0.0.1"
+
 HOOK_JS = "typeof window.dataMap === 'object' && window.dataMap !== null"
 
 REPORT_JS = "(async () => typeof window.dataMap?.report === 'function' ? {value: await window.dataMap.report()} : null)()"

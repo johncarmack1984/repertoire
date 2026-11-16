@@ -1,23 +1,24 @@
-"""check: lint a map page against its dm-spec, render it in headless Chrome, and judge the render.
+"""check: lint a map page against its dm-spec, render it in headless Chrome, and judge the render, then open
+it again from disk with the network blocked.
 
-Every finding cites the pitfall it guards against. Without Chrome, or without a network to load the
-pinned libraries from, only the static pass runs and the render is reported as not measured.
+Every finding cites the pitfall it guards against. Without Chrome only the static pass runs, and the render
+is reported as not measured.
 """
 from __future__ import annotations
 
 import json
 import re
-import tempfile
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-from . import FAIL, PASS, WARN, Finding, report
+from . import FAIL, PASS, WARN, Finding, report, vendor
 from . import chrome as cdp
 from . import png
 from .page import DATA_FILE, DATA_REGION, LIB_REGION, SPEC, WORK, drift
 
-PINS = {"maplibre-gl": "6.18.0", "proj4": "2.22.0", "pmtiles": "4.5.0", "deck.gl": "9.4.1", "@protomaps/basemaps": "5.7.2"}
+PINS = vendor.PINS
+REMOTE = re.compile(r"https?://(?:cdn\.jsdelivr\.net|unpkg\.com|esm\.sh|cdnjs\.cloudflare\.com|cdn\.skypack\.dev|api\.mapbox\.com|fonts\.googleapis\.com)/[^'\"\s)`]+")
 AREAL = {"choropleth", "dots-and-density", "multivariate"}
 LARGE = {"world", "hemisphere", "continent"}
 LARGE_SPAN = (60, 40)
@@ -73,7 +74,7 @@ class Page:
                 page.legend = json.loads(source)
             except json.JSONDecodeError as err:
                 page.spec_error = page.spec_error or f"legend.json is not JSON: {err}"
-        page.authored = re.sub(r"<!--.*?-->", "", DATA_REGION.sub("", LIB_REGION.sub("", text)), flags=re.S)
+        page.authored = re.sub(r"<!--.*?-->", "", DATA_REGION.sub("", LIB_REGION.sub("", vendor.REGION.sub("", text))), flags=re.S)
         return page
 
 
@@ -110,23 +111,40 @@ def decided(spec: dict, pitfall: int, words: str) -> bool:
 
 
 def rule_pins(page: Page) -> list:
+    """Each library the vendor region loads is the pinned build, in vendor/; nothing else loads from the network."""
+    out = []
     found = re.findall(r"cdn\.jsdelivr\.net/npm/((?:@[\w.-]+/)?[\w.-]+)@([^/'\"\s?#]+)", page.authored)
-    out = [FAIL("pins", f"{lib}@{ver} is loaded, but the pin is {PINS[lib]}", f"load {lib}@{PINS[lib]}, or update the pin in check.py and the stack recipe together")
-           for lib, ver in sorted(set(found)) if lib in PINS and ver != PINS[lib]]
-    elsewhere = sorted({h for h in re.findall(r"https?://(unpkg\.com|esm\.sh|cdnjs\.cloudflare\.com|cdn\.skypack\.dev|api\.mapbox\.com)/", page.authored)})
-    if elsewhere:
-        out.append(WARN("pins", f"libraries load from {', '.join(elsewhere)}, where check can't hold them to the pins",
-                        "load the pinned libraries from jsDelivr's /npm/<name>@<version> URLs"))
+    out += [FAIL("pins", f"{lib}@{ver} is loaded, but the pin is {PINS[lib]}", f"load {lib}@{PINS[lib]}, or update the pin in vendor.py and the stack recipe together")
+            for lib, ver in sorted(set(found)) if lib in PINS and ver != PINS[lib]]
+    if remote := sorted(set(REMOTE.findall(page.authored))):
+        out.append(WARN("offline", f"the page loads {', '.join(remote[:3])}{' and more' if len(remote) > 3 else ''} from the network, so it can't draw offline",
+                        "drop those URLs: sync copies the pinned libraries into vendor/, and the template loads them from there", 33))
+    region = vendor.REGION.search(page.text)
+    folders = {lib.folder.rsplit("@", 1)[0]: lib for lib in vendor.LIBS.values()}
+    held = []
+    for ref in re.findall(r'(?:src|href)="(vendor/[^"]+)"', region[2] if region else ""):
+        lib, f = vendor.TARGETS.get(ref, (None, None))
+        if not lib:
+            m = re.match(r"vendor/([^/]+)@([^/]+)/", ref)
+            other = m and folders.get(m[1])
+            out.append(FAIL("pins", f"{other.name}@{m[2]} is loaded, but the pin is {other.version}" if other else f"{ref} is not a pinned library file",
+                            f"run datamap.py sync {page.folder}"))
+        elif not (page.folder / ref).is_file():
+            out.append(FAIL("pins", f"{ref} is missing, so the page can't load {lib.name}", f"run datamap.py sync {page.folder}, which copies it from the cache"))
+        elif vendor.original_sha(page.folder / ref, f) != f.sha256:
+            out.append(FAIL("pins", f"{ref} is not the pinned {lib.name} {lib.version}", f"run datamap.py sync {page.folder}"))
+        else:
+            held.append(f"{lib.name} {lib.version}")
     if not out:
-        pinned = sorted({f"{lib}@{ver}" for lib, ver in found if lib in PINS})
-        out.append(PASS("pins", f"{', '.join(pinned) or 'no pinned library'} loaded at the pinned versions"))
+        out.append(PASS("pins", f"vendor/ holds {', '.join(dict.fromkeys(held))}, each the pinned build" if held else "the page loads no library"))
     return out
 
 
 def rule_library(page: Page) -> list:
     said = [s for s in drift(page.text, page.folder)]
     lib = [s for s in said if "library" in s]
-    data = [s for s in said if "library" not in s]
+    # rule_pins judges each file in vendor/.
+    data = [s for s in said if "library" not in s and not s.startswith("vendor/")]
     out = []
     if not LIB_REGION.search(page.text):
         out.append(FAIL("library", "the page has no data-map:lib regions", "start from datamap.py new"))
@@ -356,8 +374,9 @@ def judge_run(run: dict, page: Page | None, w: int, h: int, scale: float) -> lis
     out = []
     probs = run.get("problems", [])
     offline = [p for p in probs if p.get("offline")]
-    if offline:
-        return [WARN("render", f"render not measured: no network ({offline[0]['message']})", "rerun check on a machine that reaches jsDelivr", 33)]
+    # A data-map page loads nothing from the network, so for one a failed fetch is the page's fault, not the machine's.
+    if offline and (page is None or page.spec is None):
+        return [WARN("render", f"render not measured: no network ({offline[0]['message']})", "rerun check on a machine that reaches the page's hosts", 33)]
     if "launch_error" in run:
         return [WARN("render", f"render not measured: Chrome did not start ({run['launch_error']})", "rerun check where headless Chrome can run, or set DM_BROWSER", 33)]
     if "error" in run:
@@ -628,14 +647,26 @@ def size_arg(text: str) -> tuple[int, int]:
     return int(m[1]), int(m[2])
 
 
-def judge_file_url(browser: str, folder: Path, w: int, h: int, timeout: float, flags: list) -> Finding:
-    """A reader may open index.html straight from disk, and a CRS page loads proj4 into the map's workers there too."""
-    with tempfile.TemporaryDirectory() as tmp:
-        run = cdp.capture(browser, folder.resolve(), "index.html", Path(tmp) / "file.png", w, h, 1, timeout, flags,
-                          url=(folder.resolve() / "index.html").as_uri())
+def judge_offline(browser: str, folder: Path, page: Page, w: int, h: int, timeout: float, flags: list) -> Finding:
+    """A reader opens index.html from disk, often with no network: the page must draw from what sits beside it.
+    A page check didn't make is held to it as a warning."""
+    shot = folder / WORK / f"index.{w}x{h}.offline.png"
+    run = cdp.capture(browser, folder.resolve(), "index.html", shot.resolve(), w, h, 1, timeout, [*flags, cdp.NO_NETWORK],
+                      url=(folder.resolve() / "index.html").as_uri())
+    status = FAIL if page.spec is not None else WARN
+    remote = sorted({p["message"].split(" ", 1)[-1] for p in run.get("problems", []) if p.get("offline")})
+    loads = f"; it loads {', '.join(remote[:3])}" if remote else ""
+    fix = "run datamap.py sync, which copies the pinned libraries into vendor/, and load nothing else from the network"
     if why := run.get("ready_error") or run.get("error"):
-        return FAIL("file", f"opened from file://, the page doesn't draw: {why}", "load anything the workers import from a data: URL, not a blob: URL", 33)
-    return PASS("file", "the page also draws when opened from file://", 33)
+        return status("offline", f"opened from disk with no network, the page doesn't draw: {why}{loads}", fix, 33)
+    box = (run.get("report") or {}).get("mapBox") or (run.get("report") or {}).get("chartBox")
+    area = (box["x"], box["y"], box["w"], box["h"]) if box else tuple((run.get("probe") or {}).get("area") or ()) or None
+    if shot.is_file() and (top := png.summary(png.read(shot.read_bytes()).histogram(area))["top"]) and top[0][1] >= 0.99:
+        return status("offline", f"opened from disk with no network, the {'map' if box else 'page'} is one color{loads}", fix, 33)
+    said = [p["message"] for p in run.get("problems", [])]
+    if said:
+        return WARN("offline", f"opened from disk with no network, the page draws, but logs: {'; '.join(said[:3])}", "load nothing from the network", 33)
+    return PASS("offline", f"the page draws when opened from disk with no network ({shot.resolve()})", 33)
 
 
 def check_page(args) -> int:
@@ -659,7 +690,7 @@ def check_page(args) -> int:
     browser = None if args.no_browser else cdp.find_browser()
     if args.no_browser or not browser:
         why = "--no-browser" if args.no_browser else "no Chrome, Chromium, Edge, or Brave found"
-        findings.append(WARN("render", f"render not measured: {why}", "rerun check where headless Chrome runs and jsDelivr is reachable, or set DM_BROWSER", 33))
+        findings.append(WARN("render", f"render not measured: {why}", "rerun check where headless Chrome runs, or set DM_BROWSER", 33))
     else:
         flags = cdp.GL_FLAGS[args.gl]
         run = cdp.capture(browser, folder.resolve(), "index.html", shot.resolve(), w, h, scale, args.timeout, flags)
@@ -671,8 +702,8 @@ def check_page(args) -> int:
         if measured and shot.exists():
             findings += judge_png(shot, run.get("report"), run, scale, page.legend, folder / "data")
             findings.append(PASS("screenshot", str(shot.resolve())))
-        if measured and page.is_map and page.projection.get("type") == "crs":
-            findings.append(judge_file_url(browser, folder, w, h, args.timeout, run.get("flags") or flags))
+        if measured:
+            findings.append(judge_offline(browser, folder, page, w, h, args.timeout, run.get("flags") or flags))
     record = {"page": str((folder / "index.html").resolve()), "png": str(shot.resolve()) if run and shot.exists() else None,
               "size": [w, h], "scale": scale, "report": (run or {}).get("report"),
               "run": {k: v for k, v in (run or {}).items() if k not in ("report",)}}

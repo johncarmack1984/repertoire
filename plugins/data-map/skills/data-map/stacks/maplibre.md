@@ -1,6 +1,6 @@
 # maplibre-gl
 
-Step 5 reads this file when the brief's Stack line says maplibre. The template in `assets/templates/maplibre/` is one HTML page on maplibre-gl 6.18.0 that draws whatever the levers wrote to `data/`, with its legend, companions, title block, and source line, and opens from a file once `sync` has run.
+Step 5 reads this file when the brief's Stack line says maplibre. The template in `assets/templates/maplibre/` is one HTML page on maplibre-gl 6.18.0 that draws whatever the levers wrote to `data/`, with its legend, companions, title block, and source line, and opens from a file with no network once `sync` has run.
 
 ## What it can draw
 
@@ -24,6 +24,7 @@ python3 <skill>/scripts/datamap.py check map --scale 2
 ```
 
 - `index.html` holds the `dm-spec` block, the title block, the map cell, the side panel, and the source line. `sync` inlines the page library from `assets/templates/lib/` and every JSON and GeoJSON file in `data/`.
+- `vendor/` holds the pinned libraries the page draws with, which `sync` copies in: MapLibre GL JS 6.18.0 with its stylesheet for any map, proj4 2.22.0 under a CRS, and pmtiles 4.5.0 with @protomaps/basemaps 5.7.2 for a `.pmtiles` basemap, each with its license where the package ships one. `sync` fetches each file once from jsDelivr into `~/.cache/data-map/` (or `$DM_CACHE`), checks it against its sha256, and copies it from there, so a second project needs no network. It removes a library the page no longer draws with. Ship `vendor/` with `index.html`.
 - `.dm/` holds the working files, which never ship with the map: `brief.md`, the brief to fill in before anything is drawn, and the screenshots and `check.json` that `check` writes. `check` warns on a brief, a screenshot, `check.json`, or a notes file left beside `index.html`.
 - Every color, size, and width comes from `legend.json` and the `dm_*` properties the levers wrote. Edit the page's text and its `dm-spec`, not the library region; `check` fails a library edited by hand.
 
@@ -78,7 +79,7 @@ Each entry in `dm-spec.companions` draws a small SVG chart in the side panel, fr
 
 ## A registered CRS
 
-maplibre-gl 6.15 added CRS support, which is still experimental, so the version is pinned. For a `crs` projection the page loads proj4 2.22.0 in the page and in MapLibre's workers, where GeoJSON is reprojected, through `importScriptInWorkers` and `setProjectionHandler`. It registers the projection with `addProjection`, with a tile matrix sized to the projected world. It first projects the definition's own center. proj4 2.22.0 projects Albers, Lambert azimuthal, cylindrical equal-area, stereographic, Lambert conformal conic, and transverse Mercator definitions to NaN without `+x_0=0 +y_0=0`, so the page throws with the definition and that fix, and `check` reports it. `datamap.py crs` prints both. It fits the view in the map's `load` event. Bounds passed to the constructor are fitted in Web Mercator before the style selects the CRS, which draws the world at half its size.
+maplibre-gl 6.15 added CRS support, which is still experimental, so the version is pinned. For a `crs` projection the page runs proj4 2.22.0's self-contained UMD build in the page and inlines the same build into the data: URL it passes to `importScriptInWorkers`, where `setProjectionHandler` reprojects GeoJSON in MapLibre's workers. It registers the projection with `addProjection`, with a tile matrix sized to the projected world. It first projects the definition's own center. proj4 2.22.0 projects Albers, Lambert azimuthal, cylindrical equal-area, stereographic, Lambert conformal conic, and transverse Mercator definitions to NaN without `+x_0=0 +y_0=0`, so the page throws with the definition and that fix, and `check` reports it. `datamap.py crs` prints both. It fits the view in the map's `load` event. Bounds passed to the constructor are fitted in Web Mercator before the style selects the CRS, which draws the world at half its size.
 
 Under a CRS, Web Mercator tiles draw in the wrong place, so draw GeoJSON, or tiles cut in the CRS's own grid and listed in `tiles` with that grid (P11). Densify long edges with `geo --densify`, or a straight edge cuts a corner off a curved meridian (P12).
 
@@ -116,7 +117,7 @@ A globe or Mercator map can sit on a local Protomaps archive instead of `land.ge
 "tiles": [{"source": "basemap", "grid": "web-mercator", "url": "data/basemap.pmtiles", "flavor": "white"}]
 ```
 
-The page then loads pmtiles 4.5.0 and @protomaps/basemaps 5.7.2 and draws the `white` flavor, land lighter than water. The `light` flavor's water is a saturated cyan, and `grayscale` draws the ocean darker than the land; both compete with the data (P27). Labels draw from local fonts in the page's own family, because the style names no glyphs. PMTiles needs a server that answers Range requests, such as the one `check` runs. A page opened from a file can't use the archive. The attribution control then credits Protomaps and OpenStreetMap, as the license asks.
+The page then loads pmtiles 4.5.0 and @protomaps/basemaps 5.7.2 and draws the `white` flavor, land lighter than water. The `light` flavor's water is a saturated cyan, and `grayscale` draws the ocean darker than the land; both compete with the data (P27). Labels draw from local fonts in the page's own family, because the style names no glyphs. PMTiles needs a server that answers Range requests, such as the one `check` runs. A page opened from a file draws without the archive and logs a warning, which the offline pass reports. The attribution control then credits Protomaps and OpenStreetMap, as the license asks.
 
 ## The readiness hook and the report
 
@@ -126,13 +127,13 @@ To add a layer by hand, pass a function as the second argument of `DataMap.start
 
 ## Traps
 
-- The page loads its libraries from jsDelivr at exact versions, so a render needs the network. Without it, or without Chrome, `check` runs its static pass and says the render was not measured.
+- The page loads nothing from the network. Chrome loads no ES module from a file, and MapLibre 6 ships only ES modules, so `vendor/` carries MapLibre, its worker, and proj4 as text in classic scripts (`*.text.js`), and the page runs them from blob URLs. `check` renders the page, then opens it again from disk with every host name failing to resolve, and fails it if it doesn't draw. It warns on any URL the page loads from a CDN. Without Chrome, `check` runs its static pass and says the render was not measured.
 - maplibre-gl's `glyphs`-free text uses `text-font` names as CSS families, and a generic such as `system-ui` can't carry a weight. The template handles basemap labels; a label layer of your own uses the page's font stack.
 - The levers write string ids for areas, so hover outlines match the feature's id with a filter rather than feature-state.
 - Class fills stay opaque. A `fill-opacity` below 1 blends each class with what lies under it, so the map no longer shows the legend's colors (P9), and `check` can't find them.
 - `check` writes `.dm/index.<W>x<H>.png` and `.dm/check.json`; keep `.dm/` out of version control.
-- A synced page holds every data file it draws, so it can travel without `data/`, and `check` then judges it from its inlined blocks. `sync` refuses such a page, since it would drop them.
+- A synced page holds every data file it draws, so it can travel without `data/`, though never without `vendor/`, and `check` then judges it from its inlined blocks. `sync` refuses such a page, since it would drop them.
 
 ## Updating the pins
 
-The pins live in the page's URLs and in `PINS` in `scripts/dm/check.py`, which fails any other version. To move one, read the library's changelog first, since CRS is experimental and can change in a minor release. Then change the URLs in both templates and `PINS` together, rebuild the test pages with `tests/pages/make.py`, run `tests/test_check.py`, and open each PNG.
+The pins live in one place, `LIBS` in `scripts/dm/vendor.py`: each library's version and each file the page loads with its sha256. `sync` copies only those files, and `check` fails a file in `vendor/` that isn't one of them, has another version, or has another hash. To move one, read the library's changelog first, since CRS is experimental and can change in a minor release. Then change the version and every file's hash in `LIBS`, rebuild the test pages with `tests/pages/make.py`, run `tests/test_check.py`, and open each PNG and each offline PNG.

@@ -600,7 +600,7 @@ function buildStyle(libs, t) {
   return {style, hover, labels: groups.label.map(l => ({id: l.id, source: l.source}))};
 }
 
-async function registerCrs(maplibregl, proj4, url, p) {
+async function registerCrs(maplibregl, proj4, source, p) {
   const projection = proj4('EPSG:4326', p.definition);
   // proj4 2.22.0 projects aea, laea, cea, stere, lcc, and tmerc to NaN everywhere when +x_0 and +y_0 are left out.
   const param = k => Number(p.definition.match(new RegExp(`\\+${k}=(-?[\\d.]+)`))?.[1] ?? 0);
@@ -611,8 +611,9 @@ async function registerCrs(maplibregl, proj4, url, p) {
     throw new Error(`the CRS ${p.name} projects its own center (${center.join(', ')}) to ${at.join(', ')}, so nothing can draw: ` +
       `"${p.definition}"; add +x_0=0 +y_0=0 to the definition, as datamap.py crs prints it`);
   }
-  // A blob URL made on a file:// page is blob:null/..., which the workers can't import; a data URL works from any origin.
-  const handler = `import proj4 from '${url}';\nself.setProjectionHandler(definition => proj4(definition));\n`;
+  // proj4's UMD build defines self.proj4 in a worker as in the page. A blob URL made on a file:// page is
+  // blob:null/..., which the workers can't import; a data URL works from any origin.
+  const handler = `${source}\nself.setProjectionHandler(definition => self.proj4(definition));\n`;
   await maplibregl.importScriptInWorkers(`data:text/javascript;charset=utf-8,${encodeURIComponent(handler)}`);
   let half = 0;
   for (let lon = -180; lon <= 180; lon += 2) for (let lat = -90; lat <= 90; lat += 2) {
@@ -1462,6 +1463,24 @@ function figureSlack() {
 
 // ---------- start ----------
 
+// The pinned libraries sync copied into vendor/, as the head's tags loaded them. Chrome loads no ES module from a
+// file, so MapLibre, its worker, and proj4 arrive as text and run from blob URLs; deck.gl, pmtiles, and the
+// Protomaps basemaps are classic scripts that define their globals.
+async function libs() {
+  const text = self.dmVendor || {}, out = {};
+  const blob = source => URL.createObjectURL(new Blob([source], {type: 'text/javascript'}));
+  if (text['maplibre-gl']) {
+    out.maplibregl = await import(blob(text['maplibre-gl']));
+    out.maplibregl.setWorkerUrl(blob(text['maplibre-gl-worker']));
+  }
+  if (text.proj4) {
+    await import(blob(text.proj4));
+    Object.assign(out, {proj4: self.proj4, proj4Source: text.proj4});
+  }
+  for (const name of ['deck', 'pmtiles', 'basemaps']) if (self[name]) out[name] = self[name];
+  return out;
+}
+
 const once = (target, event) => new Promise(r => target.once(event, r));
 
 async function start(libs, extend) {
@@ -1479,7 +1498,9 @@ async function start(libs, extend) {
   }
   const {maplibregl, deck} = libs;
   const proj = spec.projection, crs = proj.type === 'crs';
-  if (crs) await registerCrs(maplibregl, libs.proj4, libs.proj4Url, proj);
+  const missing = [['MapLibre GL JS', maplibregl], ['proj4', !crs || libs.proj4]].filter(([, lib]) => !lib).map(([name]) => name);
+  if (missing.length) throw new Error(`vendor/ holds no ${missing.join(' or ')}, which this page draws with; run datamap.py sync on its folder`);
+  if (crs) await registerCrs(maplibregl, libs.proj4, libs.proj4Source, proj);
   if (libs.pmtiles) maplibregl.addProtocol('pmtiles', new libs.pmtiles.Protocol().tile);
   const t = Object.fromEntries(['page', 'ocean', 'graticule', 'sphere-edge', 'land', 'land-edge', 'base-line', 'flow', 'node', 'symbol', 'text', 'rule']
     .map(k => [k, tok(k)]));
@@ -1494,7 +1515,13 @@ async function start(libs, extend) {
     const [make, options] = IMAGES[id] || [];
     if (make && !map.hasImage(id)) map.addImage(id, make(), options);
   });
-  map.on('error', e => rejectReady(e.error || new Error(String(e))));
+  // A .pmtiles archive needs a server that answers Range requests, so a page opened from a file draws without it.
+  let basemapMissing = false;
+  map.on('error', e => {
+    if (e.sourceId !== 'basemap' || location.protocol !== 'file:') return rejectReady(e.error || new Error(String(e)));
+    if (!basemapMissing) console.warn(`the basemap ${e.source?.url ?? ''} can't load from a file, so the map draws without it; open the page from a web server to see it`);
+    basemapMissing = true;
+  });
   await once(map, 'load');
   fitView(map);
   if (hugMap(map)) fitView(map);
@@ -1526,5 +1553,6 @@ async function start(libs, extend) {
   resolveReady();
 }
 
-window.DataMap = {spec, data, legend, start: (libs, extend) => start(libs, extend).catch(err => { rejectReady(err); throw err; })};
+window.DataMap = {spec, data, legend, libs: () => libs().catch(err => { rejectReady(err); throw err; }),
+  start: (libs, extend) => start(libs, extend).catch(err => { rejectReady(err); throw err; })};
 })();

@@ -62,9 +62,9 @@ Past about 50,000 points or lines, draw that layer with a deck.gl layer instead 
 - The overlay must be interleaved on the globe, as the prototypes found.
 - The globe culls back faces, and 9.4.1's arc strips wind clockwise, so the arc layer sets `parameters: {cullMode: 'none'}` or every arc vanishes (deck.gl issue 10670).
 - deck.gl layers draw above every MapLibre layer unless they name a `beforeId`. The arcs name the nodes layer, so they draw under the nodes, the names, and the arrowheads, as the maplibre page's lines do.
-- deck.gl loads as a script before the page's module and defines `window.deck`. If it fails to load, the module throws and `dataMap.ready` rejects.
+- deck.gl loads from `vendor/` as a classic script before the page's module and defines `window.deck`. The template's vendor marker, `<!-- data-map:vendor deck.gl -->`, asks `sync` for it whatever the projection.
 - The flows lever also writes `<layer>-arcs.json`. The page builds its arcs from the lines and the nodes instead, so that file only travels along.
 
 ## Updating the pins
 
-deck.gl's pin sits in the page's script URL and in `PINS` in `scripts/dm/check.py`. Move it together with maplibre-gl, since `MapLibreOverlay` follows maplibre-gl's map API. After a change, rebuild the test pages with `tests/pages/make.py`, run `tests/test_check.py`, and open the deck page's PNG to see that the arcs still draw and still hug the globe.
+deck.gl's pin sits in `LIBS` in `scripts/dm/vendor.py`, with the hash of `dist.min.js`. Move it together with maplibre-gl, since `MapLibreOverlay` follows maplibre-gl's map API. After a change, rebuild the test pages with `tests/pages/make.py`, run `tests/test_check.py`, and open the deck page's PNG and its offline PNG to see that the arcs still draw and still hug the globe.

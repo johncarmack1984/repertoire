@@ -1,5 +1,5 @@
-"""new and sync: start a map project from a stack's template, and inline the page library and the data
-so the page opens from file:// with nothing else beside it."""
+"""new and sync: start a map project from a stack's template, inline the page library and the data, and copy
+the pinned libraries into vendor/, so the page opens from file:// with no network."""
 from __future__ import annotations
 
 import hashlib
@@ -8,7 +8,7 @@ import re
 import shutil
 from pathlib import Path
 
-from . import FAIL, PASS, VERSION, WARN, crs, report
+from . import FAIL, PASS, VERSION, WARN, crs, report, vendor
 
 TEMPLATES = Path(__file__).resolve().parents[2] / "assets" / "templates"
 # The project's working files, the brief, check's screenshots, and check.json, which never ship with the map.
@@ -69,7 +69,23 @@ def data_block(path: Path) -> str:
     return f'<!-- data-map:file data/{path.name} sha256:{sha(raw)} -->\n<script type="application/json" id="dm-data-{path.stem}">{text}</script>\n'
 
 
+def libs_of(text: str, page: Path) -> list:
+    """The pinned libraries the page draws with, from its dm-spec and its vendor marker."""
+    m = vendor.REGION.search(text)
+    if not m:
+        raise UsageError(f"{page} has no <!-- data-map:vendor --> region; start from `datamap.py new`")
+    spec = SPEC.search(text)
+    try:
+        return vendor.needs(json.loads(spec[2]) if spec else {}, m[1].split())
+    except json.JSONDecodeError as err:
+        raise UsageError(f"{page}'s dm-spec is not JSON: {err}") from None
+    except vendor.VendorError as err:
+        raise UsageError(str(err)) from None
+
+
 def synced(text: str, out: Path, page: Path) -> str:
+    libs = libs_of(text, page)
+    text = vendor.REGION.sub(lambda m: f"<!-- data-map:vendor{m[1]} -->\n{vendor.region(libs)}<!-- /data-map:vendor -->", text, count=1)
     found = {m[1] for m in LIB_REGION.finditer(text)}
     for name in LIB:
         if name not in found:
@@ -82,8 +98,19 @@ def synced(text: str, out: Path, page: Path) -> str:
 
 
 def drift(text: str, out: Path) -> list[str]:
-    """What sync would change in the page, in words."""
+    """What sync would change in the page and vendor/, in words."""
     said = []
+    if m := vendor.REGION.search(text):
+        try:
+            libs = libs_of(text, out / "index.html")
+        except UsageError as err:
+            said.append(str(err))
+        else:
+            # A library the page no longer draws with does no harm until sync drops it; one it lacks leaves it blank.
+            tags = set(m[2].splitlines())
+            if missing := [f"{lib.name} {lib.version}" for lib in libs if not set(vendor.region([lib]).splitlines()) <= tags]:
+                said.append(f"the page draws with {', '.join(missing)}, which the vendor region doesn't load")
+            said += vendor.problems(out, libs)
     for m in LIB_REGION.finditer(text):
         body = (TEMPLATES / "lib" / LIB[m[1]][1]).read_text(encoding="utf-8")
         if not body.endswith("\n"):
@@ -164,11 +191,12 @@ def run_new(args) -> int:
         findings.append(PASS("package", f"Cargo package and binary named {name}, so projects that share a CARGO_TARGET_DIR build separate binaries"))
     if page.exists():
         target = out / "index.html"
-        text = synced(target.read_text(encoding="utf-8"), out, target)
+        text = target.read_text(encoding="utf-8")
         m = SPEC.search(text)
         spec = json.loads(m[2])
         spec.update(json.loads(json.dumps(PRESETS[preset])))
-        text = text[:m.start(2)] + json.dumps(spec, indent=1, ensure_ascii=False) + text[m.end(2):]
+        text = synced(text[:m.start(2)] + json.dumps(spec, indent=1, ensure_ascii=False) + text[m.end(2):], out, target)
+        install(out, libs_of(text, target))
         target.write_text(text, encoding="utf-8")
         findings.append(PASS("new", f"wrote {out.resolve()} from the {args.stack} template, preset {preset}"))
     else:
@@ -191,21 +219,32 @@ def run_sync(args) -> int:
     findings = []
     if args.check:
         said = drift(old, out)
-        if new != old:
+        if new != old or said:
             findings.append(FAIL("sync", f"{page} is out of date: {'; '.join(said) or 'region layout differs'}", f"run datamap.py sync {out}"))
         else:
             findings.append(PASS("sync", f"{page} holds the current library and {len(files)} data files"))
         return report(findings, args.json)
     if not files:
         findings.append(WARN("sync", f"{out / 'data'} holds no JSON or GeoJSON yet", "write the layers with --out-dir OUT/data first", 9))
+    libs = libs_of(new, page)
+    install(out, libs)
     if new != old:
         page.write_text(new, encoding="utf-8")
     size = len(new.encode()) / 1e6
     findings.append(PASS("sync", f"{page} inlines the {VERSION} library and {', '.join(files) or 'no data files'} ({size:.1f} MB)"))
+    findings.append(PASS("vendor", f"{out / 'vendor'} holds {', '.join(f'{lib.name} {lib.version}' for lib in libs)}, from {vendor.cache_dir()}"
+                         if libs else "the page loads no library, so there is no vendor/ folder"))
     if size > 20:
         findings.append(WARN("size", f"the page is {size:.0f} MB, slow to open",
                              "cut the data to what the map draws, or serve large layers as PMTiles"))
     return report(findings, args.json)
+
+
+def install(out: Path, libs: list) -> None:
+    try:
+        vendor.install(out, libs)
+    except vendor.VendorError as err:
+        raise UsageError(str(err)) from None
 
 
 def run(args) -> int:
@@ -225,8 +264,9 @@ def register(sub) -> None:
     p.add_argument("--force", action="store_true", help="write into a folder that is not empty")
     p.add_argument("--json", action="store_true", help="print one JSON object instead of lines")
     p.set_defaults(run=run)
-    p = sub.add_parser("sync", help="inline the page library and OUT/data into index.html",
-                       description="Inlines every JSON and GeoJSON file in OUT/data, so the page opens from file://.")
+    p = sub.add_parser("sync", help="inline the page library and OUT/data into index.html, and copy the pinned libraries into OUT/vendor",
+                       description="Inlines every JSON and GeoJSON file in OUT/data, and copies the pinned libraries the page draws with into "
+                                   "OUT/vendor from a cache it fills once from jsDelivr, so the page opens from file:// with no network.")
     p.add_argument("out", metavar="OUT", help="the project folder")
     p.add_argument("--check", action="store_true", help="change nothing; exit 1 if the page is out of date")
     p.add_argument("--json", action="store_true", help="print one JSON object instead of lines")

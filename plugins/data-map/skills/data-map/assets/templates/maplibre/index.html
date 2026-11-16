@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>[A title that states the point]</title>
 <link rel="icon" href="data:,">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@6.18.0/dist/maplibre-gl.css">
+<!-- data-map:vendor -->
+<!-- /data-map:vendor -->
 <!-- data-map:lib css -->
 <!-- /data-map:lib css -->
 <script type="application/json" id="dm-spec">
@@ -60,19 +61,7 @@
 <!-- data-map:lib js -->
 <!-- /data-map:lib js -->
 <script type="module">
-const spec = DataMap.spec;
-const libs = {};
-if (spec.projection) {
-  libs.maplibregl = await import('https://cdn.jsdelivr.net/npm/maplibre-gl@6.18.0/dist/maplibre-gl.mjs');
-  if (spec.projection.type === 'crs') {
-    libs.proj4Url = 'https://cdn.jsdelivr.net/npm/proj4@2.22.0/+esm';
-    libs.proj4 = (await import(libs.proj4Url)).default;
-  }
-  if ((spec.tiles || []).some(t => /\.pmtiles$/.test(t.url || ''))) {
-    libs.pmtiles = await import('https://cdn.jsdelivr.net/npm/pmtiles@4.5.0/+esm');
-    libs.basemaps = await import('https://cdn.jsdelivr.net/npm/@protomaps/basemaps@5.7.2/+esm');
-  }
-}
+const libs = await DataMap.libs();
 await DataMap.start(libs);
 </script>
 </body>

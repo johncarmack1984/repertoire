@@ -26,7 +26,7 @@ sys.path.insert(0, str(SOURCE))
 
 import datamap  # noqa: E402
 import make  # noqa: E402
-from dm import chrome, png  # noqa: E402
+from dm import chrome, png, vendor  # noqa: E402
 
 GOOD = ["maplibre-crs", "maplibre-globe", "deck-globe", "maplibre-mercator", "maplibre-flows", "maplibre-chart"]
 # The warnings each good page renders with. A great circle can't bend around a node, and three of the Pacific
@@ -169,6 +169,16 @@ def working_file(name: str):
     return lambda folder: (folder / name).write_text("x")
 
 
+def from_cdn(folder: Path):
+    """The page as round 3 shipped it: MapLibre imported from jsDelivr, nothing in vendor/."""
+    p = folder / "index.html"
+    text = re.sub(r"<!-- data-map:vendor -->\n.*?<!-- /data-map:vendor -->\n", "", p.read_text(), count=1, flags=re.S)
+    text = text.replace("const libs = await DataMap.libs();",
+                        "const libs = {maplibregl: await import('https://cdn.jsdelivr.net/npm/maplibre-gl@6.18.0/dist/maplibre-gl.mjs')};")
+    p.write_text(text)
+    shutil.rmtree(folder / "vendor")
+
+
 def drop_why(folder: Path):
     p = folder / "index.html"
     text = p.read_text()
@@ -204,8 +214,14 @@ STATIC_BAD = [
     ("an old screenshot beside the page", "maplibre-globe", working_file("index.1200x800@2x.png"), ("WARN", "deliverable", None)),
     ("a title that says map", "maplibre-crs", page('id="dm-title">Bangladesh', 'id="dm-title">A map: Bangladesh'), ("WARN", "title", 24)),
     ("no source line", "maplibre-globe", page('<p id="dm-source">Source: synthetic test data for the data-map plugin.</p>', ""), ("FAIL", "source", 24)),
-    ("maplibre-gl off its pin", "maplibre-globe", lambda f: (page("maplibre-gl@6.18.0/dist/maplibre-gl.css", "maplibre-gl@6.17.0/dist/maplibre-gl.css")(f)),
+    ("maplibre-gl off its pin", "maplibre-globe", page('href="vendor/maplibre-gl@6.18.0/maplibre-gl.css"', 'href="vendor/maplibre-gl@6.17.0/maplibre-gl.css"'),
      ("FAIL", "pins", None)),
+    ("a vendored library edited", "maplibre-crs", lambda f: (f / "vendor/proj4@2.22.0/proj4.text.js").write_text(
+        (f / "vendor/proj4@2.22.0/proj4.text.js").read_text().replace("6378137", "6378138", 1)), ("FAIL", "pins", None)),
+    ("a vendored library missing", "deck-globe", remove("vendor/deck.gl@9.4.1/dist.min.js"), ("FAIL", "pins", None)),
+    ("a library loaded from jsDelivr", "maplibre-globe", from_cdn, ("WARN", "offline", 33)),
+    ("a CRS page whose vendor region lost proj4", "maplibre-crs", lambda f: (f / "vendor/proj4@2.22.0/proj4.text.js").unlink() or
+     page('<script src="vendor/proj4@2.22.0/proj4.text.js"></script>\n', "")(f), ("FAIL", "sync", 9)),
     ("the library edited by hand", "deck-globe", lib_edit, ("FAIL", "library", None)),
     ("dm-spec that doesn't parse", "maplibre-crs", page('"version": 1,', '"version": 1,,'), ("FAIL", "spec", None)),
     ("a note with no place", "maplibre-crs", spec(annotations=[{"text": "Bangladesh"}]), ("FAIL", "annotations", 24)),
@@ -218,7 +234,7 @@ BROWSER_BAD = [
     ("a map still moving at ready", "maplibre-globe", module("dataMap.map.panBy([300, 0], {duration: 20000});"), ("FAIL", "motion", 26)),
     ("an Albers definition with no false origin", "maplibre-crs",
      spec(projection={"type": "crs", "name": "custom:albers", "definition": ALBERS_NO_ORIGIN, "property": "equal-area"}), ("FAIL", "ready", 33)),
-    ("a page that throws", "maplibre-mercator", page("const spec = DataMap.spec;", "throw new Error('the page broke');\nconst spec = DataMap.spec;"),
+    ("a page that throws", "maplibre-mercator", page("const libs = await DataMap.libs();", "throw new Error('the page broke');\nconst libs = await DataMap.libs();"),
      ("FAIL", "ready", 33)),
 ]
 
@@ -317,6 +333,33 @@ class Static(unittest.TestCase):
         self.assertIn("data/movers.geojson changed since the last sync", out)
         cli("sync", folder)
         self.assertEqual(cli("sync", folder, "--check")[0], 0)
+
+    def test_sync_vendors_exactly_the_libraries_the_page_draws_with(self):
+        folder = copy("maplibre-crs", self.tmp)
+        held = lambda: sorted(d.name for d in (folder / "vendor").iterdir())
+        self.assertEqual(held(), ["maplibre-gl@6.18.0", "proj4@2.22.0"])
+        spec(projection={"type": "globe"}, idiom=["flows"])(folder)
+        self.assertEqual(cli("sync", folder, "--check")[0], 1)
+        self.assertEqual(cli("sync", folder)[0], 0)
+        self.assertEqual(held(), ["maplibre-gl@6.18.0"])
+        self.assertNotIn("proj4", (folder / "index.html").read_text().split("<!-- /data-map:vendor -->")[0])
+        (folder / "vendor" / "maplibre-gl@6.18.0" / "maplibre-gl.css").unlink()
+        code, out = cli("sync", folder, "--check")
+        self.assertEqual(code, 1)
+        self.assertIn("vendor/maplibre-gl@6.18.0/maplibre-gl.css is missing", out)
+
+    def test_a_second_project_syncs_from_the_cache_with_no_network(self):
+        cdn = {"DM_CDN": "http://127.0.0.1:9"}
+        with patched_env(DM_CACHE=str(self.tmp / "empty"), **cdn):
+            code, out = cli("new", "maplibre", self.tmp / "nothing-cached")
+        self.assertEqual(code, 2)
+        self.assertIn("can't fetch http://127.0.0.1:9/maplibre-gl@6.18.0/dist/maplibre-gl.mjs", out)
+        self.assertIn(str(self.tmp / "empty"), out)
+        shutil.copytree(vendor.cache_dir(), self.tmp / "cache")
+        with patched_env(DM_CACHE=str(self.tmp / "cache"), **cdn):
+            self.assertEqual(cli("new", "deck-gl", self.tmp / "second")[0], 0)
+            self.assertEqual(cli("sync", self.tmp / "second", "--check")[0], 0)
+        self.assertTrue((self.tmp / "second" / "vendor" / "deck.gl@9.4.1" / "dist.min.js").is_file())
 
     def test_sync_inlines_data_that_opens_from_file(self):
         folder = copy("maplibre-globe", self.tmp)
@@ -842,14 +885,41 @@ class Render(unittest.TestCase):
         self.assertEqual(code, 0, findings(result, "FAIL"))
         self.assertEqual(findings(result, "WARN"), EXPECTED_WARNS["maplibre-globe"])
 
-    def test_without_a_network_the_render_is_reported_not_measured(self):
+    def test_with_no_network_a_synced_page_renders_and_a_page_from_elsewhere_is_not_measured(self):
+        for name in ("maplibre-crs", "deck-globe", "bare-maplibre"):
+            with self.subTest(name):
+                folder = copy(name, self.tmp / name)
+                with patched_env(DM_CHROME_FLAGS="--proxy-server=127.0.0.1:9"):
+                    code, result = cli("check", folder, "--json")
+                self.assertEqual(code, 0, findings(result, "FAIL"))
+                render = [f for f in result["findings"] if f["check"] == "render"]
+                if name == "bare-maplibre":
+                    self.assertEqual([(f["status"], f["pitfall"]) for f in render], [("WARN", 33)])
+                    self.assertIn("no network", render[0]["message"])
+                else:
+                    self.assertEqual(render, [])
+                    self.assertIn(("PASS", "ready", 33), findings(result))
+                    self.assertIn(("PASS", "offline", 33), findings(result))
+
+    def test_opened_from_disk_with_no_network_a_page_that_loads_a_cdn_fails(self):
         folder = copy("maplibre-globe", self.tmp)
-        with patched_env(DM_CHROME_FLAGS="--proxy-server=127.0.0.1:9"):
-            code, result = cli("check", folder, "--json")
-        self.assertEqual(code, 0, findings(result, "FAIL"))
-        render = next(f for f in result["findings"] if f["check"] == "render")
-        self.assertEqual((render["status"], render["pitfall"]), ("WARN", 33))
-        self.assertIn("no network", render["message"])
+        from_cdn(folder)
+        code, result = self.render(folder)
+        offline = next(f for f in result["findings"] if f["check"] == "offline" and f["status"] != "WARN")
+        self.assertEqual((code, offline["status"]), (1, "FAIL"))
+        self.assertIn("cdn.jsdelivr.net/npm/maplibre-gl@6.18.0/dist/maplibre-gl.mjs", offline["message"])
+        self.assertTrue((folder / ".dm" / "index.1200x800.offline.png").is_file())
+
+    def test_a_pmtiles_basemap_that_cannot_load_from_disk_warns_and_the_map_still_draws(self):
+        folder = copy("maplibre-mercator", self.tmp)
+        spec(tiles=[{"source": "basemap", "grid": "web-mercator", "url": "data/basemap.pmtiles", "flavor": "white"}])(folder)
+        self.assertEqual(cli("sync", folder)[0], 0)
+        self.assertTrue((folder / "vendor" / "pmtiles@4.5.0" / "pmtiles.js").is_file())
+        self.assertTrue((folder / "vendor" / "protomaps-basemaps@5.7.2" / "basemaps.js").is_file())
+        code, result = self.render(folder)
+        offline = next(f for f in result["findings"] if f["check"] == "offline")
+        self.assertEqual(offline["status"], "WARN", offline)
+        self.assertIn("can't load from a file", offline["message"])
 
     def test_a_chrome_that_cannot_start_is_reported_not_measured(self):
         folder = copy("maplibre-crs", self.tmp)
