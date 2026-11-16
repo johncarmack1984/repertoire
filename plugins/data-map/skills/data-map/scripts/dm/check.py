@@ -353,7 +353,17 @@ def rule_deliverable(page: Page) -> list:
     return []
 
 
-MAP_RULES = [rule_projection, rule_tiles, rule_controls, rule_pitch, rule_zoom, rule_legend, rule_annotations]
+def rule_highlight(page: Page) -> list:
+    keys = page.spec.get("highlight")
+    if keys is None:
+        return []
+    if not (isinstance(keys, list) and all(isinstance(k, str) and k for k in keys)):
+        return [FAIL("highlight", "dm-spec.highlight is not a list of node or feature keys",
+                     'write the keys of the places the title names, such as ["BGD", "IND"]', 24)]
+    return []
+
+
+MAP_RULES = [rule_projection, rule_tiles, rule_controls, rule_pitch, rule_zoom, rule_legend, rule_annotations, rule_highlight]
 PAGE_RULES = [rule_pins, rule_library, rule_fonts, rule_motion, rule_text, rule_companions, rule_deliverable]
 
 
@@ -435,6 +445,9 @@ def judge_report(rep: dict, page: Page) -> list:
         out += judge_title_places(rep, page)
         out += judge_crossings(rep)
         out += judge_lead(rep, page)
+        if missing := [h["key"] for h in rep.get("highlight") or [] if h.get("name") is None]:
+            out.append(WARN("highlight", f"dm-spec.highlight names {', '.join(missing)}, which no node or area has",
+                            "use the keys the levers wrote: a flow node's dm_key, or a feature's id", 24))
     fonts = rep.get("fonts") or []
     if len(fonts) > 2:
         out.append(WARN("fonts", f"{len(fonts)} font families in use: {', '.join(fonts)}", "use at most two families", 23))

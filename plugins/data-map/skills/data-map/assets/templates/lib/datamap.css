@@ -53,6 +53,7 @@ aside h3 { margin: 12px 0 6px; font-size: var(--dm-t4); font-weight: 600; }
 aside svg { display: block; overflow: visible; }
 aside svg text { font: 400 var(--dm-t4) var(--dm-font); fill: var(--dm-text); }
 aside svg text.dm-muted { fill: var(--dm-muted); }
+aside svg text.dm-hi, .dm-table .dm-hi td:first-child { font-weight: 700; }
 .dm-note { margin: 6px 0 0; color: var(--dm-muted); }
 .dm-reveal { display: flex; flex-direction: column; gap: 4px; margin-top: 10px; }
 .dm-reveal input { width: 100%; margin: 0; accent-color: var(--dm-flow); }

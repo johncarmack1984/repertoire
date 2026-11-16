@@ -31,6 +31,11 @@ const stems = [...document.querySelectorAll('script[id^="dm-data-"]')].map(e => 
 const data = Object.fromEntries(stems.map(s => [s, parse('dm-data-' + s)]));
 const legend = data.legend || {layers: {}};
 const layersOf = () => Object.entries(legend.layers || {});
+// MapLibre drops a GeoJSON feature's string id, which the levers write for areas and symbols, so each feature carries
+// its key as dm_key, as flow nodes do already.
+for (const fc of Object.values(data)) {
+  for (const f of fc?.type === 'FeatureCollection' ? fc.features : []) if (f.properties && f.properties.dm_key == null && typeof f.id === 'string') f.properties.dm_key = f.id;
+}
 // The largest dm_rank each flows layer draws, for a layer whose lever wrote more flows than it draws at load
 // (flows --reveal); the reveal control moves it.
 const ranks = Object.fromEntries(layersOf().filter(([, L]) => L.kind === 'flows' && L.reveal?.count > 0).map(([name, L]) => [name, L.reveal.default]));
@@ -84,15 +89,40 @@ function mark(e, layer, kind, color, text, expect) {
 }
 let pageLibs = {};
 let measurer;
-function measure(text) {
+function measure(text, bold = false) {
   measurer ??= document.createElement('canvas').getContext('2d');
-  measurer.font = `${tok('t4')} ${tok('font')}`;
+  measurer.font = `${bold ? '700 ' : ''}${tok('t4')} ${tok('font')}`;
   return measurer.measureText(String(text)).width;
 }
-function fit(text, width) {
+
+// The places dm-spec.highlight names, by node or feature key: the ones the title is about. Their names draw bold and
+// their circles or areas outlined, on the map and in the companions that name them.
+const highlighted = new Set((spec.highlight || []).map(String));
+const keyOf = f => String(f.properties?.dm_key ?? f.id);
+const isHighlighted = ['in', ['get', 'dm_key'], ['literal', [...highlighted]]];
+// Each highlighted key's name, from whichever layer holds it.
+function highlightNames() {
+  const out = new Map();
+  for (const [name, L] of layersOf()) {
+    const stem = L.kind === 'flows' ? filesOf(name, L).nodes : name;
+    for (const f of data[stem]?.features || []) if (highlighted.has(keyOf(f))) out.set(keyOf(f), String(f.properties.dm_label ?? keyOf(f)));
+  }
+  return out;
+}
+// The highlighted key a companion row names, by its whole label or its key.
+function rowHighlight(label) {
+  const said = String(label ?? '').trim().toLowerCase();
+  for (const [key, name] of highlightNames()) if (said === name.toLowerCase() || said === key.toLowerCase()) return key;
+  return null;
+}
+// A circle's outline: the page color, or the text color, thicker, around a highlighted place.
+const ring = (t, width) => highlighted.size
+  ? {'circle-stroke-color': ['case', isHighlighted, t.text, t.page], 'circle-stroke-width': ['case', isHighlighted, 2, width]}
+  : {'circle-stroke-color': t.page, 'circle-stroke-width': width};
+function fit(text, width, bold = false) {
   text = String(text);
-  if (measure(text) <= width) return text;
-  while (text.length > 1 && measure(text + '…') > width) text = text.slice(0, -1);
+  if (measure(text, bold) <= width) return text;
+  while (text.length > 1 && measure(text + '…', bold) > width) text = text.slice(0, -1);
   return text + '…';
 }
 // SVG text never wraps, so a legend line longer than the panel breaks into lines here.
@@ -314,14 +344,15 @@ const CHARTS = {
   bars(sec, c) {
     const rows = rowsOf(c).rows.slice().sort((a, b) => c.order === 'asc' ? a.value - b.value : b.value - a.value).slice(0, c.top || 10);
     const W = sec.clientWidth || 272, bh = spec.projection ? 13 : 18, gap = spec.projection ? 5 : 6;
-    const labelW = Math.min(W * 0.42, Math.max(...rows.map(r => measure(r.label))) + 8);
+    const labelW = Math.min(W * 0.42, Math.max(...rows.map(r => measure(r.label, !!rowHighlight(r.label)))) + 8);
     const valueW = Math.max(...rows.map(r => measure(fmt(r.value)))) + 6;
     const scale = (W - labelW - valueW) / Math.max(...rows.map(r => r.value), 1e-9);
     const s = svg('svg', {width: W, height: rows.length * (bh + gap) - gap}, sec);
     rows.forEach((r, i) => {
       const y = i * (bh + gap), w = Math.max(r.value * scale, 1);
-      label(s, labelW - 8, y + bh / 2, fit(r.label, labelW - 8), {'text-anchor': 'end'});
-      svg('rect', {x: labelW, y, width: w, height: bh, fill: tok('chart')}, s);
+      const hi = rowHighlight(r.label);
+      label(s, labelW - 8, y + bh / 2, fit(r.label, labelW - 8, !!hi), {'text-anchor': 'end', ...(hi && {class: 'dm-hi', 'data-dm-highlight': hi})});
+      svg('rect', {x: labelW, y, width: w, height: bh, fill: hi ? tok('text') : tok('chart')}, s);
       label(s, labelW + w + 4, y + bh / 2, fmt(r.value));
     });
   },
@@ -336,6 +367,8 @@ const CHARTS = {
     const tb = html('tbody', {}, t);
     for (const r of body) {
       const row = html('tr', {}, tb);
+      const hi = rowHighlight(r[0]);
+      if (hi) Object.assign(row, {className: 'dm-hi'}).dataset.dmHighlight = hi;
       r.forEach((v, i) => html('td', numeric[i] ? {class: 'dm-num'} : {}, row, fmt(v)));
     }
   },
@@ -464,9 +497,11 @@ function labelLayer(id, source, t) {
     f.properties.dm_lid = i;
     if (f.properties.dm_label != null) f.properties.dm_text = breakName(f.properties.dm_label);
   });
-  // Slocum's first corner for every name until placeLabels gives each its own.
+  // Slocum's first corner for every name until placeLabels gives each its own. MapLibre takes the weight from the first
+  // family's name, so a family no system has carries Bold, and the page's own stack draws the letters.
+  const font = highlighted.size ? ['case', isHighlighted, ['literal', ['DataMap Bold', ...fontStack()]], ['literal', fontStack()]] : fontStack();
   return {id, type: 'symbol', source,
-    layout: {'text-field': ['get', 'dm_text'], 'text-font': fontStack(), 'text-size': size, 'text-max-width': 100, 'text-justify': 'auto',
+    layout: {'text-field': ['get', 'dm_text'], 'text-font': font, 'text-size': size, 'text-max-width': 100, 'text-justify': 'auto',
       'text-anchor': 'bottom-left', 'text-radial-offset': ['+', 0.25, ['/', ['coalesce', ['get', 'dm_r'], 3], size]],
       'symbol-sort-key': ['get', 'dm_order']},
     paint: {'text-color': t.text, 'text-halo-color': t.page, 'text-halo-width': 1.25}};
@@ -482,13 +517,16 @@ function buildKinds(t, crs, deck) {
       const fill = ['case', ['==', ['get', 'dm_class'], -1], nodata, ['coalesce', ['get', 'dm_fill'], nodata]];
       const polys = fc.features.some(f => /Polygon/.test(f.geometry?.type));
       if (!polys) return {sources: {[name]: fc}, hover: [[name, name + '-hover']], point: [
-        {id: name, type: 'circle', source: name, paint: {'circle-radius': 4.5, 'circle-pitch-scale': 'viewport', 'circle-color': fill, 'circle-stroke-color': t.page, 'circle-stroke-width': 0.75}},
+        {id: name, type: 'circle', source: name, paint: {'circle-radius': 4.5, 'circle-pitch-scale': 'viewport', 'circle-color': fill, ...ring(t, 0.75)}},
         {id: name + '-hover', type: 'circle', source: name, filter: NONE, paint: {'circle-radius': 4.5, 'circle-pitch-scale': 'viewport', 'circle-opacity': 0, 'circle-stroke-color': t.text, 'circle-stroke-width': 1.5}}]};
       return {sources: {[name]: fc}, hover: [[name, name + '-hover']], fill: [
         {id: name, type: 'fill', source: name, paint: {'fill-color': fill}},
         {id: name + '-low-n', type: 'fill', source: name, filter: ['==', ['get', 'dm_low_n'], true], paint: {'fill-pattern': 'dm-hatch'}},
         // On the bare page a white edge would leave the palest class with no coast, so the edges turn light gray.
         {id: name + '-edge', type: 'line', source: name, paint: {'line-color': crs && frameOf() === 'none' ? t.rule : t.page, 'line-width': 0.5}},
+        // A dark line alone vanishes on the darkest class, so it runs on a page-colored casing.
+        ...(highlighted.size ? [{id: name + '-highlight-casing', type: 'line', source: name, filter: isHighlighted, paint: {'line-color': t.page, 'line-width': 3.5}},
+          {id: name + '-highlight', type: 'line', source: name, filter: isHighlighted, paint: {'line-color': t.text, 'line-width': 1.25}}] : []),
         {id: name + '-hover', type: 'line', source: name, filter: NONE, paint: {'line-color': t.text, 'line-width': 1.5}}]};
     },
     sizes(name, L) {
@@ -496,7 +534,7 @@ function buildKinds(t, crs, deck) {
       if (!fc) return {};
       return {sources: {[name]: fc}, hover: [[name, name + '-hover']], label: [labelLayer(name + '-labels', name, t)], point: [
         {id: name, type: 'circle', source: name, layout: {'circle-sort-key': ['get', 'dm_order']},
-          paint: {'circle-radius': ['get', 'dm_r'], 'circle-pitch-scale': 'viewport', 'circle-color': ink(L.color || t.symbol), 'circle-stroke-color': t.page, 'circle-stroke-width': 0.75}},
+          paint: {'circle-radius': ['get', 'dm_r'], 'circle-pitch-scale': 'viewport', 'circle-color': ink(L.color || t.symbol), ...ring(t, 0.75)}},
         {id: name + '-hover', type: 'circle', source: name, filter: NONE,
           paint: {'circle-radius': ['get', 'dm_r'], 'circle-pitch-scale': 'viewport', 'circle-opacity': 0, 'circle-stroke-color': t.text, 'circle-stroke-width': 1.5}}]};
     },
@@ -518,7 +556,7 @@ function buildKinds(t, crs, deck) {
         part.sources[f.nodes] = nodes;
         part.point.push(
           {id: name + '-nodes', type: 'circle', source: f.nodes, ...(ranks[name] != null && {filter: nodeFilter(name)}), layout: {'circle-sort-key': ['get', 'dm_order']},
-            paint: {'circle-radius': ['coalesce', ['get', 'dm_r'], 3], 'circle-pitch-scale': 'viewport', 'circle-color': ink(t.node), 'circle-stroke-color': t.page, 'circle-stroke-width': 1}},
+            paint: {'circle-radius': ['coalesce', ['get', 'dm_r'], 3], 'circle-pitch-scale': 'viewport', 'circle-color': ink(t.node), ...ring(t, 1)}},
           {id: name + '-nodes-hover', type: 'circle', source: f.nodes, filter: NONE,
             paint: {'circle-radius': ['coalesce', ['get', 'dm_r'], 3], 'circle-pitch-scale': 'viewport', 'circle-opacity': 0, 'circle-stroke-color': t.text, 'circle-stroke-width': 1.5}});
         part.label.push({...labelLayer(name + '-labels', f.nodes, t), ...(ranks[name] != null && {filter: nodeFilter(name)})});
@@ -829,7 +867,7 @@ function interact(map, hover) {
   for (const [layer, outline] of hover) {
     map.on('mousemove', layer, e => {
       const f = e.features[0];
-      map.setFilter(outline, ['==', ['id'], f.id ?? '__dm_none__']);
+      map.setFilter(outline, f.properties.dm_key != null ? ['==', ['get', 'dm_key'], f.properties.dm_key] : ['==', ['id'], f.id ?? '__dm_none__']);
       map.getCanvas().style.cursor = 'default';
       show(f.properties.dm_tip || f.properties.dm_label, e.point.x, e.point.y);
     });
@@ -919,7 +957,7 @@ function labelScene(map, labels, deck) {
       const c = f.geometry.coordinates, p = xy(c);
       return {layer: id, rank: layer, lid: f.properties.dm_lid, key: `${source}:${f.properties.dm_lid}`, text: String(f.properties.dm_label),
         order: f.properties.dm_order ?? 0, p, r: f.properties.dm_r || 3, front: front(c),
-        w: Math.max(...rows(f).map(measure)), lines: rows(f).length,
+        w: Math.max(...rows(f).map(r => measure(r, highlighted.has(keyOf(f))))), lines: rows(f).length,
         seen: front(c) && p[0] >= 0 && p[1] >= 0 && p[0] <= W && p[1] <= H};
     }))
     // Larger names first, as symbol-sort-key places them (Slocum §12.5.1).
@@ -1346,6 +1384,8 @@ function report(map, arcs) {
     edgeCut: map ? edgeCut(map) : null,
     dmControls: [...document.querySelectorAll('[data-dm-control]')].map(e => e.dataset.dmControl),
     reveal: map ? revealReport(map) : [],
+    highlight: [...highlighted].map(key => ({key, name: highlightNames().get(key) ?? null,
+      companions: document.querySelectorAll(`[data-dm-highlight="${CSS.escape(key)}"]`).length})),
     tooltips: !!document.querySelector('.dm-tip'),
     rendered: renderedCounts(map),
     viewport: {w: innerWidth, h: innerHeight, dpr: devicePixelRatio}

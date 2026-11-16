@@ -226,6 +226,7 @@ STATIC_BAD = [
     ("dm-spec that doesn't parse", "maplibre-crs", page('"version": 1,', '"version": 1,,'), ("FAIL", "spec", None)),
     ("a note with no place", "maplibre-crs", spec(annotations=[{"text": "Bangladesh"}]), ("FAIL", "annotations", 24)),
     ("a reveal control with nothing to reveal", "maplibre-globe", spec(controls=["reveal"]), ("WARN", "controls", 23)),
+    ("a highlight that isn't a list of keys", "maplibre-globe", spec(highlight="TYO"), ("FAIL", "highlight", 24)),
 ]
 
 BROWSER_BAD = [
@@ -551,6 +552,14 @@ def blobs(img, rgb: tuple, tol: int = 60) -> list[tuple]:
         xs, ys = [i % w for i in seen], [i // w for i in seen]
         out.append((len(seen), max(xs) - min(xs) + 1, max(ys) - min(ys) + 1))
     return out
+
+
+def crop(img, box: dict, scale: float):
+    """The part of the image under a CSS-px box, with the w, h, and rgba blobs reads."""
+    x0, y0 = round(box["x"] * scale), round(box["y"] * scale)
+    w, h = min(round(box["w"] * scale), img.w - x0), min(round(box["h"] * scale), img.h - y0)
+    rgba = b"".join(bytes(img.rgba[((y0 + y) * img.w + x0) * 4:((y0 + y) * img.w + x0 + w) * 4]) for y in range(h))
+    return type("Crop", (), {"w": w, "h": h, "rgba": rgba})
 
 
 @unittest.skipUnless(BROWSER, "no Chrome, Chromium, Edge, or Brave to render with")
@@ -901,6 +910,41 @@ class Render(unittest.TestCase):
                 warns = [f["message"] for f in result["findings"] if (f["status"], f["check"]) == ("WARN", "title-places")]
                 self.assertEqual(code, 0, findings(result, "FAIL"))
                 self.assertEqual(warns, ["the title names Lima, which is on the far side of the globe at load"] if warned else [])
+
+    def test_highlighted_places_draw_outlined_on_the_map_and_bold_in_the_companions_that_name_them(self):
+        def hosts(folder: Path):
+            (folder / "data" / "hosts.json").write_text(json.dumps({"rows": [["Tokyo", 900], ["Seoul", 700], ["Lima", 50]]}))
+        folder = copy("maplibre-globe", self.tmp / "on")
+        hosts(folder)
+        spec(highlight=["TYO", "NOPE"], companions=[{"type": "bars", "data": "hosts", "title": "Arrivals"}])(folder)
+        cli("sync", folder)
+        # Only the circles draw, filled with the page's white, so a dark ring is a highlight's outline.
+        extend("const weights = [...document.querySelectorAll('aside svg text')].filter(e => ['Tokyo', 'Seoul'].includes(e.textContent)) "
+               ".map(e => getComputedStyle(e).fontWeight).join(); "
+               "if (weights !== '700,400') throw new Error(`the bars' names weigh ${weights}`); "
+               "for (const l of map.getStyle().layers) if (l.id !== 'movers-nodes') map.setLayoutProperty(l.id, 'visibility', 'none'); "
+               "map.setPaintProperty('movers-nodes', 'circle-color', '#ffffff')")(folder)
+        result = self.render(folder, "--scale", "2")[1]
+        self.assertIn(("PASS", "ready", 33), findings(result))
+        self.assertEqual(result["report"]["highlight"], [{"key": "TYO", "name": "Tokyo", "companions": 1}, {"key": "NOPE", "name": None, "companions": 0}])
+        warns = [f["message"] for f in result["findings"] if (f["status"], f["check"]) == ("WARN", "highlight")]
+        self.assertEqual(warns, ["dm-spec.highlight names NOPE, which no node or area has"])
+        nodes = json.loads((folder / "data" / "movers-nodes.geojson").read_text())["features"]
+        tokyo = next(f["properties"]["dm_r"] for f in nodes if f["properties"]["dm_key"] == "TYO")
+        rings = [(n, w, h) for n, w, h in blobs(crop(png.read(Path(result["png"]).read_bytes()), result["report"]["mapBox"], 2), (0x1f, 0x1f, 0x1f), 40)
+                 if n > 20]
+        self.assertEqual(len(rings), 1, rings)
+        self.assertAlmostEqual(rings[0][1] / 2, 2 * (tokyo + 2), delta=4, msg=rings)
+        # An area the title names gets a dark outline on a white casing, which shows on the darkest class too.
+        for keys, dark in (([], False), (["IND"], True)):
+            with self.subTest(keys=keys):
+                folder = copy("maplibre-crs", self.tmp / f"area-{len(keys)}")
+                spec(highlight=keys)(folder)
+                result = self.render(folder, "--scale", "2")[1]
+                box = result["report"]["mapBox"]
+                counts = png.read(Path(result["png"]).read_bytes()).histogram(tuple(2 * box[k] for k in ("x", "y", "w", "h")))
+                outline = png.near(counts, "#1f1f1f", 40)
+                self.assertEqual(outline > 300, dark, outline)
 
     def test_a_synced_page_without_data_renders_and_passes(self):
         folder = copy("maplibre-globe", self.tmp)
