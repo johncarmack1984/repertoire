@@ -400,33 +400,37 @@ class Sphere(unittest.TestCase):
         self.assertLess(abs(total - gc) / gc, 0.005)
 
 
+def place_flat(fs, nodes):
+    """Curves placed as the flows command places them at the default view, with 4 px circles and 2 px lines."""
+    return flows.place_in_view(fs, nodes, flows.VIEW, {k: 4.0 for k in nodes}, {f: 2.0 for f in fs}, {})[0]
+
+
 class Flows(unittest.TestCase):
     A, B = flows.Node("A", 0, 0, "A"), flows.Node("B", 40, 0, "B")
 
     def test_reciprocal_flows_bow_to_opposite_sides(self):
         # Eastward along the Equator, the right of travel is south.
-        placed = {(p.flow.o, p.flow.d): p for p in flows.place(
-            [flows.Flow("A", "B", 100), flows.Flow("B", "A", 60)], {"A": self.A, "B": self.B}, "curved")}
+        placed = {(p.flow.o, p.flow.d): p for p in place_flat([flows.Flow("A", "B", 100), flows.Flow("B", "A", 60)], {"A": self.A, "B": self.B})}
         self.assertLess(midpoint_lat(placed[("A", "B")]), 0)
         self.assertGreater(midpoint_lat(placed[("B", "A")]), 0)
 
     def test_a_curve_flips_away_from_a_node_on_its_default_side(self):
         flow = flows.Flow("A", "B", 100)
-        default = flows.place([flow], {"A": self.A, "B": self.B}, "curved")[0]
+        default = place_flat([flow], {"A": self.A, "B": self.B})[0]
         self.assertLess(midpoint_lat(default), 0)
         mid = default.coords[len(default.coords) // 2]
         nodes = {"A": self.A, "B": self.B, "C": flows.Node("C", mid[0], mid[1], "C")}
-        moved = flows.place([flow], nodes, "curved")[0]
+        moved = place_flat([flow], nodes)[0]
         self.assertGreater(midpoint_lat(moved), 0)
         self.assertTrue(moved.clear)
-        self.assertGreaterEqual(geo.point_line_km(mid, moved.coords), 0.04 * haversine_km(self.A.pos, self.B.pos))
+        self.assertEqual(moved.curvature, default.curvature)
 
     def test_curves_clear_only_the_nodes_of_kept_flows(self):
         # C sits on A to B's default curve, close enough that the curve flips when C is drawn.
         ab = flows.Flow("A", "B", 100)
-        mid = midpoint(flows.place([ab], {"A": self.A, "B": self.B}, "curved")[0].coords)
+        mid = midpoint(place_flat([ab], {"A": self.A, "B": self.B})[0].coords)
         c = flows.Node("C", mid[0], mid[1], "C")
-        self.assertGreater(midpoint_lat(flows.place([ab], {"A": self.A, "B": self.B, "C": c}, "curved")[0]), 0)
+        self.assertGreater(midpoint_lat(place_flat([ab], {"A": self.A, "B": self.B, "C": c})[0]), 0)
         with tempfile.TemporaryDirectory() as tmp:
             nodes = Path(tmp) / "nodes.csv"
             nodes.write_text(f"id,lon,lat\nA,0,0\nB,40,0\nC,{mid[0]},{mid[1]}\nD,{mid[0]},{mid[1] - 30}\n")
@@ -646,6 +650,109 @@ class ScreenClearance(unittest.TestCase):
         self.assertLessEqual(placed.curvature, 0.21 + 1e-9)
         self.assertEqual(screen.gaps(flows.curve(nodes["A"].pos, nodes["B"].pos, 1, 3 * 0.21), ab), {})
 
+
+def sphere(p):
+    lon, lat = map(math.radians, p)
+    return (math.cos(lat) * math.cos(lon), math.cos(lat) * math.sin(lon), math.sin(lat))
+
+
+def arc(a, b):
+    """The angle between two unit vectors."""
+    c = (a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0])
+    return math.atan2(math.sqrt(sum(x * x for x in c)), sum(x * y for x, y in zip(a, b)))
+
+
+def slerp(a, b, t):
+    w = arc(a, b)
+    return a if w < 1e-12 else tuple((math.sin((1 - t) * w) * x + math.sin(t * w) * y) / math.sin(w) for x, y in zip(a, b))
+
+
+def to_lonlat(v):
+    return [math.degrees(math.atan2(v[1], v[0])), math.degrees(math.asin(max(-1, min(1, v[2]))))]
+
+
+def globe_lines(out, layer, view):
+    """Per line on a globe fitted to the view as the maplibre template fits it (radius min(W, H) / 2 less 14 px and the
+    largest circle): its smallest gap in px from its edge to the circle of a node it doesn't connect, measured on the
+    sphere at that radius, its highest latitude, and its length over its great circle's. Each line is sampled 16 times
+    per vertex step, shifted dm_offset px to the right of travel, and left out under its two end circles."""
+    lines = json.loads((Path(out) / f"{layer}.geojson").read_text())["features"]
+    nodes = {n["properties"]["dm_key"]: n for n in json.loads((Path(out) / f"{layer}-nodes.geojson").read_text())["features"]}
+    r = min(view) / 2 - 14 - max(n["properties"]["dm_r"] for n in nodes.values())
+    at = {k: (sphere(n["geometry"]["coordinates"]), n["properties"]["dm_r"]) for k, n in nodes.items()}
+    out_ = {}
+    for f in lines:
+        p = f["properties"]
+        vs = [sphere(c) for part in parts(f["geometry"]) for c in part]
+        fine = [slerp(a, b, i / 16) for a, b in zip(vs, vs[1:]) for i in range(16)] + [vs[-1]]
+        ends = [at[p["dm_o"]], at[p["dm_d"]]]
+        shown = [v for v in fine if all(arc(v, e) * r > er for e, er in ends)]
+        gap = math.inf
+        for key, (q, qr) in at.items():
+            if key in (p["dm_o"], p["dm_d"]):
+                continue
+            for v, w in zip(shown, shown[1:]):
+                left = sum(x * y for x, y in zip((v[1] * w[2] - v[2] * w[1], v[2] * w[0] - v[0] * w[2], v[0] * w[1] - v[1] * w[0]), q)) > 0
+                gap = min(gap, arc(q, v) * r + (p["dm_offset"] if left else -p["dm_offset"]) - qr - p["dm_width"] / 2)
+        length = sum(arc(a, b) for a, b in zip(vs, vs[1:])) / arc(vs[0], vs[-1])
+        out_[(p["dm_o"], p["dm_d"])] = (gap, max(abs(to_lonlat(v)[1]) for v in fine), length)
+    return out_, r
+
+
+class GlobeClearance(unittest.TestCase):
+    """On a globe, a great circle that runs over the circle of a node it doesn't connect bends off it, the short way round."""
+
+    CHN, JPN, USA = [116.4, 39.9], [139.7, 35.7], [-98.6, 39.8]
+
+    def run_globe(self, out, nodes, od, *args):
+        (Path(out) / "nodes.csv").write_text("id,lon,lat\n" + "".join(f"{k},{lon},{lat}\n" for k, (lon, lat) in nodes.items()))
+        (Path(out) / "od.csv").write_text("origin,dest,value\n" + "".join(f"{o},{d},{v}\n" for o, d, v in od))
+        code, text = cli("flows", Path(out) / "od.csv", "--nodes", Path(out) / "nodes.csv", "--geometry", "great-circle",
+                         "--layer", "g", "--out-dir", out, *args)
+        self.assertEqual(code, 0, text)
+        return text
+
+    def test_a_great_circle_over_a_node_bends_around_it_and_keeps_the_short_way_across_180(self):
+        # Korea sits at the middle of China to Japan's great circle, and a point at the middle of Japan to the United
+        # States', which crosses 180 over the Bering Sea, so both great circles run through those nodes' circles.
+        kor = to_lonlat(slerp(sphere(self.CHN), sphere(self.JPN), 0.5))
+        sea = to_lonlat(slerp(sphere(self.JPN), sphere(self.USA), 0.5))
+        self.assertGreater(abs(sea[0]), 160)
+        nodes = {"CHN": self.CHN, "KOR": kor, "JPN": self.JPN, "USA": self.USA, "SEA": sea}
+        od = [("CHN", "JPN", 1000), ("JPN", "USA", 800), ("KOR", "CHN", 50), ("SEA", "USA", 30)]
+        with tempfile.TemporaryDirectory() as out:
+            text = self.run_globe(out, nodes, od)
+            lines, r = globe_lines(out, "g", flows.VIEW)
+            layer = json.loads((Path(out) / "legend.json").read_text())["layers"]["g"]
+            feats = {(f["properties"]["dm_o"], f["properties"]["dm_d"]): f["geometry"] for f in json.loads((Path(out) / "g.geojson").read_text())["features"]}
+        # 844 x 634: a globe of 634 / 2 - 14 - 10 = 293 px.
+        self.assertEqual(r, 293)
+        self.assertEqual(layer["clearance"]["globe_radius_px"], 293)
+        for pair, (gap, _, length) in lines.items():
+            self.assertGreaterEqual(gap, 2 - 0.2, pair)
+            self.assertLess(length, 1.05, pair)
+        for pair in (("CHN", "JPN"), ("JPN", "USA")):
+            self.assertGreater(lines[pair][2], 1.0005, f"{pair} bent off its great circle")
+        usa = feats[("JPN", "USA")]
+        self.assertEqual(usa["type"], "MultiLineString")
+        self.assertEqual([part[-1][0] for part in usa["coordinates"][:1]] + [usa["coordinates"][1][0][0]], [180, -180])
+        self.assertRegex(text, r"(?m)^PASS clearance \[P16\]: every flow keeps 2 px on a globe 293 px in radius \(the 844 x 634 px view\)")
+
+    def test_a_node_no_bend_within_the_cap_clears_is_named_and_the_great_circle_stays(self):
+        # A node sits on China to the United States' great circle a tenth of the way along, 48 px from China's center on
+        # the 293 px globe. A bend's offset there is 4 x 0.1 x 0.9 = 0.36 of its apex, at most 14 px under the 38 px cap,
+        # short of the node's circle plus 2 px and the 30 px line's half, so the flow keeps its great circle and the WARN
+        # names it.
+        jpn = to_lonlat(slerp(sphere(self.CHN), sphere(self.USA), 0.1))
+        nodes = {"CHN": self.CHN, "JPN": jpn, "USA": self.USA, "KOR": [127.0, 37.5]}
+        with tempfile.TemporaryDirectory() as out:
+            text = self.run_globe(out, nodes, [("CHN", "USA", 1000), ("JPN", "KOR", 900)], "--max-width", 30)
+            lines, _ = globe_lines(out, "g", flows.VIEW)
+        gap, _, length = lines[("CHN", "USA")]
+        self.assertLess(gap, 2)
+        self.assertAlmostEqual(length, 1, places=3)
+        self.assertRegex(text, rf"(?m)^WARN clearance \[P16\]: 1 flows still come within 2 px on a globe 293 px in radius \(the 844 x 634 px view\) "
+                               rf"of a node they don't connect: CHN to USA \(JPN {gap:+.1f} px\)")
 
 
 class Reveal(unittest.TestCase):

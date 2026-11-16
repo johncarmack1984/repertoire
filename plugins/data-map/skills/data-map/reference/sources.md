@@ -61,7 +61,7 @@ Every rule in this skill names its source in the file that holds it. The rules a
 
 ## What is the skill's own
 
-- The levers in `scripts/` and the numbers they use, such as the curvature range, the clearance of 4% of a flow's length, the arrowhead size of 2.5 times the line, and the warnings past 100 flows on a flat map and 300 on a globe.
+- The levers in `scripts/` and the numbers they use, such as the curvature range, the clearance of 2 px on screen, the bend cap of 6% of the view, the arrowhead size of 2.5 times the line, and the warnings past 100 flows on a flat map and 300 on a globe.
 - The templates, the page check and its thresholds, and the `dm-spec` contract.
 - The cold reader graded against answers that code computed, which turns Muehlenhaus's critique into a test.
 - The pitfall numbering, and a contour interval of 5 to 7 tint bands, for which the sources give no rule.

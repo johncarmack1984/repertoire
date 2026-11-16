@@ -842,9 +842,9 @@ def run_flows(args) -> int:
     node_r = {k: symbols.radius(sized[k], size_max, flows.NODE_RMAX) for k in node_ids}
     shown = {k: nodes[k] for k in node_ids}
     if args.geometry == "curved":
-        placed, scale = flows.place_in_view(written, shown, args.view, node_r, widths, offsets)
+        (placed, scale), globe = flows.place_in_view(written, shown, args.view, node_r, widths, offsets), None
     else:
-        placed, scale = flows.place(written, shown, args.geometry), None
+        (placed, globe), scale = flows.place_on_globe(written, shown, args.view, node_r, widths, offsets), None
     order = {p.flow: rank for rank, p in enumerate(sorted(placed, key=lambda p: (-p.flow.value, p.flow.o, p.flow.d)))}
     reciprocal = sum(1 for f in written if (f.d, f.o) in pair_set) // 2
     lines, arrows, arcs = [], [], []
@@ -882,12 +882,15 @@ def run_flows(args) -> int:
         node_feats.append(data.feature(nid, props, {"type": "Point", "coordinates": nodes[key].pos}))
     if args.geometry == "curved":
         capped = sum(p.capped for p in placed)
-        held = f"; no bend runs deeper than {flows.BEND_SHARE:.0%} of the view's shorter side ({flows.BEND_SHARE * min(args.view):.0f} px), which held {capped} long {'flow' if capped == 1 else 'flows'} shallower" if scale else ""
+        held = f"; no bend runs deeper than {flows.BEND_SHARE:.0%} of the view's shorter side ({flows.BEND_SHARE * min(args.view):.0f} px), which held {capped} long {'flow' if capped == 1 else 'flows'} shallower"
         findings.append(PASS("curves", f"each flow bows to the right of travel, more for longer flows (curvature {flows.CURVE_MIN} to {flows.CURVE_MAX}){held}; {reciprocal} reciprocal {'pair sits' if reciprocal == 1 else 'pairs sit'} on opposite sides", 15))
     else:
-        findings.append(PASS("great-circles", f"great circles densified every {flows.DENSIFY_DEG:g} degree; {reciprocal} reciprocal {'pair' if reciprocal == 1 else 'pairs'} offset to either side", 15))
+        findings.append(PASS("great-circles", f"great circles densified every {flows.DENSIFY_DEG:g} degree; {reciprocal} reciprocal {'pair' if reciprocal == 1 else 'pairs'} offset to either side; "
+                                              f"a great circle that runs over a node bends off it by up to {flows.BEND_SHARE:.0%} of the view's shorter side ({flows.BEND_SHARE * min(args.view):.0f} px)", 15))
     moved = [p for p in placed if p.clear and p.moved]
-    findings += clearance_lines(placed, moved, args, scale, len(kept), order)
+    where = (f"at the {args.view[0]:g} x {args.view[1]:g} px view (zoom {math.log2(scale):.2f})" if scale
+             else f"on a globe {globe:.0f} px in radius (the {args.view[0]:g} x {args.view[1]:g} px view)")
+    findings += clearance_lines(placed, moved, args, where, len(kept), order)
     findings.append(PASS("antimeridian", f"{split} flows split into two parts at 180, with a vertex on the meridian", 20))
     findings.append(PASS("arrows", f"one arrowhead per flow at its destination, {flows.ARROW_RATIO:g} times the width and at least {flows.ARROW_MIN_PX:g} px", 17))
     findings.append(PASS("order", "small flows draw on top of large ones", 19))
@@ -915,8 +918,8 @@ def run_flows(args) -> int:
              "arrow": {"ratio": flows.ARROW_RATIO, "min_px": flows.ARROW_MIN_PX},
              "nodes": node_legend,
              **({"reveal": {"default": len(kept), "count": len(written)}} if args.reveal else {}),
-             "clearance": {"view": list(args.view), "zoom": round(math.log2(scale), 2), "gap_px": flows.CLEAR_PX} if scale
-             else {"share_of_length": flows.CLEARANCE_SHARE},
+             "clearance": {"view": list(args.view), "gap_px": flows.CLEAR_PX, "bend_cap_px": round(flows.BEND_SHARE * min(args.view), 1),
+                           **({"zoom": round(math.log2(scale), 2)} if scale else {"globe_radius_px": round(globe, 1)})},
              "files": {"lines": f"{name}.geojson", "nodes": f"{name}-nodes.geojson", "arrows": f"{name}-arrows.geojson", "arcs": f"{name}-arcs.json"}}
     decisions = [
         legend.decision("geometry", args.geometry, "curves separate reciprocal and overlapping flows" if args.geometry == "curved" else "great circles on a globe", "Jenny et al. 2018 §4.1"),
@@ -933,22 +936,16 @@ def run_flows(args) -> int:
     return write_layer(args, lines, layer, flows.answers(all_flows, nodes, totals), decisions, findings, files)
 
 
-def clearance_lines(placed: list, moved: list, args, scale: float | None, first: int, order: dict) -> list:
-    """What the curves did to clear nodes they don't connect, and each flow of the first view that still couldn't,
-    by its worst gap. Flows a reader can reveal are counted after them."""
+def clearance_lines(placed: list, moved: list, args, where: str, first: int, order: dict) -> list:
+    """What the flows did to clear nodes they don't connect, and each flow of the first view that still couldn't,
+    by its worst gap in px. Flows a reader can reveal are counted after them."""
     stuck = sorted((p for p in placed if not p.clear), key=lambda p: order[p.flow])
     shown = [p for p in stuck if order[p.flow] < first]
     later = len(stuck) - len(shown)
-    if scale is None:
-        where, unit = f"{flows.CLEARANCE_SHARE:.0%} of their length", "km"
-        fix = "move or drop the node, use --net, or pick another geometry"
-    else:
-        where, unit = f"{flows.CLEAR_PX:g} px at the {args.view[0]:g} x {args.view[1]:g} px view (zoom {math.log2(scale):.2f})", "px"
-        fix = "zoom in (each step doubles every gap), give the map more room with --view, move or drop the node, or use --net"
+    where, unit = f"{flows.CLEAR_PX:g} px {where}", "px"
+    fix = "zoom in (each step doubles every gap), give the map more room with --view, move or drop the node, or use --net"
     revealed = f"; of the {len(placed) - first:,} flows a reader can reveal, {later:,} come closer" if args.reveal else ""
-    out = []
-    if scale is not None:
-        out.append(PASS("clearance", f"{len(moved)} flows flipped or bent further to clear nodes they don't connect", 16))
+    out = [PASS("clearance", f"{len(moved)} flows flipped or bent further to clear nodes they don't connect", 16)]
     if not shown:
         return out + [PASS("clearance", f"every flow {'of the first view ' if args.reveal else ''}keeps {where} from each node it doesn't connect{revealed}", 16)]
     names = ", ".join(f"{p.flow.o} to {p.flow.d} ({k} {g:+.1f} {unit})" for p in shown[:8] for k, g in [min(p.near.items(), key=lambda kv: kv[1])])

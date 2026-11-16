@@ -1,8 +1,8 @@
 """Origin-destination flows (Jenny et al. 2018; Slocum ch. 20; Yang et al. 2019): filtering, geometry, widths, arrows, nodes.
 
 Curves are quadratic Béziers on the sphere: the control point sits off the great-circle midpoint, to the
-right of travel, so A to B and B to A bow apart. Flows are placed largest first, and a curve that passes
-too near a node it does not connect flips side, then bends more.
+right of travel, so A to B and B to A bow apart. Flows are placed largest first, and a curve or a great circle that
+passes too near a node it does not connect flips side, then bends less or more, in pixels at the view a page opens on.
 """
 
 from __future__ import annotations
@@ -15,7 +15,6 @@ from . import geo, symbols
 
 CURVE_MIN, CURVE_MAX = 0.12, 0.30
 GC_OFFSET = 0.05
-CLEARANCE_SHARE = 0.04
 DENSIFY_DEG = 1.0
 TURN_DEG = 2.5
 TILE = 512
@@ -44,6 +43,8 @@ BENDS = (1.0, 0.5, 0.75, 1.5, 2.0, 2.5, 3.0)
 # three quarters of a city map bowed 73 and 109 px at the default view, 11% and 17% of its height, ink their volume
 # didn't earn (Jenny et al. kept curvature low, §3.2.4.1).
 BEND_SHARE = CURVE_MIN / 2
+# A great circle that runs too near a node bends off it, as a curve with one of these curvatures, the flat map's range.
+GC_BENDS = (0.05, 0.1, 0.15, 0.2, 0.3)
 
 
 @dataclass(frozen=True)
@@ -228,33 +229,69 @@ def fit_scale(points: list, view: tuple, pad: float) -> float:
 
 
 @dataclass(frozen=True)
-class ShareOfLength:
-    """On a globe no one view holds, so a line keeps a share of its own length from each node it doesn't connect."""
+class OnGlobe:
+    """On a globe fitted to the view, a line keeps CLEAR_PX between its edge and the circle of each node it doesn't
+    connect. Distances are taken on the sphere at the globe's radius in px, its scale where the surface faces the
+    reader, so a gap holds wherever the reader turns the globe. The line is shifted by its offset, and measured outside
+    the circles at its two ends."""
 
     nodes: dict
-    share: float = CLEARANCE_SHARE
+    globe: float
+    radius: dict
+    width: dict
+    offset: dict
+    cap: float = math.inf
 
     def max_curvature(self, f: Flow) -> float:
-        return math.inf
+        """The curvature whose bend reaches the cap in px, as OnScreen's, along the great circle's length in px."""
+        arc = geo.angle(geo.vec(self.nodes[f.o].pos), geo.vec(self.nodes[f.d].pos)) * self.globe
+        return 2 * self.cap / arc if arc else math.inf
 
     def gaps(self, coords: list, f: Flow) -> dict:
-        """Each unconnected node nearer than the share asks, with its distance in km less that share."""
-        threshold = self.share * geo.distance_km(self.nodes[f.o].pos, self.nodes[f.d].pos)
-        ends = (self.nodes[f.o].pos, self.nodes[f.d].pos)
-        vs = [geo.vec(c) for c in coords]
+        """Each unconnected node whose circle comes within CLEAR_PX of the line, with the pixels between their edges."""
+        half, shift = self.width[f] / 2, self.offset.get(f, 0)
+        ends = [(geo.vec(self.nodes[k].pos), self.radius[k] / self.globe) for k in (f.o, f.d)]
+        vs = shown_part([geo.vec(c) for c in coords], ends)
+        if len(vs) < 2:
+            return {}
         mid = vs[len(vs) // 2]
-        reach = max(geo.angle(mid, v) for v in (vs[0], vs[-1])) + threshold / geo.R_KM
+        reach = max(geo.angle(mid, v) for v in vs) + (max(self.radius.values()) + half + abs(shift) + CLEAR_PX) / self.globe
         out = {}
         for nid, node in self.nodes.items():
-            if nid in (f.o, f.d) or min(geo.distance_km(node.pos, e) for e in ends) <= threshold:
+            if nid in (f.o, f.d):
                 continue
-            v = geo.vec(node.pos)
-            if geo.angle(v, mid) > reach * 1.5:
+            q = geo.vec(node.pos)
+            if geo.angle(q, mid) > reach:
                 continue
-            dist = geo.point_polyline_angle(v, vs) * geo.R_KM
-            if dist < threshold:
-                out[nid] = dist - threshold
+            d, (a, b) = min((geo.point_segment_angle(q, a, b), (a, b)) for a, b in zip(vs, vs[1:]))
+            # line-offset moves the line to the right of travel, toward a node on that side; cross(a, b) points left.
+            toward = geo.dot(geo.cross(a, b), q) < 0
+            gap = d * self.globe + (-shift if toward else shift) - self.radius[nid] - half
+            if gap < CLEAR_PX:
+                out[nid] = gap
         return out
+
+
+def shown_part(vs: list, ends: list) -> list:
+    """The vertices of a line on the sphere outside its (center, angular radius) end circles, with the points where it
+    leaves the first and enters the second, found by halving."""
+    inside = lambda v: any(geo.angle(v, c) < r for c, r in ends)
+    keep = [i for i, v in enumerate(vs) if not inside(v)]
+    if not keep:
+        return []
+    out = [vs[i] for i in range(keep[0], keep[-1] + 1)]
+
+    def edge(a: tuple, b: tuple) -> tuple:
+        for _ in range(30):
+            m = geo.slerp(a, b, 0.5)
+            a, b = (m, b) if inside(m) else (a, m)
+        return b
+
+    if keep[0] > 0:
+        out.insert(0, edge(vs[keep[0] - 1], vs[keep[0]]))
+    if keep[-1] < len(vs) - 1:
+        out.append(edge(vs[keep[-1] + 1], vs[keep[-1]]))
+    return out
 
 
 @dataclass(frozen=True)
@@ -344,11 +381,11 @@ def point_segment(q: tuple, a: tuple, b: tuple) -> float:
     return math.hypot(q[0] - a[0] - t * dx, q[1] - a[1] - t * dy)
 
 
-def place(flows: list, nodes: dict, geometry: str, clearance=None) -> list:
-    """Geometry for every flow, largest first; reciprocal flows always bow to opposite sides. A curve tries its own
-    bend, held to the clearance's cap, then the BENDS within the cap until one keeps its clearance. When none does,
-    it keeps the one nearest to clearing that bends no deeper than its own."""
-    clearance = clearance or ShareOfLength(nodes)
+def place(flows: list, nodes: dict, geometry: str, clearance) -> list:
+    """Geometry for every flow, largest first; reciprocal flows always bow to opposite sides. A flow tries its own
+    bend, held to the clearance's cap, then other sides and bends within the cap until one keeps its clearance: a
+    curve its BENDS, a great circle its GC_BENDS and the cap. When none does, it keeps the one nearest to clearing
+    that bends no deeper than its own."""
     kms = {f: geo.distance_km(nodes[f.o].pos, nodes[f.d].pos) for f in flows}
     dmin, dmax = min(kms.values(), default=0), max(kms.values(), default=0)
     pairs = {(f.o, f.d) for f in flows}
@@ -357,13 +394,16 @@ def place(flows: list, nodes: dict, geometry: str, clearance=None) -> list:
     for f in sorted(flows, key=lambda f: (-f.value, f.o, f.d)):
         a, b = nodes[f.o].pos, nodes[f.d].pos
         reciprocal = (f.d, f.o) in pairs
+        partner = chosen.get((f.d, f.o))
+        sides = (1, -1) if partner is None else (partner,)
+        top = clearance.max_curvature(f)
         if geometry == "great-circle":
-            options = [(1, GC_OFFSET)] if reciprocal else [(1, 0.0)]
+            own = base = GC_OFFSET if reciprocal else 0.0
+            bends = sorted({base} | {c for c in GC_BENDS + (top,) if base < c <= top})
+            options = [(s, c) for c in bends for s in (sides if c else (1,))]
         else:
-            own, top = curvature_for(kms[f], dmin, dmax), clearance.max_curvature(f)
+            own = curvature_for(kms[f], dmin, dmax)
             base = min(own, top)
-            partner = chosen.get((f.d, f.o))
-            sides = (1, -1) if partner is None else (partner,)
             options = [(s, base * m) for m in BENDS for s in sides if base * m <= top]
         best = None
         for s, c in options:
@@ -377,6 +417,13 @@ def place(flows: list, nodes: dict, geometry: str, clearance=None) -> list:
         chosen[(f.o, f.d)] = best.side
         out.append(best)
     return out
+
+
+def place_on_globe(flows: list, nodes: dict, view: tuple, radius: dict, width: dict, offset: dict) -> tuple:
+    """Great circles placed to clear nodes on a globe the size the page fits to the view, with its radius in px: the
+    maplibre template fits the globe to half the view's shorter side, less FIT_PAD and the largest circle."""
+    globe = min(view) / 2 - FIT_PAD - max(radius.values())
+    return place(flows, nodes, "great-circle", OnGlobe(nodes, globe, radius, width, offset, BEND_SHARE * min(view))), globe
 
 
 def place_in_view(flows: list, nodes: dict, view: tuple, radius: dict, width: dict, offset: dict) -> tuple:

@@ -132,14 +132,6 @@ def point_segment_angle(p: tuple, a: tuple, b: tuple) -> float:
     return min(angle(p, a), angle(p, b))
 
 
-def point_polyline_angle(v: tuple, vs: list) -> float:
-    return min(point_segment_angle(v, a, b) for a, b in zip(vs, vs[1:]))
-
-
-def point_line_km(p: list, line: list) -> float:
-    return point_polyline_angle(vec(p), [vec(c) for c in line]) * R_KM
-
-
 def line_km(line: list) -> float:
     return sum(distance_km(p, q) for p, q in zip(line, line[1:]))
 
