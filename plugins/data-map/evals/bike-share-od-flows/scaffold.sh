@@ -2,7 +2,7 @@
 # October trips between 20 bike-share stations in Portland, Oregon, as an OD table: all 380 ordered
 # pairs are nonzero, with a long tail. Planted: Union Station to South Waterfront is the largest flow
 # (1,486 trips, 297 back); Brooklyn (S12) sits on the straight segment from Sellwood (S20) to Lloyd
-# Center (S10), a pair with 655 and 588 trips.
+# Center (S10), a pair with 655 and 588 trips, which NOTES.md explains by the new Green Loop bikeway.
 set -euo pipefail
 
 mkdir -p bike-data
@@ -16,6 +16,8 @@ cat > bike-data/NOTES.md <<'EOF'
 
 - `stations.csv`: our 20 stations, with an id, a name, the location (WGS84), and the number of docks.
 - `trips_od.csv`: every trip that started in October 2026, counted by start station and end station. A trip that ended where it started isn't counted. `trips` is the number of trips in the month.
+
+**The Green Loop.** The new protected bikeway from Sellwood to Lloyd Center opened end to end on October 1, 2026, with e-bikes at both end stations. Riders took it end to end far more than any other long route, so expect those two stations to trade many more trips than their distance suggests.
 
 **Source line we use.** Rose City Bikes trip records, October 2026.
 EOF

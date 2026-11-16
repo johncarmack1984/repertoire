@@ -34,7 +34,7 @@ graders:
     flags: i
   - name: names-the-autoplay
     type: regex
-    pattern: 'setInterval|auto-?play|auto-?advanc|loops?\b|looping'
+    pattern: 'setInterval|auto-?play|auto-?advanc|loops?\b|looping|animat|advances every|forever|endless'
     flags: i
   - name: names-a-denominator
     type: regex
