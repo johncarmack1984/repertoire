@@ -1041,6 +1041,25 @@ class Render(unittest.TestCase):
         texts = [b["text"] for b in self.render(folder)[1]["report"]["textBoxes"]]
         self.assertIn("5 classes in a constant ratio", texts)
 
+    def test_on_a_phone_a_vertical_swipe_scrolls_past_the_globe_and_a_sideways_one_turns_it(self):
+        def swipe(x0, y0, x1, y1, steps=12):
+            pts = [(x0 + (x1 - x0) * i / steps, y0 + (y1 - y0) * i / steps) for i in range(steps + 1)]
+            touch = lambda kind, at: ("Input.dispatchTouchEvent", {"type": kind, "touchPoints": [{"x": at[0], "y": at[1]}] if at else []}, 0.02)
+            return [touch("touchStart", pts[0]), *(touch("touchMove", at) for at in pts[1:]), ("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []}, 1.0)]
+        folder = copy("maplibre-globe", self.tmp)
+        reports = {}
+        for what, actions in (("still", []), ("up", swipe(195, 650, 195, 350)), ("sideways", swipe(300, 500, 100, 500))):
+            run = chrome.capture(BROWSER, folder.resolve(), "index.html", self.tmp / f"{what}.png", 390, 844, 1, 60, [], phone=True, actions=actions)
+            if "launch_error" in run:
+                self.skipTest(run["launch_error"])
+            self.assertNotIn("ready_error", run)
+            reports[what] = run["report"]
+        still, up, sideways = reports["still"], reports["up"], reports["sideways"]
+        self.assertGreater(up["viewport"]["scrollY"], 150, "the page scrolled")
+        self.assertLess(degrees(up["center"], still["center"]), 0.5, "the globe stayed put")
+        self.assertEqual(sideways["viewport"]["scrollY"], 0)
+        self.assertGreater(degrees(sideways["center"], still["center"]), 20, "the globe turned")
+
     def test_a_synced_page_without_data_renders_and_passes(self):
         folder = copy("maplibre-globe", self.tmp)
         shutil.rmtree(folder / "data")

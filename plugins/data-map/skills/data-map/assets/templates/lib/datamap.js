@@ -902,6 +902,28 @@ function interact(map, hover) {
   return show;
 }
 
+// A globe on a phone fills most of the screen, so a one-finger swipe that starts vertical scrolls the page and one
+// that starts sideways turns the globe; two fingers still zoom. The canvas leaves vertical panning to the browser,
+// and MapLibre never sees the moves of a vertical swipe, nor the first few px of any swipe, while its way is unknown.
+function swipeScrolls(map) {
+  if (spec.projection.type !== 'globe') return;
+  for (const e of [map.getCanvasContainer(), map.getCanvas()]) e.style.touchAction = 'pan-y';
+  let start = null, vertical = null;
+  const cell = $('dm-map-cell'), opts = {capture: true, passive: true};
+  cell.addEventListener('touchstart', e => {
+    start = e.touches.length === 1 ? [e.touches[0].clientX, e.touches[0].clientY] : null;
+    vertical = null;
+  }, opts);
+  cell.addEventListener('touchmove', e => {
+    if (!start || e.touches.length !== 1) return;
+    if (vertical === null) {
+      const dx = e.touches[0].clientX - start[0], dy = e.touches[0].clientY - start[1];
+      if (Math.hypot(dx, dy) >= 6) vertical = Math.abs(dy) > Math.abs(dx);
+    }
+    if (vertical !== false) e.stopPropagation();
+  }, opts);
+}
+
 // ---------- deck.gl arcs: great circles raised by a height tied to length alone ----------
 
 function arcLayers(deck, t, show) {
@@ -1450,7 +1472,7 @@ function report(map, arcs) {
       companions: document.querySelectorAll(`[data-dm-highlight="${CSS.escape(key)}"]`).length})),
     tooltips: !!document.querySelector('.dm-tip'),
     rendered: renderedCounts(map),
-    viewport: {w: innerWidth, h: innerHeight, dpr: devicePixelRatio}
+    viewport: {w: innerWidth, h: innerHeight, dpr: devicePixelRatio, scrollY}
   };
 }
 
@@ -1807,6 +1829,7 @@ async function start(libs, extend) {
   }
   Object.assign(live, {map, overlay, t, show});
   focusClicks(map);
+  swipeScrolls(map);
   window.dataMap.focus = key => setFocus(key);
   await placeLabels(map, labels, !!deck);
   placeNotes(map);

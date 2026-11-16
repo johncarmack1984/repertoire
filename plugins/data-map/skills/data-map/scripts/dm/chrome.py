@@ -279,11 +279,14 @@ class Chrome:
 
 
 def capture(browser: str, folder: Path, page: str, out: Path, w: int, h: int, scale: float, timeout: float,
-            flags: list[str], url: str | None = None) -> dict:
+            flags: list[str], url: str | None = None, phone: bool = False, actions: list | None = None) -> dict:
     """Serve FOLDER, open PAGE in it at WxH and device scale SCALE, wait on window.dataMap.ready (or, on a
     page without that hook, for the network to go quiet and the page to settle), and write the
     screenshot to OUT. `launch_error` means Chrome never answered, which is the machine's problem,
-    not the page's. With URL, open that instead of serving FOLDER, as a reader opening the file does."""
+    not the page's. With URL, open that instead of serving FOLDER, as a reader opening the file does.
+    PHONE lays the page out as a phone with a touch screen does. ACTIONS, each (method, params, seconds),
+    are DevTools calls such as Input.dispatchTouchEvent, made once the page is ready and each followed by
+    that many seconds for the page to answer, before the report and the screenshot."""
     run = {"png": str(out), "viewport": [w, h, scale], "flags": flags, "seconds": {}}
     t0 = time.monotonic()
     try:
@@ -309,7 +312,9 @@ def capture(browser: str, folder: Path, page: str, out: Path, w: int, h: int, sc
         for domain in ("Page.enable", "Runtime.enable", "Network.enable"):
             chrome.call(domain, session=s)
         chrome.call("Target.setAutoAttach", {"autoAttach": True, "waitForDebuggerOnStart": False, "flatten": True}, s)
-        chrome.call("Emulation.setDeviceMetricsOverride", {"width": w, "height": h, "deviceScaleFactor": scale, "mobile": False}, s)
+        chrome.call("Emulation.setDeviceMetricsOverride", {"width": w, "height": h, "deviceScaleFactor": scale, "mobile": phone}, s)
+        if phone:
+            chrome.call("Emulation.setTouchEmulationEnabled", {"enabled": True, "maxTouchPoints": 5}, s)
         run["seconds"]["launch"] = round(time.monotonic() - t0, 2)
         nav = chrome.call("Page.navigate", {"url": run["url"]}, s)
         if nav.get("errorText"):
@@ -325,6 +330,9 @@ def capture(browser: str, folder: Path, page: str, out: Path, w: int, h: int, sc
         else:
             chrome.settle(quiet=2.0, extra=3.0, deadline=started + min(timeout, 30.0))
         run["seconds"]["ready"] = round(time.monotonic() - started, 2)
+        for method, params, pause in actions or []:
+            chrome.call(method, params, s)
+            chrome.settle(quiet=0, extra=pause, deadline=time.monotonic() + pause)
         run["probe"] = value(chrome.call("Runtime.evaluate", {"expression": PROBE_JS, "returnByValue": True}, s))
         if run["hook"]:
             report = chrome.call("Runtime.evaluate", {"expression": REPORT_JS, "awaitPromise": True, "returnByValue": True}, s)
