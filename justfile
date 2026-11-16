@@ -11,13 +11,15 @@ validate:
 lint:
     shellcheck -x plugins/sidework/scripts/*.sh plugins/sidework/evals/_fixtures/lib.sh plugins/*/evals/*/scaffold.sh
     python3 -m py_compile plugins/build-review-lens/skills/build-review-lens/scripts/mine_reviews.py
-    python3 -m py_compile plugins/data-dashboard/skills/data-dashboard/scripts/dashboard.py
+    python3 -m py_compile plugins/data-dashboard/skills/data-dashboard/scripts/dashboard.py plugins/data-dashboard/tests/palette.py plugins/data-dashboard/tests/build_components.py
 
-# Check data-dashboard's own pages: each inlined library matches assets/, and the test and example pages fit one screen in headless Chrome.
+# Check data-dashboard: the library's unit tests, the palette's contrast in both themes, each inlined library against assets/, and the test and example pages in headless Chrome.
 dashboards:
     #!/usr/bin/env bash
     set -euo pipefail
     check=plugins/data-dashboard/skills/data-dashboard/scripts/dashboard.py
+    node plugins/data-dashboard/tests/lib_test.mjs
+    python3 plugins/data-dashboard/tests/palette.py
     python3 "$check" sync --check plugins/data-dashboard/skills/data-dashboard/assets/template.html
     for page in plugins/data-dashboard/tests/components.html plugins/data-dashboard/skills/data-dashboard/assets/example/blood-supply.html; do
         python3 "$check" sync --check "$page"
