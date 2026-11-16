@@ -226,6 +226,12 @@ def arrow_size(w: float) -> float:
     return max(ARROW_RATIO * w, ARROW_MIN_PX)
 
 
+def side_offset(w: float) -> float:
+    """Pixels a flow moves to the right of travel when its reverse is drawn too. A curve bows by a share of
+    its length, so a short pair bows a pixel or two apart and draws as one line; this keeps a 1 px gap."""
+    return round(w / 2 + 0.5, 2)
+
+
 def legend_values(vmin: float, vmax: float, max_px: float, min_px: float) -> list:
     floor = max(vmin, vmax * min_px / max_px) if max_px else vmin
     return symbols.legend_values(floor, vmax, floor_share=0)

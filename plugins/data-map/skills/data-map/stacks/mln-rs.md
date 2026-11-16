@@ -38,7 +38,7 @@ A first release build took 38 s on an M2 Max in a target folder that had built m
 ## The template's functions
 
 - `style(data_dir)` reads `style.json`, puts the data folder's path in place of `{{DATA}}`, and leaves out any source whose file is missing, with its layers, printing one line for each. So one style serves `classes`, `sizes`, and `flows` and draws whichever files they wrote.
-- `arrow()` draws the arrowhead as a signed distance field, so `icon-color` colors it. It is 16 px long with a 4 px margin. The style's `icon-size` divides `dm_arrow` by 16, and its `icon-offset` takes back the margin and sets the tip `dm_setback` + 1 px back from the node's center at any zoom. Change both files together.
+- `arrow()` draws the arrowhead as a signed distance field, so `icon-color` colors it. It is 16 px long with a 4 px margin. The style's `icon-size` divides `dm_arrow` by 16. `style()` gives each head a `dm_icon_offset` that takes back the margin, sets the tip `dm_setback` + 1 px back from the node's center at any zoom, and moves it `dm_offset` px to the right of travel with its line. Change both files together.
 - `update(&map, &Flows)` sets each flow's width from a live value through feature-state, scaled by the legend's `width`, so the legend stays true.
 - `snapshot` renders offscreen until a frame shows everything loaded, then writes the PNG and `<name>.report.json` with the projection, pitch, bearing, zoom, zoom range, size, scale, the layers with their sources, and the sources with their URLs.
 - `window::show` opens a winit window and draws the map until it closes.
@@ -53,9 +53,9 @@ The flags are `--snapshot PNG`, `--size WxH` in logical pixels (1200x800 by defa
 | `land`, `borders` | `countries.geojson` | nothing; land is `#d3d0c9` and borders take the ocean's color |
 | `classes` | `classes.geojson` | `dm_fill` |
 | `sizes` | `sizes.geojson` | `dm_r`, `dm_fill`, `dm_order` |
-| `flows` | `flows.geojson` | `dm_width`, `dm_fill`, `dm_opacity`, `dm_order` |
+| `flows` | `flows.geojson` | `dm_width`, `dm_offset`, `dm_fill`, `dm_opacity`, `dm_order` |
 | `nodes` | `flows-nodes.geojson` | `dm_r`, `dm_fill`, `dm_order` |
-| `arrows` | `flows-arrows.geojson` | `dm_arrow`, `dm_bearing`, `dm_setback`, `dm_value`, `dm_fill`, `dm_opacity` |
+| `arrows` | `flows-arrows.geojson` | `dm_arrow`, `dm_bearing`, `dm_setback`, `dm_offset`, `dm_value`, `dm_fill`, `dm_opacity` |
 
 The file names are the levers' defaults. A lever run with `--layer` writes another name, so rename the source's file to match. The sort keys draw small flows over large ones (P19) and small circles over large ones (P14). The arrows align to the map in rotation and pitch, so they lie on the sphere and point along the flow at its destination, as Jenny et al. advise (§4.2).
 

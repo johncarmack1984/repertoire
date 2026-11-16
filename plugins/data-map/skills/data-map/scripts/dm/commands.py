@@ -803,13 +803,14 @@ def run_flows(args) -> int:
         if f.forward is not None and f.reverse:
             text += f" net ({num(f.forward)} out, {num(f.reverse)} back)"
         alpha = flows.opacity(f.value, vmin, vmax, fade_min)
-        props = {"dm_o": f.o, "dm_d": f.d, "dm_value": f.value, "dm_width": w, "dm_opacity": alpha, "dm_order": order[f],
-                 "dm_km": round(p.km, 1), "dm_fill": color,
+        offset = flows.side_offset(w) if (f.d, f.o) in pair_set else 0
+        props = {"dm_o": f.o, "dm_d": f.d, "dm_value": f.value, "dm_width": w, "dm_offset": offset, "dm_opacity": alpha,
+                 "dm_order": order[f], "dm_km": round(p.km, 1), "dm_fill": color,
                  "dm_label": label, "dm_tip": text}
         lines.append(data.feature(fid, props, g))
         arrows.append(data.feature(fid, {"dm_o": f.o, "dm_d": f.d, "dm_value": f.value, "dm_bearing": round(geo.end_bearing(p.coords), 2),
-                                         "dm_arrow": round(flows.arrow_size(w), 2), "dm_width": w, "dm_opacity": alpha, "dm_order": order[f],
-                                         "dm_setback": round(node_r[f.d], 2), "dm_fill": color},
+                                         "dm_arrow": round(flows.arrow_size(w), 2), "dm_width": w, "dm_offset": offset, "dm_opacity": alpha,
+                                         "dm_order": order[f], "dm_setback": round(node_r[f.d], 2), "dm_fill": color},
                                    {"type": "Point", "coordinates": nodes[f.d].pos}))
         arcs.append({"source": data.round_coords(nodes[f.o].pos), "target": data.round_coords(nodes[f.d].pos), "value": f.value,
                      "width": w, "color": color, "opacity": alpha, "km": round(p.km, 1)})

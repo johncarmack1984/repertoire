@@ -92,7 +92,7 @@ Each entry says what the pitfall looks like, why it fails, with its source, and 
 - **Looks like.** Straight lines sharing one corridor, or A to B drawn exactly over B to A.
 - **Why it fails.** In Jenny's study straight flows hid each other where curved ones didn't, and a stacked pair hides one direction entirely (Jenny §3.2.3.1; Slocum §20.7.2.1).
 - **Fix.** One quadratic curve per flow, bending more as it gets longer, offset to the right of travel so the two directions separate.
-- **Held by.** The lever and the cold reader. `flows --geometry curved` draws them, and the answer key includes the asymmetric pairs.
+- **Held by.** The lever, the templates, and the cold reader. `flows --geometry curved` draws the curves, each direction of a drawn pair carries a `dm_offset` the templates draw as a shift in screen pixels, and the answer key includes the asymmetric pairs.
 
 ## Flows under unconnected nodes, or crossing at sharp angles (P16)
 - **Looks like.** A flow from A to D passing over node C, or two flows crossing nearly parallel.

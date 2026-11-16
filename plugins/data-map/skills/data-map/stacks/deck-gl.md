@@ -44,6 +44,8 @@ Each flow ends in an arrowhead, because arrowheads beat tapered lines for direct
 
 The arc lands on the surface almost vertically, so the head sits at the landing point and points along the ground track, which is the arc's direction as the reader sees it from above.
 
+The two directions of a pair share one great circle and one height, so A to B and B to A draw as one arc with a head at each end. ArcLayer's `getTilt` would lean them apart, but 9.4.1 ignores it on great-circle arcs: a render with a tilt of 15 degrees was byte-identical to one without. When the pair matters, run the lever with `--net`, or draw flat flows on the maplibre globe, where each direction moves `dm_offset` pixels to the right of travel.
+
 ## Large layers
 
 Past about 50,000 points or lines, draw that layer with a deck.gl layer instead of MapLibre's. Pass a function as the second argument of `DataMap.start` in the page's module. It gets `{map, overlay, data, spec, legend, libs}`, so it can add a layer with `overlay.setProps({layers: [...overlay.props.layers, layer]})`. Take every color and size from the `dm_*` properties and `legend.json`, so the legend still matches, and let `check` find the legend's colors in the render.

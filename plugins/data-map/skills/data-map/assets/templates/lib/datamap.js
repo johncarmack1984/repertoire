@@ -312,11 +312,12 @@ const IMAGES = {'dm-arrow': [arrowImage, {pixelRatio: 2, sdf: true}], 'dm-hatch'
 
 // ---------- map layers, one builder per legend kind ----------
 
-function prepArrows(fc) {
+function prepArrows(fc, sideways) {
   for (const f of fc.features) {
     const p = f.properties, size = (p.dm_arrow || 8) / ARROW.len;
     p.dm_icon_size = size;
-    p.dm_icon_offset = [0, -ARROW.pad + ((p.dm_setback || 0) + 1) / size];
+    // A head follows its line's dm_offset to the right of travel; a deck.gl arc has no offset and lands on the node.
+    p.dm_icon_offset = [sideways ? (p.dm_offset || 0) / size : 0, -ARROW.pad + ((p.dm_setback || 0) + 1) / size];
     p.dm_screen = p.dm_bearing;
   }
 }
@@ -367,9 +368,10 @@ function buildKinds(t, crs, deck) {
         part.sources[f.main] = lines;
         part.line.push(
           {id: name, type: 'line', source: f.main, layout: {'line-sort-key': ['get', 'dm_order'], 'line-join': 'round'},
-            paint: {'line-color': color, 'line-width': ['get', 'dm_width'], 'line-opacity': ['coalesce', ['get', 'dm_opacity'], 1]}},
+            paint: {'line-color': color, 'line-width': ['get', 'dm_width'], 'line-offset': ['coalesce', ['get', 'dm_offset'], 0],
+              'line-opacity': ['coalesce', ['get', 'dm_opacity'], 1]}},
           {id: name + '-hover', type: 'line', source: f.main, filter: NONE,
-            paint: {'line-color': t.text, 'line-width': 1, 'line-gap-width': ['get', 'dm_width']}});
+            paint: {'line-color': t.text, 'line-width': 1, 'line-gap-width': ['get', 'dm_width'], 'line-offset': ['coalesce', ['get', 'dm_offset'], 0]}});
         part.hover.push([name, name + '-hover']);
       }
       if (nodes) {
@@ -383,7 +385,7 @@ function buildKinds(t, crs, deck) {
         part.hover.push([name + '-nodes', name + '-nodes-hover']);
       }
       if (arrows) {
-        prepArrows(arrows);
+        prepArrows(arrows, !deck);
         part.sources[f.arrows] = arrows;
         // Each head turns to a screen angle measured from projected points (screenArrows). A bearing is not a
         // screen angle under a non-conformal CRS, and MapLibre's map-aligned icons drift from local north on the
@@ -654,7 +656,8 @@ function labelScene(map, labels, deck) {
       // The head draws turned to dm_screen with its tip dm_setback + 1 px back from the node (prepArrows).
       const p = xy(at), turn = (q.dm_screen ?? q.dm_bearing ?? 0) * RAD, u = [-Math.sin(turn), Math.cos(turn)];
       const len = q.dm_arrow || 8, half = len * ARROW.base / ARROW.len / 2, back = (q.dm_setback || 0) + 1;
-      const tip = [p[0] + u[0] * back, p[1] + u[1] * back], base = [tip[0] + u[0] * len, tip[1] + u[1] * len];
+      const side = (q.dm_icon_offset?.[0] ?? 0) * (q.dm_icon_size ?? 1);
+      const tip = [p[0] + u[0] * back + u[1] * side, p[1] + u[1] * back - u[0] * side], base = [tip[0] + u[0] * len, tip[1] + u[1] * len];
       heads.push({flow: `${names[q.dm_o] ?? q.dm_o} to ${names[q.dm_d] ?? q.dm_d}`,
         tri: [tip, [base[0] - u[1] * half, base[1] + u[0] * half], [base[0] + u[1] * half, base[1] - u[0] * half]]});
       segs.push({a: tip, b: base, hw: len * 0.3, weight: 3});

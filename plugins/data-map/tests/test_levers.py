@@ -354,6 +354,22 @@ class Flows(unittest.TestCase):
             for a in arrows:
                 self.assertEqual(a["properties"]["dm_value"], values[(a["properties"]["dm_o"], a["properties"]["dm_d"])])
 
+    def test_a_flow_drawn_with_its_reverse_moves_right_by_half_its_width_and_a_pixel_gap(self):
+        # A short pair bows a pixel or two apart, so each direction also shifts right of travel in screen space.
+        with tempfile.TemporaryDirectory() as out:
+            code, text = cli("flows", FIX / "pacific-movers.csv", "--nodes", FIX / "pacific-nodes.csv", "--layer", "movers", "--out-dir", out)
+            self.assertEqual(code, 0, text)
+            lines = json.loads((Path(out) / "movers.geojson").read_text())["features"]
+            arrows = {(a["properties"]["dm_o"], a["properties"]["dm_d"]): a["properties"]
+                      for a in json.loads((Path(out) / "movers-arrows.geojson").read_text())["features"]}
+            pairs = {(f["properties"]["dm_o"], f["properties"]["dm_d"]) for f in lines}
+            self.assertTrue(any((d, o) in pairs for o, d in pairs))
+            for f in lines:
+                p = f["properties"]
+                both = (p["dm_d"], p["dm_o"]) in pairs
+                self.assertEqual(p["dm_offset"], round(p["dm_width"] / 2 + 0.5, 2) if both else 0)
+                self.assertEqual(arrows[(p["dm_o"], p["dm_d"])]["dm_offset"], p["dm_offset"])
+
 
 class Symbols(unittest.TestCase):
     def test_radii_are_true_to_area(self):

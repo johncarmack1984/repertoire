@@ -29,9 +29,9 @@ const PROJECT: &str = env!("CARGO_MANIFEST_DIR");
 /// The arrowhead's length in its image, in logical pixels. style.json's
 /// icon-size divides `dm_arrow` by it.
 const ARROW_PX: f64 = 16.0;
-/// The transparent margin around the arrowhead, in logical pixels. style.json's
-/// icon-offset takes it back, then sets the tip back `dm_setback` pixels from
-/// the node center, at any zoom.
+/// The transparent margin around the arrowhead, in logical pixels. Each head's
+/// `dm_icon_offset` takes it back, then sets the tip back `dm_setback` pixels
+/// from the node center, at any zoom.
 const ARROW_MARGIN: f64 = 4.0;
 
 struct Args {
@@ -101,9 +101,28 @@ fn style(data_dir: &Path) -> Result<String> {
         println!("left out source {id} and its layers: no file at {path}");
         sources.remove(id);
     }
+    if let Some(arrows) = sources.get_mut("arrows") {
+        arrows["data"] = icon_offsets(arrows["data"].as_str().and_then(|url| url.split_once("file://")).ok_or("arrows needs a file:// URL")?.1)?;
+    }
     let layers = style["layers"].as_array_mut().ok_or("style.json has no layers")?;
     layers.retain(|layer| !missing.iter().any(|(id, _)| layer["source"] == id.as_str()));
     Ok(style.to_string())
+}
+
+/// The arrowheads in `path`, each with a `dm_icon_offset` for style.json. An
+/// icon offset counts icon pixels, so the head's setback and its shift to the
+/// right of travel (`dm_offset`, when its reverse flow is drawn too) divide by
+/// its icon size.
+fn icon_offsets(path: &str) -> Result<Json> {
+    let mut arrows: Json = serde_json::from_str(&std::fs::read_to_string(path)?)?;
+    for head in arrows["features"].as_array_mut().into_iter().flatten() {
+        let p = &mut head["properties"];
+        let size = p["dm_arrow"].as_f64().unwrap_or(8.0) / ARROW_PX;
+        let side = p["dm_offset"].as_f64().unwrap_or(0.0) / size;
+        let back = -ARROW_MARGIN + (p["dm_setback"].as_f64().unwrap_or(0.0) + 1.0) / size;
+        p["dm_icon_offset"] = json!([side, back]);
+    }
+    Ok(arrows)
 }
 
 /// An arrowhead that points up with its tip at the top, as a signed distance
