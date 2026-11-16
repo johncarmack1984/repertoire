@@ -1020,7 +1020,7 @@ async function start(libs, extend) {
     map.addControl(overlay);
   }
   await placeLabels(map, labels, !!deck);
-  if (extend) await extend({map, overlay, data, spec, legend, libs});
+  if (extend) await extend({map, overlay, layers: (arcs || []).map(a => a.layer), data, spec, legend, libs});
   map.triggerRepaint();
   await Promise.all([once(map, 'idle'), drawn]);
   window.dataMap.report = () => report(map, arcs);

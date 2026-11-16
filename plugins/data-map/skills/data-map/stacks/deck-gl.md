@@ -48,7 +48,7 @@ The two directions of a pair share one great circle and one height, so A to B an
 
 ## Large layers
 
-Past about 50,000 points or lines, draw that layer with a deck.gl layer instead of MapLibre's. Pass a function as the second argument of `DataMap.start` in the page's module. It gets `{map, overlay, data, spec, legend, libs}`, so it can add a layer with `overlay.setProps({layers: [...overlay.props.layers, layer]})`. Take every color and size from the `dm_*` properties and `legend.json`, so the legend still matches, and let `check` find the legend's colors in the render.
+Past about 50,000 points or lines, draw that layer with a deck.gl layer instead of MapLibre's. Pass a function as the second argument of `DataMap.start` in the page's module. It gets `{map, overlay, layers, data, spec, legend, libs}`, where `layers` holds the overlay's arc layers, so it can add a layer with `overlay.setProps({layers: [...layers, layer]})`. Don't read `overlay.props.layers`: 9.4.1 keeps the layers elsewhere, and that read throws. Take every color and size from the `dm_*` properties and `legend.json`, so the legend still matches, and let `check` find the legend's colors in the render.
 
 ## The readiness hook
 
