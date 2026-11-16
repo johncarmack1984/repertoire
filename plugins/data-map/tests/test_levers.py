@@ -234,6 +234,11 @@ class Flows(unittest.TestCase):
                 self.assertTrue(all(-180 <= p[0] <= 180 for part in parts for p in part))
             for name in ("movers-nodes.geojson", "movers-arrows.geojson", "movers-arcs.json"):
                 self.assertTrue((Path(out) / name).exists())
+            # A value filter on the lines must drop their arrows too, so each arrow carries its flow's value.
+            arrows = json.loads((Path(out) / "movers-arrows.geojson").read_text())["features"]
+            values = {(f["properties"]["dm_o"], f["properties"]["dm_d"]): f["properties"]["dm_value"] for f in lines}
+            for a in arrows:
+                self.assertEqual(a["properties"]["dm_value"], values[(a["properties"]["dm_o"], a["properties"]["dm_d"])])
 
 
 class Symbols(unittest.TestCase):
