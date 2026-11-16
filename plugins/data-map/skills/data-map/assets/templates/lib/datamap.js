@@ -39,8 +39,15 @@ for (const fc of Object.values(data)) {
 // The largest dm_rank each flows layer draws, for a layer whose lever wrote more flows than it draws at load
 // (flows --reveal); the reveal control moves it.
 const ranks = Object.fromEntries(layersOf().filter(([, L]) => L.kind === 'flows' && L.reveal?.count > 0).map(([name, L]) => [name, L.reveal.default]));
-const drawnFlow = (name, p) => !(p.dm_rank > (ranks[name] ?? Infinity));
-const rankFilter = name => ['<=', ['coalesce', ['get', 'dm_rank'], 0], ranks[name]];
+// With "focus" in dm-spec.controls, the reader picks one node of one flows layer, and that layer draws only the flows
+// to and from it, every one its file holds; focused is {layer, key} then, and null on the overview.
+const focusLayer = (spec.controls || []).includes('focus')
+  ? spec.focus?.layer ?? layersOf().find(([, L]) => L.kind === 'flows')?.[0] ?? null : null;
+let focused = null;
+const touches = (p, key) => p.dm_o === key || p.dm_d === key;
+const drawnFlow = (name, p) => focused?.layer === name ? touches(p, focused.key) : !(p.dm_rank > (ranks[name] ?? Infinity));
+const lineFilter = name => focused?.layer === name ? ['any', ['==', ['get', 'dm_o'], focused.key], ['==', ['get', 'dm_d'], focused.key]]
+  : ranks[name] != null ? ['<=', ['coalesce', ['get', 'dm_rank'], 0], ranks[name]] : null;
 // With a reveal, the nodes file holds the ends of every written flow, and the page draws only the ends of the flows
 // it draws: per flows layer, the keys of those nodes.
 const shownKeys = {};
@@ -204,7 +211,7 @@ const LEGENDS = {
       label(s, run + longest + 10, cy, fmt(r.v));
       y += r.h + 6;
     }
-    const kept = ranks[name] != null ? keptNote(name, L, ranks[name]) : L.omitted_note;
+    const kept = overviewNote(name, L);
     const note = kept ? html('p', {class: 'dm-note', id: `dm-kept-${name}`}, sec, kept) : null;
     if (note && ranks[name] != null && (spec.controls || []).includes('reveal')) revealControl(sec, name, L, note);
     if (pageLibs.deck && (spec.arcs?.apex ?? ARC_APEX) > 0) html('p', {class: 'dm-note'}, sec, `Arc height shows distance, not ${L.unit || 'size'}.`);
@@ -246,6 +253,8 @@ function keptNote(name, L, n) {
   return `The ${n === 1 ? '' : fmt(n) + ' '}largest of ${fmt(total)} flows, ${Math.round(100 * sum(n) / all)}% of all ${L.unit || 'flows'}`;
 }
 
+const overviewNote = (name, L) => ranks[name] != null ? keptNote(name, L, ranks[name]) : L.omitted_note;
+
 // A slider that draws the N largest flows. It moves nothing on its own; the kept line under it reads out each value.
 function revealControl(sec, name, L, note) {
   const id = `dm-reveal-${name}`, box = html('div', {class: 'dm-reveal', 'data-dm-control': 'reveal'});
@@ -263,13 +272,30 @@ function revealControl(sec, name, L, note) {
 
 function setRank(name, n) {
   ranks[name] = n;
-  const map = live.map;
+  applyView();
+}
+
+// Draws what ranks and focused say: each flows layer's lines, heads, nodes, and names, the focused layer's colors,
+// and the deck.gl arcs.
+function applyView() {
+  Object.keys(shownKeys).forEach(updateShownKeys);
+  const {map, t} = live;
   if (!map) return;
-  updateShownKeys(name);
-  for (const id of [name, name + '-arrows']) if (map.getLayer(id)) map.setFilter(id, rankFilter(name));
-  for (const id of [name + '-nodes', name + '-labels']) if (map.getLayer(id)) map.setFilter(id, nodeFilter(name));
+  for (const [name, L] of layersOf()) {
+    if (L.kind !== 'flows') continue;
+    for (const id of [name, name + '-arrows']) if (map.getLayer(id)) map.setFilter(id, lineFilter(name));
+    if (shownKeys[name]) for (const id of [name + '-nodes', name + '-labels']) if (map.getLayer(id)) map.setFilter(id, nodeFilter(name));
+    const on = focused?.layer === name, color = on ? focusColor(focused.key) : ['coalesce', ['get', 'dm_fill'], L.color || t.flow];
+    if (map.getLayer(name)) map.setPaintProperty(name, 'line-color', color);
+    if (map.getLayer(name + '-arrows')) map.setPaintProperty(name + '-arrows', 'icon-color', color);
+    if (map.getLayer(name + '-nodes')) {
+      const base = ring(t, 1), mine = ['==', ['get', 'dm_key'], on ? focused.key : '__dm_none__'];
+      map.setPaintProperty(name + '-nodes', 'circle-stroke-color', ['case', mine, t.text, base['circle-stroke-color']]);
+      map.setPaintProperty(name + '-nodes', 'circle-stroke-width', ['case', mine, 2.5, base['circle-stroke-width']]);
+    }
+  }
   if (live.overlay) {
-    live.arcs = arcLayers(pageLibs.deck, live.t, live.show);
+    live.arcs = arcLayers(pageLibs.deck, t, live.show);
     live.overlay.setProps({layers: live.arcs.map(a => a.layer)});
   }
 }
@@ -545,7 +571,7 @@ function buildKinds(t, crs, deck) {
       if (lines && !deck) {
         part.sources[f.main] = lines;
         part.line.push(
-          {id: name, type: 'line', source: f.main, ...(ranks[name] != null && {filter: rankFilter(name)}), layout: {'line-sort-key': ['get', 'dm_order'], 'line-join': 'round'},
+          {id: name, type: 'line', source: f.main, ...(lineFilter(name) && {filter: lineFilter(name)}), layout: {'line-sort-key': ['get', 'dm_order'], 'line-join': 'round'},
             paint: {'line-color': color, 'line-width': ['get', 'dm_width'], 'line-offset': ['coalesce', ['get', 'dm_offset'], 0],
               'line-opacity': ['coalesce', ['get', 'dm_opacity'], 1]}},
           {id: name + '-hover', type: 'line', source: f.main, filter: NONE,
@@ -555,11 +581,11 @@ function buildKinds(t, crs, deck) {
       if (nodes) {
         part.sources[f.nodes] = nodes;
         part.point.push(
-          {id: name + '-nodes', type: 'circle', source: f.nodes, ...(ranks[name] != null && {filter: nodeFilter(name)}), layout: {'circle-sort-key': ['get', 'dm_order']},
+          {id: name + '-nodes', type: 'circle', source: f.nodes, ...(shownKeys[name] && {filter: nodeFilter(name)}), layout: {'circle-sort-key': ['get', 'dm_order']},
             paint: {'circle-radius': ['coalesce', ['get', 'dm_r'], 3], 'circle-pitch-scale': 'viewport', 'circle-color': ink(t.node), ...ring(t, 1)}},
           {id: name + '-nodes-hover', type: 'circle', source: f.nodes, filter: NONE,
             paint: {'circle-radius': ['coalesce', ['get', 'dm_r'], 3], 'circle-pitch-scale': 'viewport', 'circle-opacity': 0, 'circle-stroke-color': t.text, 'circle-stroke-width': 1.5}});
-        part.label.push({...labelLayer(name + '-labels', f.nodes, t), ...(ranks[name] != null && {filter: nodeFilter(name)})});
+        part.label.push({...labelLayer(name + '-labels', f.nodes, t), ...(shownKeys[name] && {filter: nodeFilter(name)})});
         part.hover.push([name + '-nodes', name + '-nodes-hover']);
       }
       if (arrows) {
@@ -568,7 +594,7 @@ function buildKinds(t, crs, deck) {
         // Each head turns to a screen angle measured from projected points (screenArrows). A bearing is not a
         // screen angle under a non-conformal CRS, and MapLibre's map-aligned icons drift from local north on the
         // globe away from the view's center (11 to 88 degrees in a pixel test at 55 to 72 degrees out).
-        part.arrow.push({id: name + '-arrows', type: 'symbol', source: f.arrows, ...(ranks[name] != null && {filter: rankFilter(name)}),
+        part.arrow.push({id: name + '-arrows', type: 'symbol', source: f.arrows, ...(lineFilter(name) && {filter: lineFilter(name)}),
           layout: {'icon-image': 'dm-arrow', 'icon-size': ['get', 'dm_icon_size'], 'icon-anchor': 'top',
             'icon-offset': ['array', 'number', 2, ['get', 'dm_icon_offset']], 'icon-rotate': ['get', 'dm_screen'],
             'icon-rotation-alignment': 'viewport', 'icon-pitch-alignment': 'viewport',
@@ -868,7 +894,7 @@ function interact(map, hover) {
     map.on('mousemove', layer, e => {
       const f = e.features[0];
       map.setFilter(outline, f.properties.dm_key != null ? ['==', ['get', 'dm_key'], f.properties.dm_key] : ['==', ['id'], f.id ?? '__dm_none__']);
-      map.getCanvas().style.cursor = 'default';
+      map.getCanvas().style.cursor = focusLayer && layer === focusLayer + '-nodes' ? 'pointer' : 'default';
       show(f.properties.dm_tip || f.properties.dm_label, e.point.x, e.point.y);
     });
     map.on('mouseleave', layer, () => { map.setFilter(outline, NONE); show(null); });
@@ -892,6 +918,7 @@ function arcLayers(deck, t, show) {
     // deck.gl's arc peaks at height * length / 2 (arc-layer-vertex.glsl), so this puts the longest flow's apex at
     // APEX of the Earth's radius and every other apex in proportion to its length.
     const height = 2 * apex / (longest / EARTH_KM);
+    const arcColor = a => focused?.layer === name ? (a.dm_o === focused.key ? tok('out') : tok('in')) : a.dm_fill || L.color || t.flow;
     out.push({name, apex, longest, height, layer: new deck.ArcLayer({
       id: name, data: arcs, greatCircle: true, numSegments: 64,
       // The globe culls back faces and 9.4.1's arc strips wind clockwise, so without this they vanish (deck.gl #10670).
@@ -900,8 +927,8 @@ function arcLayers(deck, t, show) {
       beforeId: data[f.nodes] ? name + '-nodes' : data[f.arrows] ? name + '-arrows' : undefined,
       getSourcePosition: a => a.from, getTargetPosition: a => a.to, getHeight: height,
       getWidth: a => a.dm_width, widthUnits: 'pixels',
-      getSourceColor: a => [...rgb(a.dm_fill || L.color || t.flow), 255 * (a.dm_opacity ?? 1)],
-      getTargetColor: a => [...rgb(a.dm_fill || L.color || t.flow), 255 * (a.dm_opacity ?? 1)],
+      getSourceColor: a => [...rgb(arcColor(a)), 255 * (a.dm_opacity ?? 1)],
+      getTargetColor: a => [...rgb(arcColor(a)), 255 * (a.dm_opacity ?? 1)],
       pickable: true, onHover: info => show(info.object?.dm_tip, info.x, info.y)
     })});
   }
@@ -1207,7 +1234,9 @@ function placeNotes(map) {
   const cell = $('dm-map-cell');
   const layer = cell.querySelector('.dm-notes') || svg('svg', {class: 'dm-notes'}, cell);
   layer.replaceChildren();
-  if (!notes.length) return;
+  // The notes speak of the overview, so they step aside while one place is focused.
+  if (focused) notes.forEach(n => Object.assign(n, {drawn: false, g: null, covers: [], why: 'the map shows one place\'s flows'}));
+  if (!notes.length || focused) return;
   const scene = labelScene(map, labelPlan?.labels || [], labelPlan?.deck ?? !!pageLibs.deck);
   const names = drawnNames(map, scene), taken = names.map(n => n.box), line = scene.size * 1.25;
   const areas = layersOf().filter(([name, L]) => L.kind === 'classes' && map.getLayer(name)).map(([name]) => name);
@@ -1384,6 +1413,7 @@ function report(map, arcs) {
     edgeCut: map ? edgeCut(map) : null,
     dmControls: [...document.querySelectorAll('[data-dm-control]')].map(e => e.dataset.dmControl),
     reveal: map ? revealReport(map) : [],
+    focus: map ? focusReport(map) : null,
     highlight: [...highlighted].map(key => ({key, name: highlightNames().get(key) ?? null,
       companions: document.querySelectorAll(`[data-dm-highlight="${CSS.escape(key)}"]`).length})),
     tooltips: !!document.querySelector('.dm-tip'),
@@ -1526,6 +1556,144 @@ function figureSlack() {
   return {w: Math.round(body.width), h: Math.round(body.height), slack: Math.max(0, Math.round(body.bottom - pad - (foot ? foot.bottom : body.bottom)))};
 }
 
+// ---------- focus: one node's flows, out and in apart, its partners ranked, and the title rewritten for it ----------
+
+const FOCUS_SAYS = {out: ['leave', 'go to'], in: ['reach', 'come from'], both: ['travel to and from', 'are with']};
+const PARTNER_ROWS = 12;
+
+// Totals and partners of KEY in its layer's file, ranked by dm-spec.focus.by: out, in, or both (the default).
+function focusStats(name, key) {
+  const L = legend.layers[name], f = filesOf(name, L), by = FOCUS_SAYS[spec.focus?.by] ? spec.focus.by : 'both';
+  const names = Object.fromEntries((data[f.nodes]?.features || []).map(n => [n.properties.dm_key, String(n.properties.dm_label ?? n.properties.dm_key)]));
+  const partners = new Map();
+  let out = 0, inn = 0, flows = 0;
+  for (const {properties: p} of data[f.main]?.features || []) {
+    if (!touches(p, key)) continue;
+    const away = p.dm_o === key, other = away ? p.dm_d : p.dm_o, v = p.dm_value || 0;
+    const row = partners.get(other) ?? {key: other, name: names[other] ?? other, out: 0, in: 0};
+    row[away ? 'out' : 'in'] += v;
+    partners.set(other, row);
+    if (away) out += v; else inn += v;
+    flows++;
+  }
+  const value = r => by === 'out' ? r.out : by === 'in' ? r.in : r.out + r.in;
+  const ranked = [...partners.values()].filter(r => value(r) > 0).sort((a, b) => value(b) - value(a) || a.name.localeCompare(b.name));
+  const total = by === 'out' ? out : by === 'in' ? inn : out + inn;
+  // The file holds every flow only when the lever wrote them all, with --reveal and a --reveal-max past the count.
+  const held = (data[f.main]?.features || []).length;
+  return {layer: name, key, name: names[key] ?? key, unit: L.unit || 'flows', by, out, in: inn, total, flows, ranked, value,
+    complete: held >= (L.total ?? held), held, all: L.total ?? held};
+}
+
+const percent = x => x < 0.005 ? 'under 1%' : `${Math.round(100 * x)}%`;
+function focusText(s) {
+  const top = s.ranked[0], [verb, prep] = FOCUS_SAYS[s.by];
+  if (!top) return {title: s.name, subtitle: `No ${s.unit} ${s.by === 'both' ? 'to or from' : verb} ${s.name} in these flows.`};
+  const vars = {name: s.name, top: top.name, top_value: fmt(s.value(top)), share: percent(s.value(top) / s.total), total: fmt(s.total),
+    out: fmt(s.out), in: fmt(s.in), partners: fmt(s.ranked.length), unit: s.unit};
+  const fill = text => String(text).replace(/\{(\w+)\}/g, (m, k) => k in vars ? vars[k] : m);
+  return {title: fill(spec.focus?.title ?? '{name}'),
+    subtitle: fill(spec.focus?.subtitle ?? `{total} {unit} ${verb} {name}; the most ${prep} {top}, {top_value} ({share})`)};
+}
+
+const focusColor = key => ['case', ['==', ['get', 'dm_o'], key], tok('out'), tok('in')];
+let overviewText = null;
+
+// The partners panel stands in for the companions, which speak of the overview, with a key to the two colors.
+function focusPanel(s) {
+  const companions = $('dm-companions');
+  $('dm-focus-panel')?.remove();
+  if (companions) companions.hidden = !!s;
+  if (!s) return;
+  const sec = html('section', {id: 'dm-focus-panel', class: 'dm-companion'});
+  (companions || $('dm-legend')).before(sec);
+  html('h2', {}, sec, `Flows to and from ${s.name}`);
+  const step = parseFloat(tok('t4')) * 1.7, k = svg('svg', {width: '100%', height: 2 * step}, sec);
+  [[tok('out'), `Leaving ${s.name}`], [tok('in'), `Arriving at ${s.name}`]].forEach(([c, text], i) => {
+    const y = (i + 0.5) * step;
+    // check judges the overview, so the key asks nothing of the render's colors.
+    mark(svg('line', {x1: 0, x2: 20, y1: y, y2: y, stroke: c, 'stroke-width': 3}, k), s.layer, 'focus', c, text, false);
+    svg('polygon', {points: `20,${y - 4} 28,${y} 20,${y + 4}`, fill: c}, k);
+    label(k, 36, y, text);
+  });
+  const table = html('table', {class: 'dm-table'}, sec), head = html('tr', {}, html('thead', {}, table));
+  ['Place', 'Out', 'In'].forEach((h, i) => html('th', i ? {class: 'dm-num'} : {}, head, h));
+  const body = html('tbody', {}, table);
+  for (const r of s.ranked.slice(0, PARTNER_ROWS)) {
+    const row = html('tr', {}, body);
+    [r.name, r.out, r.in].forEach((v, i) => html('td', i ? {class: 'dm-num'} : {}, row, fmt(v)));
+  }
+  if (s.ranked.length > PARTNER_ROWS) html('p', {class: 'dm-note'}, sec, `and ${s.ranked.length - PARTNER_ROWS} more places`);
+}
+
+// Focuses KEY, or returns to the overview for null. The map moves only to bring a focused place into view.
+function setFocus(key) {
+  if (!focusLayer) return Promise.resolve();
+  const L = legend.layers[focusLayer], nodes = data[filesOf(focusLayer, L).nodes]?.features || [];
+  const node = nodes.find(n => n.properties.dm_key === key);
+  focused = node ? {layer: focusLayer, key} : null;
+  const s = focused && focusStats(focusLayer, key);
+  const text = s ? focusText(s) : overviewText;
+  for (const [id, v] of [['dm-title', text.title], ['dm-subtitle', text.subtitle]]) if ($(id)) $(id).textContent = v;
+  const pick = $('dm-focus-pick'), reset = $('dm-focus-reset');
+  if (pick) pick.value = focused ? key : '';
+  if (reset) reset.hidden = !focused;
+  const note = $(`dm-kept-${focusLayer}`), slider = $(`dm-reveal-${focusLayer}`);
+  if (note) note.textContent = s ? `${fmt(s.flows)} flows to and from ${s.name}` + (s.complete ? '' : `, among the ${fmt(s.held)} largest of ${fmt(s.all)}`)
+    : overviewNote(focusLayer, L);
+  if (slider) slider.disabled = !!focused;
+  focusPanel(s);
+  applyView();
+  const map = live.map;
+  if (map && node && !inView(map, node.geometry.coordinates)) turnTo(map, node.geometry.coordinates);
+  return replaceNames();
+}
+
+function inView(map, at) {
+  const {clientWidth: W, clientHeight: H} = map.getCanvas(), p = map.project(at);
+  const front = spec.projection.type !== 'globe' || angularKm(at, map.getCenter().toArray()) / EARTH_KM / RAD < horizonDeg(map);
+  return front && p.x >= 0 && p.y >= 0 && p.x <= W && p.y <= H;
+}
+
+// The picker under the subtitle lists every node of the focused layer by name; a node's circle focuses it on a click
+// or a tap, a second click or Escape returns to the overview, and so does the reset button or "every place". It is
+// built before the map, whose fitted view would shift once the header grew.
+function focusPicker() {
+  if (!focusLayer) return;
+  overviewText = {title: $('dm-title')?.textContent ?? '', subtitle: $('dm-subtitle')?.textContent ?? ''};
+  const L = legend.layers[focusLayer];
+  const nodes = (data[filesOf(focusLayer, L).nodes]?.features || []).map(n => [n.properties.dm_key, String(n.properties.dm_label ?? n.properties.dm_key)])
+    .sort((a, b) => a[1].localeCompare(b[1]));
+  const box = html('div', {class: 'dm-focus', 'data-dm-control': 'focus'});
+  ($('dm-subtitle') || $('dm-title'))?.after(box);
+  html('label', {for: 'dm-focus-pick'}, box, spec.focus?.label ?? 'Show the flows of');
+  const pick = html('select', {id: 'dm-focus-pick'}, box);
+  html('option', {value: ''}, pick, 'every place');
+  for (const [key, name] of nodes) html('option', {value: key}, pick, name);
+  const reset = html('button', {type: 'button', id: 'dm-focus-reset', hidden: ''}, box, 'Show all');
+  pick.addEventListener('change', () => setFocus(pick.value || null));
+  reset.addEventListener('click', () => setFocus(null));
+  addEventListener('keydown', e => { if (e.key === 'Escape' && focused) setFocus(null); });
+}
+function focusClicks(map) {
+  if (!focusLayer) return;
+  map.on('click', focusLayer + '-nodes', e => {
+    const key = e.features[0]?.properties.dm_key;
+    if (key != null) setFocus(focused?.key === key ? null : key);
+  });
+}
+
+function focusReport(map) {
+  if (!focusLayer) return null;
+  const s = focused && focusStats(focused.layer, focused.key), arcs = (live.arcs || []).find(a => a.name === focusLayer);
+  const drawn = arcs ? arcs.layer.props.data.length
+    : map.getLayer(focusLayer) ? new Set(map.queryRenderedFeatures({layers: [focusLayer]}).map(f => `${f.properties.dm_o}>${f.properties.dm_d}`)).size : 0;
+  return {layer: focusLayer, choices: Math.max(0, ($('dm-focus-pick')?.options.length ?? 1) - 1), key: focused?.key ?? null, name: s?.name ?? null,
+    title: $('dm-title')?.textContent ?? null, subtitle: $('dm-subtitle')?.textContent ?? null, drawn,
+    note: $(`dm-kept-${focusLayer}`)?.textContent ?? null, colors: s ? {out: tok('out'), in: tok('in')} : null,
+    partners: s ? s.ranked.map(r => ({key: r.key, name: r.name, out: r.out, in: r.in})) : []};
+}
+
 // ---------- start ----------
 
 // The pinned libraries sync copied into vendor/, as the head's tags loaded them. Chrome loads no ES module from a
@@ -1550,11 +1718,12 @@ const once = (target, event) => new Promise(r => target.once(event, r));
 
 async function start(libs, extend) {
   pageLibs = libs;
-  Object.keys(ranks).forEach(updateShownKeys);
+  [...new Set([...Object.keys(ranks), ...(focusLayer ? [focusLayer] : [])])].forEach(updateShownKeys);
   document.body.classList.toggle('dm-chart', !spec.projection);
   layOutFigure();
   drawLegend();
   drawCompanions();
+  focusPicker();
   if (!spec.projection) {
     window.dataMap.report = () => report(null, null);
     await document.fonts.ready;
@@ -1604,7 +1773,9 @@ async function start(libs, extend) {
       onAfterRender: () => frame(), onError: err => rejectReady(err)});
     map.addControl(overlay);
   }
-  Object.assign(live, {map, overlay});
+  Object.assign(live, {map, overlay, t, show});
+  focusClicks(map);
+  window.dataMap.focus = key => setFocus(key);
   await placeLabels(map, labels, !!deck);
   placeNotes(map);
   map.on('move', () => moveNotes(map));
@@ -1612,7 +1783,7 @@ async function start(libs, extend) {
   if (extend) await extend({map, overlay, layers: (arcs || []).map(a => a.layer), data, spec, legend, libs});
   map.triggerRepaint();
   await Promise.all([once(map, 'idle'), drawn]);
-  window.dataMap.report = () => report(map, arcs);
+  window.dataMap.report = () => report(map, live.arcs || arcs);
   window.dataMap.map = map;
   await document.fonts.ready;
   resolveReady();

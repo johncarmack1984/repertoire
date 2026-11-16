@@ -216,8 +216,8 @@ STATIONS = {
 
 
 def build_maplibre_flows(out: Path, tmp: Path) -> None:
-    """Trips between bike stations: the 25 largest of 182 flows drawn, the next 75 written for the page's reveal
-    control, and stations colored by the bikes they gain or lose. Synthetic."""
+    """Trips between bike stations: the 25 largest of 182 flows drawn, every other one written for the page's reveal
+    and focus controls, and stations colored by the bikes they gain or lose. Synthetic."""
     rng = random.Random(20261116)
     nodes = write_csv(tmp / "stations.csv", ["id", "name", "lon", "lat"], [[k, v[0], v[1], v[2]] for k, v in STATIONS.items()])
     rows = []
@@ -231,7 +231,7 @@ def build_maplibre_flows(out: Path, tmp: Path) -> None:
     od = write_csv(tmp / "trips.csv", ["origin", "dest", "trips"], rows)
     dm("new", "maplibre", out, "--preset", "mercator", "--force")
     dm("flows", od, "--nodes", nodes, "--origin", "origin", "--dest", "dest", "--value", "trips", "--label-field", "name",
-       "--geometry", "curved", "--top", 25, "--reveal", "--reveal-max", 100, "--node-value", "net", "--max-width", 7,
+       "--geometry", "curved", "--top", 25, "--reveal", "--reveal-max", 200, "--node-value", "net", "--max-width", 7,
        "--layer", "trips", "--out-dir", out / "data", "--title", "Trips in October", "--unit", "trips")
     net = {k: 0 for k in STATIONS}
     for o, d, v in rows:
@@ -242,7 +242,9 @@ def build_maplibre_flows(out: Path, tmp: Path) -> None:
          subtitle="Trips between 14 bike-share stations in October, the largest of every route",
          source="Source: synthetic test data for the data-map plugin.",
          credits="Basemap: none.",
-         spec={"idiom": ["flows"], "extent": "region", "controls": ["reveal"],
+         spec={"idiom": ["flows"], "extent": "region", "controls": ["reveal", "focus"],
+               "focus": {"by": "out", "title": "Riders leaving {name} most often ride to {top}",
+                         "subtitle": "{top_value} of its {total} trips out in October, {share}, and every route to and from it"},
                "annotations": [{"text": f"{STATIONS[gainer][0]} gains the most bikes", "at": f"node:{gainer}"}],
                "companions": [{"type": "bars", "layer": "trips", "title": "The largest routes", "top": 6}]})
 

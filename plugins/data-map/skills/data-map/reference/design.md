@@ -92,6 +92,7 @@ Show the overview first, then zoom and filter, then details on demand (Munzner �
 - Show a hovered feature by its outline, with a line layer driven by `feature-state`. A fill change hides the feature's class (Munzner §11.4.2).
 - Every hover also works on tap and on keyboard focus, and nothing essential lives only in a tooltip.
 - A selection in a companion chart lights the same features on the map, and the reverse (Slocum §24.4.5).
+- On a flows map read place by place, such as a station's routes or a country's students, `focus` lets the reader pick one place by click, tap, or a picker, and rewrites the title for it from the flows, so the headline stays true for every place.
 - Show which filters are on, and give the reader a way back to the overview (Munzner §13.2; Muehlenhaus ch. 15).
 
 ## Motion

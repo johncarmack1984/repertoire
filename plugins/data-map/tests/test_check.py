@@ -227,6 +227,9 @@ STATIC_BAD = [
     ("a note with no place", "maplibre-crs", spec(annotations=[{"text": "Bangladesh"}]), ("FAIL", "annotations", 24)),
     ("a reveal control with nothing to reveal", "maplibre-globe", spec(controls=["reveal"]), ("WARN", "controls", 23)),
     ("a highlight that isn't a list of keys", "maplibre-globe", spec(highlight="TYO"), ("FAIL", "highlight", 24)),
+    ("a focus template with a field the page doesn't fill", "maplibre-flows", spec(focus={"title": "{name} sends most to {nme}"}), ("FAIL", "focus", 24)),
+    ("focus on a layer that holds only its largest flows", "maplibre-globe", spec(controls=["focus"], focus={"title": "{name}"}), ("WARN", "focus", 24)),
+    ("focus with no flows to focus", "maplibre-crs", spec(controls=["focus"]), ("WARN", "controls", 23)),
 ]
 
 BROWSER_BAD = [
@@ -862,7 +865,7 @@ class Render(unittest.TestCase):
                 code, result = self.render(folder)
                 self.assertEqual(code, 0, findings(result, "FAIL"))
                 (reveal,) = result["report"]["reveal"]
-                self.assertEqual((reveal["shown"], reveal["of"], reveal["drawn"], reveal["note"]), (n, 100, n, kept(n)))
+                self.assertEqual((reveal["shown"], reveal["of"], reveal["drawn"], reveal["note"]), (n, layer["reveal"]["count"], n, kept(n)))
                 # A station shows only while a drawn flow starts or ends there.
                 ends = {k for p in lines if p["dm_rank"] <= n for k in (p["dm_o"], p["dm_d"])}
                 self.assertEqual(result["report"]["labels"][0]["nodes"], len(ends))
@@ -945,6 +948,67 @@ class Render(unittest.TestCase):
                 counts = png.read(Path(result["png"]).read_bytes()).histogram(tuple(2 * box[k] for k in ("x", "y", "w", "h")))
                 outline = png.near(counts, "#1f1f1f", 40)
                 self.assertEqual(outline > 300, dark, outline)
+
+    def test_focus_draws_one_places_flows_out_and_in_ranks_its_partners_and_rewrites_the_title(self):
+        folder = copy("maplibre-flows", self.tmp / "data")
+        lines = [f["properties"] for f in json.loads((folder / "data" / "trips.geojson").read_text())["features"]]
+        names = {f["properties"]["dm_key"]: f["properties"]["dm_label"] for f in json.loads((folder / "data" / "trips-nodes.geojson").read_text())["features"]}
+        key = "S01"
+        # The fixture ranks by trips out, and the flows file holds every flow, so these are Union Station's true figures.
+        out = {}
+        for p in lines:
+            if p["dm_o"] == key:
+                out[p["dm_d"]] = out.get(p["dm_d"], 0) + p["dm_value"]
+        top = max(out, key=lambda k: (out[k], -ord(names[k][0])))
+        total = sum(out.values())
+        title = f"Riders leaving {names[key]} most often ride to {names[top]}"
+        subtitle = f"{out[top]:,.0f} of its {total:,.0f} trips out in October, {round(100 * out[top] / total)}%, and every route to and from it"
+        click = ("const at = map.project(DataMap.data['trips-nodes'].features.find(f => f.properties.dm_key === 'S01').geometry.coordinates); "
+                 "const r = map.getCanvas().getBoundingClientRect(), xy = {clientX: r.left + at.x, clientY: r.top + at.y, bubbles: true, button: 0}; "
+                 "for (const kind of ['mousedown', 'mouseup', 'click']) map.getCanvas().dispatchEvent(new MouseEvent(kind, xy))")
+        ways = (("the page's hook", "await dataMap.focus('S01')"),
+                ("the picker", "const s = document.getElementById('dm-focus-pick'); s.value = 'S01'; s.dispatchEvent(new Event('change'))"),
+                ("a click on its circle", click))
+        overview = copy("maplibre-flows", self.tmp / "overview")
+        before = self.render(overview)[1]["report"]
+        for what, code in ways:
+            with self.subTest(what):
+                folder = copy("maplibre-flows", self.tmp / what.replace(" ", "-"))
+                extend(code + "; await new Promise(r => setTimeout(r, 300)); map.triggerRepaint()")(folder)
+                result = self.render(folder)[1]
+                focus = result["report"]["focus"]
+                self.assertEqual((focus["key"], focus["title"], focus["subtitle"]), (key, title, subtitle))
+                self.assertEqual(focus["drawn"], sum(1 for p in lines if key in (p["dm_o"], p["dm_d"])))
+                self.assertEqual(focus["partners"][0]["name"], names[top])
+                self.assertEqual([r["out"] for r in focus["partners"]], sorted((r["out"] for r in focus["partners"]), reverse=True))
+                counts = png.read(Path(result["png"]).read_bytes()).histogram(tuple(result["report"]["mapBox"][k] for k in ("x", "y", "w", "h")))
+                self.assertGreater(png.near(counts, focus["colors"]["out"], 30), 40, "flows out in their color")
+                self.assertGreater(png.near(counts, focus["colors"]["in"], 30), 40, "flows in in theirs")
+                self.assertEqual(result["report"]["annotations"][0]["drawn"], False, "the overview's note steps aside")
+        with self.subTest("deck.gl arcs"):
+            folder = copy("deck-globe", self.tmp / "deck")
+            spec(controls=["focus"], focus={"by": "in", "title": "Most movers to {name} come from {top}"})(folder)
+            extend("await dataMap.focus('TYO'); await new Promise(r => setTimeout(r, 300)); map.triggerRepaint()")(folder)
+            result = self.render(folder)[1]
+            focus = result["report"]["focus"]
+            movers = [f["properties"] for f in json.loads((folder / "data" / "movers.geojson").read_text())["features"]]
+            into = {}
+            for p in movers:
+                if p["dm_d"] == "TYO":
+                    into[p["dm_o"]] = into.get(p["dm_o"], 0) + p["dm_value"]
+            nodes = {f["properties"]["dm_key"]: f["properties"]["dm_label"] for f in json.loads((folder / "data" / "movers-nodes.geojson").read_text())["features"]}
+            self.assertEqual(focus["title"], f"Most movers to Tokyo come from {nodes[max(into, key=into.get)]}")
+            self.assertEqual(focus["drawn"], sum(1 for p in movers if "TYO" in (p["dm_o"], p["dm_d"])))
+            counts = png.read(Path(result["png"]).read_bytes()).histogram(tuple(result["report"]["mapBox"][k] for k in ("x", "y", "w", "h")))
+            self.assertGreater(png.near(counts, focus["colors"]["in"], 30), 40, "arcs into Tokyo in the inbound color")
+        with self.subTest("Escape"):
+            folder = copy("maplibre-flows", self.tmp / "escape")
+            extend("await dataMap.focus('S01'); dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape'})); "
+                   "await new Promise(r => setTimeout(r, 300)); map.triggerRepaint()")(folder)
+            rep = self.render(folder)[1]["report"]
+            self.assertEqual({k: rep["focus"][k] for k in ("key", "title", "subtitle", "drawn", "note")},
+                             {k: before["focus"][k] for k in ("key", "title", "subtitle", "drawn", "note")})
+            self.assertTrue(rep["annotations"][0]["drawn"])
 
     def test_a_synced_page_without_data_renders_and_passes(self):
         folder = copy("maplibre-globe", self.tmp)

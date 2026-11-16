@@ -229,7 +229,41 @@ def rule_controls(page: Page) -> list:
     if "reveal" in declared and not any(L.get("kind") == "flows" and (L.get("reveal") or {}).get("count") for L in layers):
         return [WARN("controls", "dm-spec.controls lists reveal, but no flows layer in legend.json has a reveal block, so the page draws no slider",
                      "rerun flows with --reveal, or take reveal out of controls", 23)]
-    return [PASS("controls", f"controls: {', '.join(sorted(used | (declared & {'reveal'}))) or 'none'} beyond compact attribution", 23)]
+    return [PASS("controls", f"controls: {', '.join(sorted(used | (declared & {'reveal', 'focus'}))) or 'none'} beyond compact attribution", 23)]
+
+
+FOCUS_FIELDS = {"name", "top", "top_value", "share", "total", "out", "in", "partners", "unit"}
+
+
+def rule_focus(page: Page) -> list:
+    """The focus control's picker, its layer, its title templates, and whether the page holds every flow they total."""
+    spec, f = page.spec, page.spec.get("focus")
+    if "focus" not in (spec.get("controls") or []):
+        return [WARN("controls", "dm-spec.focus is set, but controls doesn't list focus, so the page draws no picker",
+                     "add focus to controls, or drop dm-spec.focus", 23)] if f is not None else []
+    if f is not None and not isinstance(f, dict):
+        return [FAIL("focus", "dm-spec.focus is not an object", 'write {"title": "...{name}...", "subtitle": "..."}', 24)]
+    f = f or {}
+    layers = (page.legend or {}).get("layers") or {}
+    name = f.get("layer") or next((n for n, L in layers.items() if L.get("kind") == "flows"), None)
+    layer = layers.get(name) or {}
+    if layer.get("kind") != "flows":
+        return [WARN("controls", "dm-spec.controls lists focus, but legend.json has no flows layer to focus", "write the flows with the flows lever, or take focus out of controls", 23)]
+    out = []
+    used = {k for key in ("title", "subtitle") for k in re.findall(r"\{(\w+)\}", str(f.get(key) or ""))}
+    if unknown := sorted(used - FOCUS_FIELDS):
+        out.append(FAIL("focus", f"the focus templates name {', '.join('{' + k + '}' for k in unknown)}, which the page doesn't fill",
+                        f"use {', '.join('{' + k + '}' for k in sorted(FOCUS_FIELDS))}", 24))
+    if f.get("by") not in (None, "out", "in", "both"):
+        out.append(FAIL("focus", f"dm-spec.focus.by is {f.get('by')!r}", 'use "out", "in", or "both"', 24))
+    if not f.get("title"):
+        out.append(WARN("focus", "dm-spec.focus has no title template, so a focused page's title is only the place's name",
+                        'write one that states the point for any place, such as "Students from {name} most often study in {top}"', 24))
+    held, total = (layer.get("reveal") or {}).get("count") or layer.get("kept"), layer.get("total")
+    if held and total and held < total:
+        out.append(WARN("focus", f"layer {name!r} holds {held} of its {total} flows, so a focused place's totals and shares leave out its smaller flows",
+                        f"rerun flows with --reveal --reveal-max {total}, so the page holds every flow", 24))
+    return out or [PASS("focus", f"the focus picker reaches every node of {name!r}, and the page holds all {total} of its flows", 24)]
 
 
 def rule_fonts(page: Page) -> list:
@@ -363,7 +397,7 @@ def rule_highlight(page: Page) -> list:
     return []
 
 
-MAP_RULES = [rule_projection, rule_tiles, rule_controls, rule_pitch, rule_zoom, rule_legend, rule_annotations, rule_highlight]
+MAP_RULES = [rule_projection, rule_tiles, rule_controls, rule_focus, rule_pitch, rule_zoom, rule_legend, rule_annotations, rule_highlight]
 PAGE_RULES = [rule_pins, rule_library, rule_fonts, rule_motion, rule_text, rule_companions, rule_deliverable]
 
 

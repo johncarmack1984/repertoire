@@ -40,12 +40,13 @@ python3 <skill>/scripts/datamap.py check map --scale 2
 | `extent` | `world`, `hemisphere`, `continent`, `region`, or `[W, S, E, N]` |
 | `projection` | the preset's, or a CRS's `name`, `definition`, and `property` |
 | `zoom` | `{"min": "fit", "max": "fit+3"}`, where fit is the zoom that fits the data |
-| `controls` | each control the brief asked for; an empty list means compact attribution only, and `reveal` draws the flows slider |
+| `controls` | each control the brief asked for; an empty list means compact attribution only, `reveal` draws the flows slider, and `focus` the picker that shows one place's flows |
 | `tiles` | each tile source with the grid it was cut in |
 | `companions` | the small charts beside the map |
 | `decisions` | each departure, with the pitfall it touches and why |
 | `center` | the globe's center as `[lon, lat]`, when the default is the wrong one |
 | `annotations` | notes that put the finding on the map, each `{"text": "...", "at": [lon, lat]}` or `"at": "node:<key>"` |
+| `focus` | with `focus` in `controls`, the focused page's title and subtitle as templates, `by` (`out`, `in`, or `both`, the default), and the `layer` when there are two |
 | `highlight` | the keys of the places the title names, such as `["IND", "BGD"]`: a flow node's `dm_key` or an area's or symbol's id. Their names draw bold, their circles get a dark ring, an area gets a dark outline on a white casing, and a bar or table row in a companion that names one draws bold, its bar dark. `check` warns on a key no node or area has |
 | `frame` | under a CRS, `"none"` (the default) or `"sphere"`, which draws the ocean, the graticule, and the world's outline |
 | `tooltips` | `false` to take the hover tooltips off; the page shows them unless told |
@@ -62,6 +63,19 @@ Flow nodes take the fill the lever wrote. With `--node-value net`, the side pane
 Base layers come from file names. `frame.geojson` from `geo --sphere --graticule` gives the ocean, the graticule, and the world's outline under a CRS when `frame` is `"sphere"`, and only the graticule elsewhere. `land.geojson` from `geo --countries` is the base under flows and symbols. Any file named `base-<name>.geojson` draws quietly under the data with no legend entry. Its polygons get a pale fill with white edges, and its lines are thin and gray.
 
 The side panel draws each legend layer. Classes get their limits, a separate no-data box, and the method. Sizes get nested circles with leaders. Flows get three or four reference widths with their arrowheads at the opacities of those values, the omitted note, and the node sizes under a heading that says which flows they total.
+
+## Focus on one place
+
+With `focus` in `controls`, a picker under the subtitle lists every node of the flows layer by name, and clicking or tapping a node's circle does the same. The page then draws only that place's flows, every one the file holds, those leaving it in vermilion and those arriving in blue (Okabe and Ito's pair, apart under every color-vision deficiency), rings its circle, and shows only its partners' circles and names. The side panel puts a key to the two colors and a table of its partners in place of the companions, ranked by `by`. The notes step aside, and the kept line under the slider says how many flows it draws. Escape, a second click, the Show all button, or "every place" in the picker returns to the overview. Nothing moves on its own: the map turns or pans only to bring a focused place into view, at once under a reduced-motion setting.
+
+The title and subtitle are rewritten from `dm-spec.focus`, with `{name}`, `{top}` (the largest partner by `by`), `{top_value}`, `{share}` (of `{total}`), `{total}`, `{out}`, `{in}`, `{partners}`, and `{unit}` computed from the flows:
+
+```json
+"controls": ["reveal", "focus"],
+"focus": {"by": "out", "title": "Students from {name} most often study in {top}", "subtitle": "{top_value} of its {total} students abroad, {share}"}
+```
+
+The figures are true only when the page holds every flow, so run the lever with `--reveal` and a `--reveal-max` at least the number of flows. `check` warns when the layer holds fewer, fails a template field the page doesn't fill, and warns on a missing title template. It judges the overview; the page's own `dataMap.focus(key)` focuses a place for a test.
 
 ## Companions
 
