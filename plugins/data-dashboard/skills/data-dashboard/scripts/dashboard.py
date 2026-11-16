@@ -3,14 +3,17 @@
 
   dashboard.py new OUT [--viewport WxH] [--title T] [--data D.json] [--force]
   dashboard.py sync OUT [--data D.json] [--check]
-  dashboard.py check OUT [--viewport WxH] [--phone WxH] [--json] [--no-browser]
+  dashboard.py check OUT [--viewport WxH] [--phone WxH] [--theme light|dark|both] [--json] [--no-browser]
 
 `new` writes the page with dashboard.css and dashboard.js inlined between
 version and sha256 markers. `sync` rewrites those regions from assets/ and
 optionally the data block. `check` runs a static pass over the file, then
-renders it in headless Chrome, reads the report the page's own dd.check()
-writes, and saves a screenshot at the design viewport and one at phone width,
-<page>.phone.png, the full length of the one scrolling column.
+renders a temporary copy of it with assets/check.js inlined after the library
+in headless Chrome, reads the report check.js writes, and saves a screenshot
+of the page itself at the design viewport and one at phone width,
+<page>.phone.png, the full length of the one scrolling column. The desktop pass
+runs in the light and the dark color scheme, and saves the dark screenshot as
+<page>.<W>x<H>.dark.png; the phone pass runs in light.
 Each finding cites the mistake it guards against, numbered as in chapter 3 of
 Stephen Few's Information Dashboard Design. Exit status 1 means a FAIL.
 """
@@ -29,10 +32,11 @@ import sys
 import tempfile
 from pathlib import Path
 
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 ASSETS = Path(__file__).resolve().parent.parent / "assets"
 LIB = {"css": ("style", "dashboard.css"), "lib": ("script", "dashboard.js")}
 UNIT = 20
+SCHEMES = {"light": 1, "dark": 0}
 EMPTY_DATA = '{"asOf": "", "locale": "en-US", "policy": {"warn": 0.95, "alert": 0.85}, "measures": {}}'
 REGION = re.compile(
     r"<!-- data-dashboard:(css|lib) (\S+) sha256:([0-9a-f]{64}) -->\n<(style|script)>\n(.*?)</\4>\n<!-- /data-dashboard:\1 -->", re.S)
@@ -113,10 +117,15 @@ def asset(name: str) -> str:
     return (ASSETS / LIB[name][1]).read_text(encoding="utf-8")
 
 
-def block(name: str) -> str:
-    tag, body = LIB[name][0], asset(name)
+def inline(tag: str, name: str) -> str:
+    body = (ASSETS / name).read_text(encoding="utf-8")
     if f"</{tag}" in body:
-        die(f"{LIB[name][1]} contains </{tag}, which would end the inlined region early")
+        die(f"{name} contains </{tag}, which would end the inlined region early")
+    return body
+
+
+def block(name: str) -> str:
+    tag, body = LIB[name][0], inline(*LIB[name])
     return f"<!-- data-dashboard:{name} {VERSION} sha256:{sha(body)} -->\n<{tag}>\n{body}</{tag}>\n<!-- /data-dashboard:{name} -->"
 
 
@@ -204,7 +213,7 @@ def hue(c: tuple[int, int, int]) -> str | None:
 
 def tokens() -> set[tuple[int, int, int]]:
     css = asset("css")
-    return {rgb(m[1]) for m in re.finditer(r"--dd-(?:alert|warn):\s*(#[0-9A-Fa-f]{3,6})", css)}
+    return {rgb(m[1]) for m in re.finditer(r"--dd-(?:alert|warn|heat-\d):\s*(#[0-9A-Fa-f]{3,6})", css)}
 
 
 def static_pass(text: str) -> list[dict]:
@@ -294,11 +303,11 @@ class Hung(Exception):
     pass
 
 
-def chrome(browser: str, extra: list[str], w: int, h: int, url: str) -> subprocess.CompletedProcess:
+def chrome(browser: str, extra: list[str], w: int, h: int, url: str, theme: str) -> subprocess.CompletedProcess:
     with tempfile.TemporaryDirectory(prefix="dd-chrome-") as profile:
         cmd = [browser, "--headless=new", "--disable-gpu", "--hide-scrollbars", "--force-device-scale-factor=1",
                "--no-first-run", "--no-default-browser-check", "--disable-extensions", f"--user-data-dir={profile}",
-               f"--window-size={w},{h}", "--virtual-time-budget=5000", *extra, url]
+               f"--window-size={w},{h}", "--virtual-time-budget=5000", f"--blink-settings=preferredColorScheme={SCHEMES[theme]}", *extra, url]
         if os.environ.get("CI") or (hasattr(os, "geteuid") and os.geteuid() == 0):
             cmd.insert(1, "--no-sandbox")
         try:
@@ -307,13 +316,24 @@ def chrome(browser: str, extra: list[str], w: int, h: int, url: str) -> subproce
             raise Hung(f"{browser} did not finish within 60 s") from None
 
 
-def measure(browser: str, page: Path, w: int, h: int, delta=(0, 0)):
+def probe(page: Path, text: str) -> Path:
+    """Write a copy of the page beside it with check.js inlined after the library, so the
+    page keeps its relative paths and the page itself never carries the check."""
+    end = "<!-- /data-dashboard:lib -->"
+    script = f"{end}\n<script>\n{inline('script', 'check.js')}</script>"
+    fd, name = tempfile.mkstemp(prefix=f".{page.stem}.", suffix=".dd-check.html", dir=page.parent)
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        f.write(text.replace(end, script, 1))
+    return Path(name)
+
+
+def measure(browser: str, page: Path, w: int, h: int, theme: str, delta=(0, 0)):
     """Lay the page out at w x h and return its report. --dump-dom lays out shorter than
     --window-size on some platforms (87 px on Chrome 157 for macOS), so read the real
     inner size back and relaunch with the difference added."""
     dw, dh = delta
     for _ in range(3):
-        run = chrome(browser, ["--dump-dom"], w + dw, h + dh, page.as_uri() + "?dd-check")
+        run = chrome(browser, ["--dump-dom"], w + dw, h + dh, page.as_uri(), theme)
         m = REPORT.search(run.stdout)
         if not m:
             return None, (dw, dh), run.stderr.strip().splitlines()[-3:]
@@ -325,17 +345,19 @@ def measure(browser: str, page: Path, w: int, h: int, delta=(0, 0)):
     return rep, (dw, dh), []
 
 
-def screenshot(browser: str, page: Path, w: int, h: int, out: Path) -> tuple[int, int] | None:
+def screenshot(browser: str, page: Path, w: int, h: int, out: Path, theme: str) -> tuple[int, int] | None:
     out.unlink(missing_ok=True)
-    chrome(browser, [f"--screenshot={out}"], w, h, page.as_uri())
+    chrome(browser, [f"--screenshot={out}"], w, h, page.as_uri(), theme)
     if not out.exists():
         return None
     head = out.read_bytes()[:24]
     return struct.unpack(">II", head[16:24])
 
 
-def judge(rep: dict, w: int, h: int) -> list[dict]:
+def judge(rep: dict, w: int, h: int, theme: str) -> list[dict]:
     out = []
+    if rep.get("scheme") != theme:
+        out.append(finding("WARN", "theme", None, f"Chrome laid the page out in {rep.get('scheme')}, not {theme}, so {theme} was not judged", "set DD_BROWSER to a current Chrome"))
     vp = rep["viewport"]
     if (vp["w"], vp["h"]) != (w, h):
         out.append(finding("WARN", "viewport", None, f"Chrome laid the page out at {vp['w']}x{vp['h']}, not {w}x{h}", "set DD_BROWSER to a current Chrome"))
@@ -366,9 +388,9 @@ def judge(rep: dict, w: int, h: int) -> list[dict]:
     for s in rep["small"]:
         out.append(finding("FAIL", "type size", 7, f"{s['text']} is {s['px']} px", "nothing under 9 px; scale with --u instead of fixed sizes"))
     for c in rep["contrast"]:
-        out.append(finding("FAIL", "contrast", 12, f"{c['text']} is {c['color']} on {c['bg']}, {c['ratio']}:1 (needs {c['need']}:1)", "darken the text; use --dd-ink-2 or --dd-ink-3"))
+        out.append(finding("FAIL", "contrast", 12, f"{c['text']} is {c['color']} on {c['bg']}, {c['ratio']}:1 (needs {c['need']}:1)", "give the text more contrast; color it with --dd-ink, --dd-ink-2 or --dd-ink-3"))
     for c in rep["marks"]:
-        out.append(finding("FAIL", "contrast", 12, f"mark {c['el']} is {c['color']}, {c['ratio']}:1 on the background (needs 3:1)", "use a darker gray token"))
+        out.append(finding("FAIL", "contrast", 12, f"mark {c['el']} is {c['color']}, {c['ratio']}:1 on the background (needs 3:1)", "color it with a gray token that has more contrast"))
     if not (rep["overlaps"] or rep["clipped"] or rep["collide"] or rep["small"] or rep["contrast"] or rep["marks"]):
         out.append(finding("PASS", "legibility", 7, f"no overlapping sections, clipped or colliding text, type under 9 px (body {rep['fontPx']} px), or contrast below 4.5:1 for text and 3:1 for marks"))
     alert_rgb = tokens()
@@ -379,7 +401,7 @@ def judge(rep: dict, w: int, h: int) -> list[dict]:
     for c in sat:
         out.append(finding("FAIL", "color", 12, f"saturated {c['color']} on {c['count']} element(s), first at {c['where']}", "keep everything gray; only alerts carry saturated red"))
     if not sat and "green" not in hues:
-        out.append(finding("PASS", "color", 12, f"the only saturated colors are the alert tokens ({', '.join(c['color'] for c in rep['colors']) or 'none drawn'})"))
+        out.append(finding("PASS", "color", 12, f"the only saturated colors are the alert reds and the treemap's tints of them ({', '.join(c['color'] for c in rep['colors']) or 'none drawn'})"))
     rows, warn, alert = rep["rows"]["total"], rep["rows"]["warn"], rep["rows"]["alert"]
     if rows:
         share = (len(warn) + len(alert)) / rows
@@ -411,6 +433,25 @@ def judge_phone(rep: dict, w: int) -> list[dict]:
     return out
 
 
+def merge(judged: dict[str, list[dict]]) -> list[dict]:
+    """Print a finding once when every theme gave it, and name the themes it holds in."""
+    out, seen = [], {}
+    for theme, fs in judged.items():
+        for f in fs:
+            key = (f["status"], f["check"], f["mistake"], f["message"], f["fix"])
+            if key not in seen:
+                seen[key] = {**f, "themes": []}
+                out.append(seen[key])
+            seen[key]["themes"].append(theme)
+    first = {}
+    for f in out:
+        first.setdefault(f["check"], len(first))
+    out.sort(key=lambda f: first[f["check"]])
+    for f in out:
+        f["check"] = f"{f['check']} in {' and '.join(f['themes'])}"
+    return out
+
+
 def cmd_check(a) -> int:
     page = Path(a.out).resolve()
     text = page.read_text(encoding="utf-8")
@@ -423,10 +464,13 @@ def cmd_check(a) -> int:
         why = "--no-browser" if a.no_browser else "no Chrome, Chromium, Edge or Brave found (set DD_BROWSER)"
         out.append(finding("WARN", "fit", 1, f"{why}: fit, overlap, type and contrast were not measured", "do the row budget by hand, or install Chrome and rerun"))
     else:
+        copy = probe(page, text)
         try:
-            out, shots, reports = browser_pass(browser, page, w, h, pw, ph, out)
+            out, shots, reports = browser_pass(browser, page, copy, w, h, pw, ph, out, ["light", "dark"] if a.theme == "both" else [a.theme])
         except Hung as hung:
             out.append(finding("WARN", "fit", 1, f"{hung}: fit, overlap, type and contrast were not measured", "set DD_BROWSER to a Chrome that runs headless here"))
+        finally:
+            copy.unlink(missing_ok=True)
     failed = any(f["status"] == "FAIL" for f in out)
     if a.json:
         print(json.dumps({"page": str(page), "ok": not failed, "findings": out, "screenshots": shots, "reports": reports}, indent=1))
@@ -440,27 +484,31 @@ def cmd_check(a) -> int:
     return 1 if failed else 0
 
 
-def browser_pass(browser: str, page: Path, w: int, h: int, pw: int, ph: int, out: list[dict]):
-    shots, reports = [], {}
-    rep, delta, err = measure(browser, page, w, h)
-    if rep is None:
-        out.append(finding("FAIL", "browser", None, "the page wrote no #dd-report under ?dd-check" + (f" ({'; '.join(err)})" if err else ""), "check that the lib region is intact; run sync"))
+def browser_pass(browser: str, page: Path, copy: Path, w: int, h: int, pw: int, ph: int, out: list[dict], themes: list[str]):
+    shots, reports, judged, delta = [], {}, {}, (0, 0)
+    for theme in themes:
+        rep, delta, err = measure(browser, copy, w, h, theme, delta)
+        if rep is None:
+            judged[theme] = [finding("FAIL", "browser", None, "check.js wrote no #dd-report in the page" + (f" ({'; '.join(err)})" if err else ""), "check that the lib region is intact; run sync")]
+            break
+        reports[theme] = rep
+        judged[theme] = judge(rep, w, h, theme)
+        png = page.with_name(f"{page.stem}.{w}x{h}{'.dark' if theme == 'dark' else ''}.png")
+        if screenshot(browser, page, w, h, png, theme):
+            shots.append(str(png))
+        else:
+            judged[theme].append(finding("WARN", "screenshot", None, f"no screenshot at {png}"))
+    out += merge(judged)
+    if len(reports) < len(themes):
         return out, shots, reports
-    reports["desktop"] = rep
-    out += judge(rep, w, h)
-    png = page.with_name(f"{page.stem}.{w}x{h}.png")
-    if screenshot(browser, page, w, h, png):
-        shots.append(str(png))
-    else:
-        out.append(finding("WARN", "screenshot", None, f"no screenshot at {png}"))
-    phone, _, _ = measure(browser, page, pw, ph, delta)
+    phone, _, _ = measure(browser, copy, pw, ph, "light", delta)
     if phone:
         reports["phone"] = phone
         out += judge_phone(phone, pw)
         laid = max(pw, phone["viewport"]["w"])
         full = min(max(phone["page"]["h"], ph), 6000)
         png = page.with_name(f"{page.stem}.phone.png")
-        if screenshot(browser, page, laid, full, png):
+        if screenshot(browser, page, laid, full, png, "light"):
             shots.append(str(png))
     return out, shots, reports
 
@@ -484,6 +532,7 @@ def main() -> int:
     p.add_argument("out")
     p.add_argument("--viewport", help="design viewport (default: the page's dd-viewport meta)")
     p.add_argument("--phone", default="390x844", help="phone viewport (default 390x844)")
+    p.add_argument("--theme", choices=("light", "dark", "both"), default="both", help="color scheme of the desktop pass (default both; the phone pass runs in light)")
     p.add_argument("--json", action="store_true", help="print findings, screenshots and reports as JSON")
     p.add_argument("--no-browser", action="store_true", help="static pass only")
     p.set_defaults(run=cmd_check)

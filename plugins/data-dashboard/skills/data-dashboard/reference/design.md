@@ -95,7 +95,7 @@ Chapter 7, "Make the Viewing Experience Aesthetically Pleasing", and chapter 4, 
 
 | Role | What it is | Contrast on the background |
 | :-- | :-- | :-- |
-| background | barely off-white, never pure white, never dark | |
+| background | barely off-white, never pure white; in the dark scheme a warm near-black, never pure black | |
 | text | dark gray for labels and values; lighter gray for units lines, column headers, axis labels, and the as-of line | 4.5:1 or more |
 | data | near-black bars, lines, and target marks; the bullet graph's three range grays; one medium gray for bars | 3:1 for marks that carry meaning |
 | accent | one muted hue on section titles only | 4.5:1 |
@@ -104,6 +104,8 @@ Chapter 7, "Make the Viewing Experience Aesthetically Pleasing", and chapter 4, 
 | rules | hairlines under section titles and column headers | as light as still shows |
 
 Few's own colors fall short of these targets. Sampled from his chapter 8 dashboards, his title accents reach 1.8 to 3.0:1 on his cream background, his light alert red 2.0:1, and his dark one 3.9:1, so the tokens keep his hues and darken them. Every alert also sets its value in bold and writes its percent of target as text, a second cue that doesn't depend on color. The light range bands of a bullet graph stay as Few drew them; each row's state is written in its screen-reader text instead.
+
+The page follows the viewer's dark mode on its own, with a second palette built to the same rules. On the dark background the worst range of a bullet graph is the lightest band, since the bad range is the one with the most contrast against the background. The bar and the target stay the highest-contrast marks, every token meets the target in the table above, and the alert stays two intensities of one red, the brighter one critical. `reference/api.md` lists every token in both schemes with its contrast, and the check runs in both.
 
 Use one sans-serif family, the system stack, throughout. Set numbers in tabular figures (`font-variant-numeric: tabular-nums`) and right-align them, so digits line up down a column. The size steps, as multiples of the 12.5 px body text at the design viewport:
 
@@ -121,6 +123,7 @@ No text goes below 9 px; the check flags anything smaller.
 | The 2006 book | This skill |
 | :-- | :-- |
 | one fixed monitor, with no size given | a named design viewport the page scales to, and a phone reflow |
+| a light page only | light and dark, following the viewer's setting, each palette held to the same contrast rules |
 | low-resolution images made in Excel and Illustrator | SVG, crisp at any pixel density |
 | hover and click with a mouse | every hover also opens on focus and tap; drill-down is a link to a detail view; nothing essential lives only in a tooltip |
 | blinking alerts and a sound that grows louder | no blinking or sound; an alert is an added mark, and the page honors reduced-motion settings |

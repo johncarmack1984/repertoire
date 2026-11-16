@@ -32,7 +32,8 @@ Every rule in this skill follows Stephen Few, *Information Dashboard Design* (O'
 - **Today's forms of the mistakes.** Donuts, glassy cards, drop shadows, count-up numbers, and neon on dark aren't in the book. `mistakes.md` assigns each to the mistake whose reasoning covers it.
 - **Short-term memory and color blindness.** Few's three to nine chunks and his 10% of men and 1% of women are the figures of his time. Nelson Cowan's work (2001) puts short-term capacity near four chunks, so the skill designs to the low end of Few's range. The commonly cited share of color-blind men today is about 8%, which leaves his color rules as they are.
 - **Interaction.** Few describes hover and click with a mouse. The skill gives every hover a focus and a tap equivalent and keeps essential values out of tooltips.
-- **Media the library defers.** Few includes the treemap and wished software would build small multiples. The library draws no treemap yet, and small multiples are separate calls given one shared domain.
+- **Dark mode.** Few's book has none, and every palette in it assumes a light page. The skill's dark palette keeps his rules where they depend on the background. The worst range of a bullet graph has the most contrast with the background, so on a dark page it is the lightest band. The bar and the target stay the highest-contrast marks, and the alert stays two intensities of one red, the brighter one critical.
+- **Small multiples and the treemap.** Few wished software would build small multiples; the library's are separate calls given one shared domain. The treemap colors on the alert hue by the same policy as every other medium, so Few's white-to-red ramp becomes neutral, then tints, then the full alert red.
 
 ## What is the skill's own
 

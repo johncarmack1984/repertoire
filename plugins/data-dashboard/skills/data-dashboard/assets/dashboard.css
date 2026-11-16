@@ -32,6 +32,86 @@
   --dd-norm: #E4E4E1;
   --dd-tint: #EDEDEA;
   --dd-box: #D8D8D6;
+  --dd-heat-0: #E3E3E0;
+  --dd-heat-1: #E5C6BE;
+  --dd-heat-2: #E4A89D;
+  --dd-heat-3: #E18A7B;
+  --dd-heat-4: #DB6A5A;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --dd-bg: #1C1C1B;
+    --dd-ink: #E8E8E5;
+    --dd-ink-2: #A1A19E;
+    --dd-ink-3: #90908D;
+    --dd-accent: #8FA2B4;
+    --dd-title: #627384;
+    --dd-rule: #3A3A38;
+    --dd-axis: #575755;
+
+    --dd-alert: #EF5B50;
+    --dd-warn: #B24B41;
+
+    --dd-bar: #E2E2E2;
+    --dd-proj: #8E8E8E;
+    --dd-band-0: #616161;
+    --dd-band-1: #4D4D4D;
+    --dd-band-2: #3F3F3F;
+    --dd-band-3: #363636;
+    --dd-band-4: #2D2D2D;
+    --dd-fill: #767676;
+    --dd-fill-hi: #B4B4B4;
+    --dd-tone-0: #B8B8B8;
+    --dd-tone-1: #8E8E8E;
+    --dd-tone-2: #727272;
+    --dd-spark: #B0B0B0;
+    --dd-norm: #2F2F2D;
+    --dd-tint: #282826;
+    --dd-box: #3A3A38;
+    --dd-heat-0: #2F2F2E;
+    --dd-heat-1: #4B3632;
+    --dd-heat-2: #673B35;
+    --dd-heat-3: #844038;
+    --dd-heat-4: #A1433A;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --dd-bg: #1C1C1B;
+  --dd-ink: #E8E8E5;
+  --dd-ink-2: #A1A19E;
+  --dd-ink-3: #90908D;
+  --dd-accent: #8FA2B4;
+  --dd-title: #627384;
+  --dd-rule: #3A3A38;
+  --dd-axis: #575755;
+
+  --dd-alert: #EF5B50;
+  --dd-warn: #B24B41;
+
+  --dd-bar: #E2E2E2;
+  --dd-proj: #8E8E8E;
+  --dd-band-0: #616161;
+  --dd-band-1: #4D4D4D;
+  --dd-band-2: #3F3F3F;
+  --dd-band-3: #363636;
+  --dd-band-4: #2D2D2D;
+  --dd-fill: #767676;
+  --dd-fill-hi: #B4B4B4;
+  --dd-tone-0: #B8B8B8;
+  --dd-tone-1: #8E8E8E;
+  --dd-tone-2: #727272;
+  --dd-spark: #B0B0B0;
+  --dd-norm: #2F2F2D;
+  --dd-tint: #282826;
+  --dd-box: #3A3A38;
+  --dd-heat-0: #2F2F2E;
+  --dd-heat-1: #4B3632;
+  --dd-heat-2: #673B35;
+  --dd-heat-3: #844038;
+  --dd-heat-4: #A1433A;
 }
 
 :root[data-dd-layout="column"] { --u: 19.2px; }
@@ -173,6 +253,13 @@ html { background: var(--dd-bg); }
 .dd-svg .dd-fit { fill: none; stroke: var(--dd-tone-0); stroke-width: 1.5; }
 .dd-svg .dd-icon { fill: var(--dd-ink-2); }
 .dd-svg .dd-icon-line { fill: none; stroke: var(--dd-ink-2); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.dd-svg .dd-heat-0 { fill: var(--dd-heat-0); }
+.dd-svg .dd-heat-1 { fill: var(--dd-heat-1); }
+.dd-svg .dd-heat-2 { fill: var(--dd-heat-2); }
+.dd-svg .dd-heat-3 { fill: var(--dd-heat-3); }
+.dd-svg .dd-heat-4 { fill: var(--dd-heat-4); }
+.dd-svg .dd-heat-a { fill: var(--dd-alert); }
+.dd-svg text.dd-knock { fill: var(--dd-bg); }
 
 .dd-text { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
 .dd-text th {

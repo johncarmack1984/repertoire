@@ -1,17 +1,17 @@
 # The library
 
-This file holds the detail for step 6: every call, option, and data field. The library is `assets/dashboard.js`, the styles are `assets/dashboard.css`, and the tooling is `scripts/dashboard.py`. Every page reaches the library through the global `DataDashboard`, aliased in page code as `const dd = DataDashboard`.
+This file holds the detail for step 6: every call, option, and data field. The library is `assets/dashboard.js`, the styles are `assets/dashboard.css`, and the tooling is `scripts/dashboard.py` with `assets/check.js`, which only the check loads. Every page reaches the library through the global `DataDashboard`, aliased in page code as `const dd = DataDashboard`.
 
 ## The page
 
 `dashboard.py new` writes the page. Its parts, in order:
 
 - `<meta name="dd-viewport" content="1440x800">`, the design viewport in CSS px.
-- `<!-- data-dashboard:css 0.1.0 sha256:… -->` `<style>` … `</style>` `<!-- /data-dashboard:css -->`, the inlined `dashboard.css`. Never edit it by hand: `check` fails a region whose content no longer matches its sha256, and `sync` rewrites it.
+- `<!-- data-dashboard:css 0.2.0 sha256:… -->` `<style>` … `</style>` `<!-- /data-dashboard:css -->`, the inlined `dashboard.css`. Never edit it by hand: `check` fails a region whose content no longer matches its sha256, and `sync` rewrites it.
 - `<!-- data-dashboard:page-style -->` … `<!-- /data-dashboard:page-style -->`, the page's own CSS. Its first rule is `:root { --dd-cols: 72; --dd-rows: 40; }`, the design viewport divided by 20 px, which `new` writes and `check` compares against the meta. The grid's `grid-template-columns` and `grid-template-areas` go here.
 - `<!-- data-dashboard:page -->` … `<!-- /data-dashboard:page -->`, holding `header.dd-head`, `main.dd-grid`, `footer.dd-foot`, the data block `<script type="application/json" id="dd-data">`, and the page script `<script type="module">`. The page script is a module so that it runs after the library, which is inlined after it.
 - The header holds `h1.dd-title`, `p.dd-asof` and `p.dd-flags`, the count of flagged rows beside the as-of line. The page script fills the as-of and calls `dd.flags('#dd-flags')`, so a new page says "Nothing flagged" until its sections flag a row.
-- `<!-- data-dashboard:lib 0.1.0 sha256:… -->` `<script>` … `</script>` `<!-- /data-dashboard:lib -->`, the inlined `dashboard.js`.
+- `<!-- data-dashboard:lib 0.2.0 sha256:… -->` `<script>` … `</script>` `<!-- /data-dashboard:lib -->`, the inlined `dashboard.js`.
 
 ## Data
 
@@ -80,8 +80,7 @@ An alert dot is one line of text across, 1.3 times the type size: 16 px at 12.5 
 | `dd.state(m, policy?)` | `{level, ratio, text}`, as above. |
 | `dd.flags(target)` | Writes the count of flagged rows into `target`, as above, and keeps it current. `dd.svg.flags({alert, warn})` returns the line as HTML from two lists of labels. |
 | `dd.flagged(root = document)` | `{total, alert: [labels], warn: [labels]}`, the rows under `root` with each row counted once, as above. `dd.flags` and the check's alert count both read it. |
-| `dd.check()` | Runs only under `?dd-check`. It measures the page, writes the report into `<script type="application/json" id="dd-report">`, and returns it. Otherwise returns `null`. The library runs it 300 ms after `load` when the query is present. |
-| `dd.version` | `"0.1.0"`. |
+| `dd.version` | `"0.2.0"`. |
 
 Format specs:
 
@@ -192,6 +191,36 @@ A row with a `target` gets a target tick and a state, and a dot when it is `warn
 
 Points are `{x, y, label?}`; `sets` are `{name, points}`, at most two. Hollow circles, a least-squares line per set labeled with the set's name at its right end, axes that need not start at zero, axis titles written horizontally. Options: `height` (u, default 8), `formatX`, `formatY`, `labels` (labels points that have one, on the side away from the fit line, dropped when no free spot exists), `fit` (`false`), `xLabel`, `yLabel`, `name`.
 
+### `treemap(input, opts)`
+
+Few's treemap (figure 6-43) is for spotting conditions across many items, not for comparing values. Nested rectangles fill the space, a cell's area is one quantity, such as revenue, and its color is a condition, such as percent of quota, so the eye goes to the large red cells.
+
+`input` is a list of items, or of groups one level deep:
+
+```json
+[{"label": "West", "children": [
+   {"label": "California", "key": "ca", "value": 5900000, "target": 7200000, "format": "usd0k"},
+   {"label": "Oregon", "key": "or", "value": 980000, "target": 900000, "format": "usd0k"}]},
+ {"label": "South", "children": [
+   {"label": "Texas", "key": "tx", "value": 4600000, "target": 4500000, "format": "usd0k"}]}]
+```
+
+An item is a measure record (`label`, `value`, a comparison such as `target`, and optionally `better`, `policy`, `state`, `format` and `key`) plus `size`, the quantity its area shows, which defaults to `value`. An item without a positive size is left out. A list that mixes groups and items, or a group inside a group, throws.
+
+Color follows the item's state, on the alert hue. A cell at or above its basis is the neutral `--dd-heat-0`. A cell under the alert threshold is the alert red, `--dd-alert`, with its text in `--dd-bg`. Between them, an `ok` or `warn` cell takes one of four tints, `--dd-heat-1` to `--dd-heat-4`, by how far its ratio falls from the basis toward the alert threshold; a cell whose state comes from `state`, `ranges` or `norm` takes tint 1 for `ok` and 3 for `warn`. So the full-red cells are exactly the critical ones, which `dd.flagged()` counts. The tints stop at a red light enough to keep text on it at 4.5:1, and the alert cells step past them to the full red.
+
+The layout is squarified (Bruls, Huizing and van Wijk): the groups first, then each group's cells inside it, largest first, so cells come out near square, with a mean aspect ratio of about 1.4 for a flat list. Each group has a header strip with its label in semibold gray, and a gap of 0.4 type sizes to the next group; a group too short to hold its header drops it. Cells sit 1 px apart. Within a group, a cell's area, its gap included, is its share of the group to within the rounding of its edges to whole pixels. Across groups, each group's header and gap are paid for out of its weight, so 95% of cells come within 3% of their share of the whole and the median within 1%; a small group squeezed into a thin band at the end of a row can be off by as much as 30%.
+
+Each cell shows its label and, under it, its value in the item's format, at small type in its top-left corner, only when they fit inside the cell. A label that doesn't fit is left out, never cut short. The value is bold when the cell is flagged. Every cell's `<title>` holds its exact values: the state text, the target, and the size when it differs from the value.
+
+| Option | Meaning |
+|---|---|
+| `height` | In u (default 10). |
+| `sizeLabel`, `sizeFormat` | The name and format of `size` in a cell's title, when it differs from `value` (default "size" and the item's format). |
+| `policy`, `title` | As for `table`. |
+
+Key the colors with `dd.legend` and the `heat` mark, such as `[{mark: 'heat', tone: 0, label: 'Quota met'}, {mark: 'heat', tone: 3, label: 'Short'}, {mark: 'heat', tone: 'a', label: 'Under 85%'}]`.
+
 ### `text(rows, opts)`
 
 An HTML `<table class="dd-text">`: right-aligned numbers, bottom-aligned headers, one hairline under them, and one stretching column that takes the width left over, ellipsized with its full text in `title`. Every other column keeps its content width on one line.
@@ -207,7 +236,7 @@ Rows with a `state` or a `target` get a dot column and bold cells when `warn` or
 
 ### `legend(items, opts)`
 
-For the `.dd-legend` slot on a section title. Items are `{mark, label, tone?, level?}` with `mark` one of `bar`, `projection` (the lighter segment beyond the bar), `target`, `band` (tone 0 to 4, darkest 0), `fill`, `highlight`, `part` (tone 0 to 2), `line` (tone 0 to 2), `dot` (level `warn` or `alert`, the same size as the page's alert dots at the legend's type size).
+For the `.dd-legend` slot on a section title. Items are `{mark, label, tone?, level?}` with `mark` one of `bar`, `projection` (the lighter segment beyond the bar), `target`, `band` (tone 0 to 4, darkest 0), `fill`, `highlight`, `part` (tone 0 to 2), `line` (tone 0 to 2), `heat` (a treemap color: tone 0 to 4, or `'a'` for the alert red), `dot` (level `warn` or `alert`, the same size as the page's alert dots at the legend's type size).
 
 ### Icons
 
@@ -219,7 +248,45 @@ For the `.dd-legend` slot on a section title. Items are `{mark, label, tone?, le
 
 ## CSS
 
-Tokens on `:root`: `--u` (the unit, `min(100vw / --dd-cols, 100vh / --dd-rows)`), `--dd-font`, `--dd-bg` #FBFBF9, `--dd-ink` #222, `--dd-ink-2` #5C5C5C, `--dd-ink-3` #6B6B6B, `--dd-accent` #4E6275 (section titles, 6.1:1), `--dd-title` #7D8FA0 (page title, 3.2:1 as large text), `--dd-rule`, `--dd-axis`, `--dd-alert` #A8261E (6.9:1), `--dd-warn` #DB6A5A (3.3:1), and the gray ramps for bars, bands and parts.
+Tokens on `:root`: `--u` (the unit, `min(100vw / --dd-cols, 100vh / --dd-rows)`), `--dd-font`, and the colors below. No component uses a literal color, and a page's own CSS should use the tokens too.
+
+### Themes
+
+The page follows the viewer's color scheme. The light values sit on `:root`. The dark values are redefined under `@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { … } }` and again under `:root[data-theme="dark"]`, and both dark blocks set `color-scheme: dark`, so `data-theme="light"` or `"dark"` on `<html>` forces one scheme whatever the viewer's setting. The dark palette is designed, not inverted. Few's ladder assumes a white page, where the worst band is the darkest and so contrasts most with the page. On the dark page the worst band is the lightest, the best sits closest to the background, and the bar and target stay the bullet graph's highest-contrast marks. Critical stays the more prominent red, the lighter one on the dark page. Each color's contrast against its own background:
+
+| Token | Role | Light | Dark |
+|---|---|---|---|
+| `--dd-bg` | background | #FBFBF9 | #1C1C1B |
+| `--dd-ink` | text | #222222, 15.4:1 | #E8E8E5, 13.9:1 |
+| `--dd-ink-2` | secondary text, units lines | #5C5C5C, 6.5:1 | #A1A19E, 6.6:1 |
+| `--dd-ink-3` | headers, tick labels | #6B6B6B, 5.1:1 | #90908D, 5.3:1 |
+| `--dd-accent` | section titles | #4E6275, 6.1:1 | #8FA2B4, 6.5:1 |
+| `--dd-title` | page title (large text) | #7D8FA0, 3.2:1 | #627384, 3.5:1 |
+| `--dd-rule` | hairlines | #D5D5D0, 1.4:1 | #3A3A38, 1.5:1 |
+| `--dd-axis` | axes and ticks | #B5B5B5, 2.0:1 | #575755, 2.4:1 |
+| `--dd-alert` | critical dots and treemap cells | #A8261E, 6.8:1 | #EF5B50, 5.1:1 |
+| `--dd-warn` | warning dots | #DB6A5A, 3.3:1 | #B24B41, 3.2:1 |
+| `--dd-bar` | bullet bar and target | #363636, 11.7:1 | #E2E2E2, 13.2:1 |
+| `--dd-proj` | projection segment | #7A7A7A, 4.1:1 | #8E8E8E, 5.2:1 |
+| `--dd-band-0` | worst band | #ABABAB, 2.2:1 | #616161, 2.8:1 |
+| `--dd-band-1` | band | #C2C2C2, 1.7:1 | #4D4D4D, 2.0:1 |
+| `--dd-band-2` | band | #D6D6D6, 1.4:1 | #3F3F3F, 1.6:1 |
+| `--dd-band-3` | band | #E0E0E0, 1.3:1 | #363636, 1.4:1 |
+| `--dd-band-4` | best band | #EAEAEA, 1.2:1 | #2D2D2D, 1.2:1 |
+| `--dd-fill` | bars | #8C8C8C, 3.2:1 | #767676, 3.8:1 |
+| `--dd-fill-hi` | highlighted bar | #4A4A4A, 8.6:1 | #B4B4B4, 8.2:1 |
+| `--dd-tone-0` | first line or part | #2B2B2B, 13.7:1 | #B8B8B8, 8.6:1 |
+| `--dd-tone-1` | second line or part | #6E6E6E, 4.9:1 | #8E8E8E, 5.2:1 |
+| `--dd-tone-2` | third line or part | #8E8E8E, 3.2:1 | #727272, 3.5:1 |
+| `--dd-spark` | sparklines | #4D4D4D, 8.2:1 | #B0B0B0, 7.9:1 |
+| `--dd-norm` | normal band | #E4E4E1, 1.2:1 | #2F2F2D, 1.3:1 |
+| `--dd-tint` | below-zero tint | #EDEDEA, 1.1:1 | #282826, 1.2:1 |
+| `--dd-box` | box-plot box | #D8D8D6, 1.4:1 | #3A3A38, 1.5:1 |
+| `--dd-heat-0` | treemap cell at or above its basis | #E3E3E0, 1.2:1 | #2F2F2E, 1.3:1 |
+| `--dd-heat-1` | treemap tint, lightest | #E5C6BE, 1.5:1 | #4B3632, 1.5:1 |
+| `--dd-heat-2` | treemap tint | #E4A89D, 2.0:1 | #673B35, 1.8:1 |
+| `--dd-heat-3` | treemap tint | #E18A7B, 2.5:1 | #844038, 2.3:1 |
+| `--dd-heat-4` | treemap tint, strongest | #DB6A5A, 3.3:1 | #A1433A, 2.7:1 |
 
 Classes: `dd-page` (on body), `dd-head`, `dd-title`, `dd-asof`, `dd-flags`, `dd-grid`, `dd-stack` (a column of sections inside a grid cell), `dd-sec`, `dd-sec-title`, `dd-qual`, `dd-legend`, `dd-foot`, `dd-sr` (screen-reader-only).
 
@@ -231,18 +298,22 @@ Below the width at which body text would drop under 11 px (1,267 px for 72 colum
 
 - `new OUT [--viewport WxH] [--title T] [--data D.json] [--force]` writes the template. It refuses to overwrite without `--force`.
 - `sync OUT [--data D.json] [--check]` rewrites the css and lib regions from `assets/` and, with `--data`, the data block. `--check` writes nothing and exits 1 when anything differs; with `--data` its PASS line says the data block matched too.
-- `check OUT [--viewport WxH] [--phone WxH] [--json] [--no-browser]` runs the static pass, then the browser pass, prints one `PASS`, `WARN` or `FAIL` line per finding with the mistake number and the fix, saves `<stem>.<W>x<H>.png` at the design viewport and `<stem>.phone.png`, the full length of the one-column phone layout, beside the page, and exits 1 on any FAIL.
+- `check OUT [--viewport WxH] [--phone WxH] [--theme light|dark|both] [--json] [--no-browser]` runs the static pass, then the browser pass, prints one `PASS`, `WARN` or `FAIL` line per finding with the mistake number and the fix, saves `<stem>.<W>x<H>.png` at the design viewport, `<stem>.<W>x<H>.dark.png` in the dark scheme, and `<stem>.phone.png`, the full length of the one-column phone layout, beside the page, and exits 1 on any FAIL.
+
+The desktop pass runs once per scheme, light and dark by default, so contrast, color, fit and clipping are judged in both; `--theme light` or `--theme dark` runs one alone. Each desktop finding names the schemes it holds in, as in `PASS fit in light and dark`, and a finding that differs between them prints once for each, as the color line does, since it lists each scheme's reds. The phone pass runs in light. A run in which Chrome ignored the requested scheme WARNs that the scheme was not judged. `--json` prints the reports under `light`, `dark` and `phone`.
+
+The page carries no check code. `check` writes a copy of the page beside it, named `.<stem>.<random>.dd-check.html`, with `assets/check.js` inlined after the lib region, renders the copy, and deletes it, so the page keeps its relative paths and is never changed. `check.js` reads the page through the DOM and the library's public `DataDashboard.flagged()` and `DataDashboard.version`, records the errors the page script throws, and writes the report once the page has loaded and its fonts are ready. The screenshots are of the page itself.
 
 The static pass checks the regions' hashes, the data block, comparisons (mistake 2), refused media calls (5), hand-drawn `<rect>`, `<circle>`, `<path>`, `<line>`, `<polyline>`, `<polygon>` or `<ellipse>` (7), network loads, gradients and shadows (11), canvas and rotated text (7), rounded or fully bordered boxes (11), saturated or red-and-green colors in the page's CSS (12), and that `--dd-cols` and `--dd-rows` match the viewport meta.
 
-The browser pass judges the page's report for fit against the viewport and the footer (1), overlapping sections (9), clipped or colliding text and type under 9 px (7), text contrast under 4.5:1 (3:1 for large text) and marks under 3:1 (12), saturated colors other than the two alert reds (12), alert share over 20% (10), groups outside 3 to 9 (9), mounts that drew nothing (2), and script errors, which carry their own mistake number.
+The browser pass judges the page's report for fit against the viewport and the footer (1), overlapping sections (9), clipped or colliding text and type under 9 px (7), text contrast under 4.5:1 (3:1 for large text), with SVG text judged against the fill beneath it, such as a treemap cell, and marks under 3:1 (12), saturated colors other than the alert reds and the treemap's tints of them (12), alert share over 20% (10), groups outside 3 to 9 (9), mounts that drew nothing (2), and script errors, which carry their own mistake number.
 
 ### The report
 
-`#dd-report` holds `{version, viewport: {w, h}, layout, page: {w, h}, fontPx, sections: [{name, x, y, w, h, bottom, right}], footTop, overlaps: [{a, b, w, h}], clipped: [{text, px}], collide: [{a, b}], small: [{text, px}], contrast: [{text, ratio, need, color, bg}], marks: [{el, color, ratio}], colors: [{color, count, where}], rows: {total, alert: [labels], warn: [labels]}, groups, empty: [elements], noComparison: [labels], asOf, errors: [messages]}`. `rows` is `dd.flagged()`, so the check's alert count and the page's count line always agree.
+`check.js` writes `<script type="application/json" id="dd-report">`, which holds `{version, viewport: {w, h}, layout, scheme, page: {w, h}, fontPx, sections: [{name, x, y, w, h, bottom, right}], footTop, overlaps: [{a, b, w, h}], clipped: [{text, px}], collide: [{a, b}], small: [{text, px}], contrast: [{text, ratio, need, color, bg}], marks: [{el, color, ratio}], colors: [{color, count, where}], rows: {total, alert: [labels], warn: [labels]}, groups, empty: [elements], noComparison: [labels], asOf, errors: [messages]}`. `rows` is `dd.flagged()`, so the check's alert count and the page's count line always agree.
 
 ### Browser
 
-Discovery order: `$DD_BROWSER`; the Google Chrome, Chromium, Microsoft Edge and Brave Browser app bundles in `/Applications` and `~/Applications`; `google-chrome`, `google-chrome-stable`, `chromium`, `chromium-browser`, `microsoft-edge` and `brave-browser` on `PATH`; then the Playwright caches, headless shell first. Flags: `--headless=new --disable-gpu --hide-scrollbars --force-device-scale-factor=1 --no-first-run --no-default-browser-check --disable-extensions --virtual-time-budget=5000` and a throwaway `--user-data-dir`, plus `--no-sandbox` when running as root. With no browser, or one that does not finish within 60 s, the check runs the static pass and WARNs that fit was not measured.
+Discovery order: `$DD_BROWSER`; the Google Chrome, Chromium, Microsoft Edge and Brave Browser app bundles in `/Applications` and `~/Applications`; `google-chrome`, `google-chrome-stable`, `chromium`, `chromium-browser`, `microsoft-edge` and `brave-browser` on `PATH`; then the Playwright caches, headless shell first. Flags: `--headless=new --disable-gpu --hide-scrollbars --force-device-scale-factor=1 --no-first-run --no-default-browser-check --disable-extensions --virtual-time-budget=5000`, `--blink-settings=preferredColorScheme=1` for light or `=0` for dark, and a throwaway `--user-data-dir`, plus `--no-sandbox` when running as root. With no browser, or one that does not finish within 60 s, the check runs the static pass and WARNs that fit was not measured.
 
 The report pass reads `innerWidth` and `innerHeight` back and relaunches with the difference added, because `--dump-dom` on Chrome 157 for macOS lays out 87 px shorter than `--window-size`. Chrome on macOS also lays out no narrower than 500 px, so there the phone pass and its PNG run at 500 px and say so; Playwright's headless shell lays out at a true 390 px.

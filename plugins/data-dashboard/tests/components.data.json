@@ -1,0 +1,415 @@
+{
+ "asOf": "2026-10-13T08:00:00-07:00",
+ "tz": "America/Los_Angeles",
+ "locale": "en-US",
+ "policy": {
+  "warn": 0.95,
+  "alert": 0.85
+ },
+ "measures": {
+  "revenue": {
+   "label": "Revenue",
+   "units": "U.S. $, QTD",
+   "value": 5900000,
+   "projection": 7350000,
+   "target": 7500000,
+   "format": "usd0k",
+   "history": [6120, 5980, 6400, 6550, 7010, 6880, 7200, 7330, 7020, 7450, 7600, 7810]
+  },
+  "profit": {
+   "label": "Profit",
+   "units": "U.S. $",
+   "value": 1020000,
+   "target": 1400000,
+   "format": "usd0k",
+   "history": [1310, 1290, 1350, 1300, 1260, 1240, 1190, 1150, 1120, 1090, 1060, 1020]
+  },
+  "orderSize": {
+   "label": "Avg order size",
+   "units": "U.S. $",
+   "value": 1620,
+   "target": 1000,
+   "format": "usd0",
+   "history": [880, 910, 940, 990, 1010, 1080, 1150, 1240, 1300, 1420, 1510, 1620]
+  },
+  "onTime": {
+   "label": "On-time delivery",
+   "units": "% of orders, one month so far",
+   "value": 0.912,
+   "target": 0.95,
+   "format": "pct1",
+   "history": [0.912],
+   "policy": {
+    "warn": 0.99,
+    "alert": 0.97
+   }
+  },
+  "expenses": {
+   "label": "Expenses",
+   "units": "U.S. $, lower is better",
+   "value": 4410000,
+   "target": 4000000,
+   "better": "down",
+   "format": "usd0k",
+   "history": [3800, 3850, 3900, 3950, 4010, 4080, 4120, 4180, 4250, 4300, 4360, 4410]
+  },
+  "newCustomers": {
+   "label": "New customers",
+   "units": "count, no history yet",
+   "value": 412,
+   "target": 450
+  },
+  "support": {
+   "label": "Satisfaction with post-sale support, top-two box",
+   "units": "Share of survey responses with a long units line",
+   "value": 0.81,
+   "target": 0.8,
+   "format": "pct0",
+   "history": [0.74, 0.75, 0.77, 0.76, 0.78, 0.79, 0.8, 0.79, 0.8, 0.81, 0.8, 0.81]
+  },
+  "availability": {
+   "label": "ERP availability",
+   "units": "% of minutes",
+   "value": 0.982,
+   "target": 0.995,
+   "ranges": [0.95, 0.99],
+   "domain": [0.85, 1],
+   "format": "pct1",
+   "history": [0.99, 0.995, 0.998, 0.97, 0.99, 0.999, 0.996, 0.985, 0.99, 0.982]
+  },
+  "backlog": {
+   "label": "Order backlog",
+   "units": "days, lower is better",
+   "value": 0,
+   "target": 3,
+   "better": "down",
+   "ranges": [5, 3],
+   "format": "dec1",
+   "history": [4.2, 3.9, 3.1, 2.4, 1.2, 0.4, 0]
+  },
+  "margin": {
+   "label": "Operating margin",
+   "units": "% of revenue",
+   "value": -0.04,
+   "target": 0.08,
+   "format": "pct0",
+   "history": [0.06, 0.05, 0.03, 0.02, 0.0, -0.01, -0.03, -0.04]
+  },
+  "reno": {
+   "label": "Reno",
+   "value": 6.2,
+   "target": 5,
+   "ranges": [2, 3, 5],
+   "norm": [3, 7],
+   "format": "dec1",
+   "history": [5.1, 5.3, 5.0, 4.8, 5.2, 5.6, 5.9, 6.1, 5.8, 6.0, 6.3, 6.1, 6.4, 6.2]
+  },
+  "joliet": {
+   "label": "Joliet",
+   "value": 7.4,
+   "target": 6,
+   "ranges": [2.5, 4, 6],
+   "norm": [4, 8],
+   "format": "dec1",
+   "history": [6.2, 5.8, 5.1, 4.4, 3.6, 3.1, 3.4, 4.2, 5.0, 5.9, 6.6, 7.0, 7.2, 7.4]
+  },
+  "fresno": {
+   "label": "Fresno",
+   "value": 8.8,
+   "target": 7,
+   "ranges": [3, 5, 7],
+   "norm": [5, 9],
+   "format": "dec1",
+   "history": [8.1, 8.3, 8.0, 8.4, 8.6, 8.2, 8.5, 8.9, 8.7, 8.6, 8.8, 9.0, 8.9, 8.8]
+  }
+ },
+ "regions": [
+  {
+   "label": "North America",
+   "key": "na",
+   "value": 2100000,
+   "target": 2000000
+  },
+  {
+   "label": "Europe",
+   "key": "eu",
+   "value": 1650000,
+   "target": 1700000
+  },
+  {
+   "label": "Asia-Pacific and Oceania regional sales office",
+   "key": "apac",
+   "value": 1180000,
+   "target": 1250000
+  },
+  {
+   "label": "South America",
+   "key": "sa",
+   "value": 640000,
+   "target": 600000,
+   "highlight": true
+  },
+  {
+   "label": "All others",
+   "value": 160000,
+   "target": 150000
+  },
+  {
+   "label": "Middle East",
+   "key": "me",
+   "value": 390000,
+   "target": 480000
+  }
+ ],
+ "pipeline": [
+  {
+   "label": "North America",
+   "key": "na",
+   "actual": 1400000,
+   "pipeline": 700000,
+   "target": 2000000
+  },
+  {
+   "label": "Europe",
+   "key": "eu",
+   "actual": 1050000,
+   "pipeline": 700000,
+   "target": 1700000
+  },
+  {
+   "label": "Asia",
+   "key": "apac",
+   "actual": 700000,
+   "pipeline": 300000,
+   "target": 1250000
+  },
+  {
+   "label": "Middle East",
+   "key": "me",
+   "actual": 260000,
+   "pipeline": 120000,
+   "target": 480000
+  }
+ ],
+ "traffic": {
+  "x": ["12a", "2a", "4a", "6a", "8a", "10a", "12p", "2p", "4p", "6p", "8p", "10p"],
+  "series": [
+   {
+    "name": "Yesterday",
+    "values": [42, 30, 26, 48, 120, 168, 175, 182, 160, 118, 84, 60]
+   },
+   {
+    "name": "7-day mean",
+    "values": [40, 31, 27, 44, 110, 150, 160, 158, 150, 112, 80, 55]
+   },
+   {
+    "name": "6-month mean",
+    "values": [38, 30, 28, 40, 98, 135, 142, 145, 138, 104, 76, 52]
+   }
+  ]
+ },
+ "visitors": {
+  "x": ["Nov", "Dec", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct"],
+  "series": [
+   {
+    "name": "This year",
+    "values": [0.04, 0.09, -0.06, -0.08, 0.02, 0.11, 0.18, 0.15, 0.24, 0.31, 0.27, null]
+   }
+  ]
+ },
+ "response": [
+  {
+   "label": "Data warehouse",
+   "band": [0, 3],
+   "values": [0.8, 1.1, 1.4, 1.9, 2.2, 2.6, 3.1, 3.8, 4.6, 6.2, 9.8]
+  },
+  {
+   "label": "ERP",
+   "band": [0, 2],
+   "values": [0.4, 0.6, 0.7, 0.9, 1.0, 1.2, 1.3, 1.6, 2.4]
+  },
+  {
+   "label": "Web site",
+   "band": [0, 1.6],
+   "values": [0.2, 0.3, 0.3, 0.4, 0.5, 0.6, 0.6, 0.8, 1.1, 1.9]
+  },
+  {
+   "label": "HR",
+   "band": [0, 1.5],
+   "values": [0.3, 0.5, 0.6, 0.6, 0.7, 0.9, 1.0, 1.2]
+  }
+ ],
+ "salaries": [
+  {
+   "label": "Grade 1",
+   "min": 31000,
+   "median": 38000,
+   "max": 46000
+  },
+  {
+   "label": "Grade 2",
+   "min": 40000,
+   "median": 52000,
+   "max": 61000
+  },
+  {
+   "label": "Grade 3",
+   "min": 55000,
+   "median": 64000,
+   "max": 88000
+  }
+ ],
+ "ads": {
+  "sets": [
+   {
+    "name": "Radio",
+    "points": [
+     {
+      "x": 8.2,
+      "y": 9.6
+     },
+     {
+      "x": 9.1,
+      "y": 10.4
+     },
+     {
+      "x": 10.5,
+      "y": 11.0
+     },
+     {
+      "x": 11.8,
+      "y": 12.9
+     },
+     {
+      "x": 12.4,
+      "y": 12.2
+     },
+     {
+      "x": 13.9,
+      "y": 14.8
+     },
+     {
+      "x": 15.2,
+      "y": 15.1
+     },
+     {
+      "x": 16.0,
+      "y": 16.9,
+      "label": "Holiday"
+     },
+     {
+      "x": 17.7,
+      "y": 17.4
+     },
+     {
+      "x": 19.3,
+      "y": 18.8
+     },
+     {
+      "x": 20.6,
+      "y": 20.9
+     },
+     {
+      "x": 21.4,
+      "y": 19.6,
+      "label": "Recall"
+     }
+    ]
+   }
+  ]
+ },
+ "customers": [
+  {
+   "name": "The Big Wine Store",
+   "pipeline": 412000,
+   "qtd": 188000,
+   "ytd": 941000
+  },
+  {
+   "name": "Wines 'R Us",
+   "state": "warn",
+   "pipeline": 305000,
+   "qtd": 120000,
+   "ytd": 612000
+  },
+  {
+   "name": "Cellar Door Partners of the Greater Pacific Northwest",
+   "pipeline": 281000,
+   "qtd": 95000,
+   "ytd": 433000
+  }
+ ],
+ "netNew": [
+  {
+   "label": "May",
+   "value": 12
+  },
+  {
+   "label": "Jun",
+   "value": 0
+  },
+  {
+   "label": "Jul",
+   "value": -5
+  },
+  {
+   "label": "Aug",
+   "value": 8
+  },
+  {
+   "label": "Sep",
+   "value": -2
+  },
+  {
+   "label": "Oct",
+   "value": 15
+  }
+ ],
+ "defects": {
+  "label": "Daily defects",
+  "value": 5,
+  "target": 3,
+  "better": "down",
+  "norm": [0, 3],
+  "history": [2, 1, 3, 2, 1, 0, 2, 4, 2, 1, 1, 3, 2, 2, 1, 0, 2, 5, 3, 2, 1, 2, 2, 1, 3, 2, 4, 3, 2, 5]
+ },
+ "mtd": {
+  "label": "MTD revenue",
+  "value": 111111,
+  "prior": 104000,
+  "format": "usd0",
+  "history": [81368, 85369, 84036, 89371, 93373, 96041, 94707, 98708, 102710, 105378, 108046, 111111]
+ },
+ "states": [
+ {"label": "West", "children": [
+   {"label": "California", "key": "ca", "value": 5900000, "target": 7200000, "format": "usd0k"},
+   {"label": "Washington", "key": "wa", "value": 1850000, "target": 1900000, "format": "usd0k"},
+   {"label": "Arizona", "key": "az", "value": 1240000, "target": 1300000, "format": "usd0k"},
+   {"label": "Oregon", "key": "or", "value": 980000, "target": 900000, "format": "usd0k"},
+   {"label": "Utah", "key": "ut", "value": 610000, "target": 580000, "format": "usd0k"},
+   {"label": "Nevada", "key": "nv", "value": 520000, "target": 600000, "format": "usd0k"}
+ ]},
+ {"label": "South", "children": [
+   {"label": "Texas", "key": "tx", "value": 4600000, "target": 4500000, "format": "usd0k"},
+   {"label": "Florida", "key": "fl", "value": 3100000, "target": 3300000, "format": "usd0k"},
+   {"label": "Georgia", "key": "ga", "value": 1530000, "target": 1600000, "format": "usd0k"},
+   {"label": "North Carolina", "key": "nc", "value": 1450000, "target": 1500000, "format": "usd0k"},
+   {"label": "Virginia", "key": "va", "value": 1200000, "target": 1150000, "format": "usd0k"},
+   {"label": "Tennessee", "key": "tn", "value": 700000, "target": 900000, "format": "usd0k"}
+ ]},
+ {"label": "Northeast", "children": [
+   {"label": "New York", "key": "ny", "value": 4100000, "target": 4300000, "format": "usd0k"},
+   {"label": "Pennsylvania", "key": "pa", "value": 1900000, "target": 1850000, "format": "usd0k"},
+   {"label": "Massachusetts", "key": "ma", "value": 1750000, "target": 1800000, "format": "usd0k"},
+   {"label": "New Jersey", "key": "nj", "value": 1500000, "target": 1700000, "format": "usd0k"},
+   {"label": "Connecticut", "key": "ct", "value": 680000, "target": 700000, "format": "usd0k"}
+ ]},
+ {"label": "Midwest", "children": [
+   {"label": "Illinois", "key": "il", "value": 2300000, "target": 2250000, "format": "usd0k"},
+   {"label": "Ohio", "key": "oh", "value": 1630000, "target": 1700000, "format": "usd0k"},
+   {"label": "Michigan", "key": "mi", "value": 1400000, "target": 1450000, "format": "usd0k"},
+   {"label": "Minnesota", "key": "mn", "value": 900000, "target": 880000, "format": "usd0k"},
+   {"label": "Wisconsin", "key": "wi", "value": 780000, "target": 800000, "format": "usd0k"}
+ ]}
+ ]
+}

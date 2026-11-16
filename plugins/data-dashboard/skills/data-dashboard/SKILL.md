@@ -77,6 +77,7 @@ Pick each measure's medium by what the viewer needs to see. `reference/media.md`
 | wholes and their parts, or actual plus pipeline against target | stacked bars | `dd.stacked` |
 | the shape of a series over time, or its deviation from a baseline | line, labeled at its end | `dd.line` |
 | how values spread against an acceptable band | box plot | `dd.box` |
+| a condition across too many items for a table, such as revenue by state against quota | treemap | `dd.treemap` |
 | values to look up, ranked lists, schedules | text table | `dd.text` |
 
 Never draw a pie, donut, gauge, meter, thermometer, traffic light, radar, area graph, or anything in 3D. The library has no function for any of them, and a call to one throws an error that names the medium to use instead. Use the same medium for the same kind of data everywhere, even if every key measure ends up a bullet graph.
@@ -140,10 +141,10 @@ Done when the page opens from `file://` and every graphic on it comes from a lib
 python3 <skill>/scripts/dashboard.py check dashboard.html
 ```
 
-The check renders the page in headless Chrome at the design viewport and at phone width, saves a screenshot of each beside the page, and prints a `PASS`, `WARN`, or `FAIL` line per finding, each naming the element, the numbers, the mistake it commits, and the fix. It fails a page that scrolls, clips or overlaps text, draws a shape by hand, loads anything from the network, or shows a measure with nothing to compare against.
+The check renders the page in headless Chrome at the design viewport, in the light and the dark scheme, and at phone width, saves a screenshot of each beside the page (`<page>.<W>x<H>.png`, `.dark.png`, and `.phone.png`), and prints a `PASS`, `WARN`, or `FAIL` line per finding, each naming the element, the numbers, the mistake it commits, and the fix. It fails a page that scrolls, clips or overlaps text, draws a shape by hand, loads anything from the network, or shows a measure with nothing to compare against.
 
 - Fix every FAIL and read every WARN.
-- Open the desktop screenshot with Read and look at it as the viewer would. Where does the eye land first? It should land on the alerts and the top-left group. Notice what you see second and third.
+- Open both desktop screenshots with Read and look at each as the viewer would. Where does the eye land first? It should land on the alerts and the top-left group in both schemes. Notice what you see second and third. The page follows the viewer's dark mode on its own, so a page that reads well only in light isn't done; `--theme light` or `--theme dark` checks one scheme alone while you fix it.
 - Walk `reference/mistakes.md` from 1 to 13 against the screenshot.
 - Take at most two more rounds. If the page still doesn't fit, cut rather than shrink.
 
