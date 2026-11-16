@@ -627,6 +627,37 @@ class NodeValues(unittest.TestCase):
         self.assertLess(abs(color.lab(pair[0])[0] - color.lab(pair[1])[0]), 10)
 
 
+class NodeLabels(unittest.TestCase):
+    """--label-field names the column a node's label comes from, ahead of the first name-like column."""
+
+    def test_flows_label_nodes_lines_and_tips_from_the_named_column(self):
+        rows = data.read_table(BikeCase.folder() / "stations.csv").rows
+        short = {r["station_id"]: r["name"].split(" (")[0] for r in rows}
+        self.assertEqual(short["S05"], "South Waterfront")
+        with tempfile.TemporaryDirectory() as out:
+            nodes = Path(out) / "stations-short.csv"
+            nodes.write_text("station_id,name,short,lat,lon\n" + "".join(
+                f"{r['station_id']},\"{r['name']}\",{short[r['station_id']]},{r['lat']},{r['lon']}\n" for r in rows))
+            d = BikeCase.folder()
+            code, text = cli("flows", d / "trips_od.csv", "--nodes", nodes, "--origin", "start_station_id", "--dest", "end_station_id",
+                             "--value", "trips", "--id", "station_id", "--unit", "trips", "--label-field", "short",
+                             "--top", 10, "--layer", "bike", "--out-dir", out)
+            self.assertEqual(code, 0, text)
+            read = lambda name: [f["properties"] for f in json.loads((Path(out) / name).read_text())["features"]]
+            for n in read("bike-nodes.geojson"):
+                self.assertEqual(n["dm_label"], short[n["dm_key"]])
+                self.assertTrue(n["dm_tip"].startswith(short[n["dm_key"]] + ": "), n["dm_tip"])
+            top = min(read("bike.geojson"), key=lambda p: p["dm_rank"])
+            # The scaffold's largest flow: Union Station to South Waterfront (OHSU Commons), 1,486 trips.
+            self.assertEqual(top["dm_label"], "Union Station to South Waterfront")
+            self.assertEqual(top["dm_tip"], "Union Station to South Waterfront: 1,486 trips")
+            with redirect_stderr(io.StringIO()) as err:
+                code, _ = cli("flows", d / "trips_od.csv", "--nodes", nodes, "--origin", "start_station_id", "--dest", "end_station_id",
+                              "--value", "trips", "--id", "station_id", "--label-field", "nickname", "--out-dir", out)
+            self.assertEqual(code, 2)
+            self.assertIn("nickname", err.getvalue())
+
+
 class Symbols(unittest.TestCase):
     def test_radii_are_true_to_area(self):
         # r = 28 sqrt(v / 2500): 5.6, 11.2, 28, so r^2 / v = 784 / 2500 for every value.

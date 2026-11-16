@@ -731,7 +731,9 @@ def read_nodes(args) -> dict:
     lat = data.find_column(t.columns, data.LAT_NAMES, args.lat)
     if not (nid and lon and lat):
         raise InputError(f"--nodes needs id, lon, and lat columns (--id, --lon, --lat); it has {', '.join(t.columns)}")
-    label = data.find_column(t.columns, data.LABEL_NAMES)
+    label = data.find_column(t.columns, data.LABEL_NAMES, args.label_field)
+    if args.label_field and not label:
+        raise InputError(f"--label-field: {args.nodes} has no column {args.label_field!r}; it has {', '.join(t.columns)}")
     nodes = {}
     for r in t.rows:
         x, y = data.parse_number(r[lon]), data.parse_number(r[lat])
