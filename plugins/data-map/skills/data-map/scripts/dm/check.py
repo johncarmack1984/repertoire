@@ -297,7 +297,20 @@ def rule_companions(page: Page) -> list:
     return []
 
 
-MAP_RULES = [rule_projection, rule_tiles, rule_controls, rule_pitch, rule_zoom, rule_legend]
+def rule_annotations(page: Page) -> list:
+    notes = page.spec.get("annotations")
+    if notes is None:
+        return []
+    lonlat = lambda a: isinstance(a, list) and len(a) == 2 and all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in a)
+    good = isinstance(notes, list) and all(isinstance(a, dict) and str(a.get("text") or "").strip()
+                                           and (lonlat(a.get("at")) or re.fullmatch(r"node:.+", str(a.get("at")))) for a in notes)
+    if not good:
+        return [FAIL("annotations", "dm-spec.annotations is not a list of notes, each with text and a place",
+                     'write each as {"text": "...", "at": [lon, lat]} or {"text": "...", "at": "node:<key>"}', 24)]
+    return []
+
+
+MAP_RULES = [rule_projection, rule_tiles, rule_controls, rule_pitch, rule_zoom, rule_legend, rule_annotations]
 PAGE_RULES = [rule_pins, rule_library, rule_fonts, rule_motion, rule_text, rule_companions]
 
 
@@ -370,6 +383,7 @@ def judge_report(rep: dict, page: Page) -> list:
             out.append(PASS("zoom", f"zoom {lo:.2f} to {hi:.2f}; fitted at {rep.get('zoom', 0):.2f}", 25))
         out += judge_layers(rep, page)
         out += judge_labels(rep)
+        out += judge_annotations(rep)
     fonts = rep.get("fonts") or []
     if len(fonts) > 2:
         out.append(WARN("fonts", f"{len(fonts)} font families in use: {', '.join(fonts)}", "use at most two families", 23))
@@ -438,6 +452,22 @@ def judge_labels(rep: dict) -> list:
                             "let the library place the names (drop any text-anchor or text-offset the page sets), or draw fewer flows"))
         if not hidden and not covered and lab["nodes"]:
             out.append(PASS("labels", f"all {lab['nodes']} names of {layer} rendered, and no arrowhead covers one"))
+    return out
+
+
+def judge_annotations(rep: dict) -> list:
+    notes = rep.get("annotations") or []
+    out = []
+    for a in notes:
+        if not a.get("drawn"):
+            out.append(WARN("annotations", f'the note "{a["text"]}" didn\'t render: {a.get("why")}',
+                            "point it at a place the opening view shows, or give the map more room", 24))
+        elif a.get("covers"):
+            out.append(WARN("annotations", f'the note "{a["text"]}" covers the names {", ".join(a["covers"])}',
+                            "shorten the note, or point it at a place with more room around it", 24))
+    if notes and not out:
+        far = sum(1 for a in notes if a.get("farSide"))
+        out.append(PASS("annotations", f"{len(notes)} notes drawn on the map" + (f", {far} at the globe's rim for places on its far side" if far else ""), 24))
     return out
 
 

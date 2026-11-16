@@ -837,16 +837,18 @@ function triangleMeetsBox(tri, [x0, y0, x1, y1]) {
     return Math.max(...t) > Math.min(...r) && Math.max(...r) > Math.min(...t);
   });
 }
-function labelCost(item, o, scene) {
-  const box = labelBox(item, o, scene.size);
-  // A name farther from its point costs a little, so the outer ring wins only where it clears a line.
-  let cost = o.ring * 4;
+// What a box laid over the map covers: the length of flow under it, each arrowhead and circle it touches but OWN,
+// and a heavy cost for leaving the frame.
+function boxCost(box, scene, own) {
+  let cost = 0;
   for (const s of scene.segs) cost += s.weight * clippedLength(s, box) / 1.5;
   for (const hd of scene.heads) if (triangleMeetsBox(hd.tri, box)) cost += 150;
-  for (const k of scene.circles) if (k.key !== item.key && circleMeetsBox(k, box, 1)) cost += 200;
+  for (const k of scene.circles) if (k.key !== own && circleMeetsBox(k, box, 1)) cost += 200;
   if (box[0] < 0 || box[1] < 0 || box[2] > scene.W || box[3] > scene.H) cost += 1000;
   return cost;
 }
+// A name farther from its point costs a little, so the outer ring wins only where it clears a line.
+const labelCost = (item, o, scene) => o.ring * 4 + boxCost(labelBox(item, o, scene.size), scene, item.key);
 function shownLabels(map, labels) {
   const out = new Set();
   for (const {id, source} of labels) for (const f of map.queryRenderedFeatures({layers: [id]})) out.add(`${source}:${f.properties.dm_lid}`);
@@ -912,6 +914,148 @@ function labelReport(map) {
   });
 }
 
+// ---------- annotations: the finding written on the map, a quiet note with a short leader to its place ----------
+
+// A note wraps at one of NOTE.widths px and sits at one of four leader lengths in each of Slocum's label corners,
+// whichever covers least of the flows, arrowheads, circles, names, other notes, and class areas; a place with no
+// node gets a dot.
+const NOTE = {widths: [180, 120], reaches: [12, 24, 40, 64], dot: 2, area: 60};
+let notes = [];
+
+function resolveNotes() {
+  const nodes = {};
+  for (const [name, L] of layersOf()) {
+    const stem = L.kind === 'flows' ? filesOf(name, L).nodes : L.kind === 'sizes' ? name : null;
+    for (const f of (stem && data[stem]?.features) || []) nodes[String(f.properties.dm_key ?? f.id)] = {f, key: `${stem}:${f.properties.dm_lid}`};
+  }
+  notes = (spec.annotations || []).map(a => {
+    const key = typeof a.at === 'string' ? a.at.match(/^node:(.+)$/)?.[1] : null, hit = key == null ? null : nodes[key];
+    const at = hit ? hit.f.geometry.coordinates : Array.isArray(a.at) && a.at.length === 2 && a.at.every(Number.isFinite) ? a.at : null;
+    return {text: String(a.text ?? ''), at, node: hit?.f.properties.dm_label ?? null, circle: hit?.key ?? null,
+      r: hit ? hit.f.properties.dm_r || 3 : NOTE.dot, why: at ? null : key != null ? `no node has the key ${key}` : '"at" is neither [lon, lat] nor "node:<key>"'};
+  });
+}
+
+function bearingTo([lon1, lat1], [lon2, lat2]) {
+  const p1 = lat1 * RAD, p2 = lat2 * RAD, dl = (lon2 - lon1) * RAD;
+  return Math.atan2(Math.sin(dl) * Math.cos(p2), Math.cos(p1) * Math.sin(p2) - Math.sin(p1) * Math.cos(p2) * Math.cos(dl)) / RAD;
+}
+
+// Where a note's leader starts: its place, or on a globe whose far side holds the place, the rim in the place's
+// direction (the farthest point the globe draws along that bearing), pulled inside the frame when zoomed in.
+function noteAnchor(map, n) {
+  const {clientWidth: W, clientHeight: H} = map.getCanvas();
+  const xy = c => { const p = map.project(c); return [p.x, p.y]; };
+  const inside = ([x, y]) => x >= 0 && y >= 0 && x <= W && y <= H;
+  const near = p => inside(p) ? {p, r: n.r, far: false} : null;
+  if (spec.projection.type !== 'globe') return near(xy(n.at));
+  const c = map.getCenter().toArray();
+  if (angularKm(n.at, c) / EARTH_KM / RAD < horizonDeg(map)) return near(xy(n.at));
+  const o = xy(c), b = bearingTo(c, n.at);
+  let rim = o, far = -1;
+  for (let d = 30; d <= 120; d += 0.5) {
+    const p = xy(destination(c, b, d)), r = Math.hypot(p[0] - o[0], p[1] - o[1]);
+    if (r > far) { far = r; rim = p; }
+  }
+  const pad = 4, dx = rim[0] - o[0], dy = rim[1] - o[1];
+  const t = Math.min(1, ...[[dx, o[0], W], [dy, o[1], H]].map(([v, at, max]) => v > 0 ? (max - pad - at) / v : v < 0 ? (pad - at) / v : 1));
+  return {p: [o[0] + dx * t, o[1] + dy * t], r: NOTE.dot, far: true};
+}
+
+// The boxes of the names MapLibre drew, where each one's layout puts it.
+function drawnNames(map, scene) {
+  if (!labelPlan) return [];
+  const shown = shownLabels(map, labelPlan.labels);
+  return labelPlan.labels.flatMap(({id}) => {
+    const layout = drawnLayout(map, id, scene.size);
+    return scene.items.filter(i => i.layer === id && i.seen && shown.has(i.key)).map(i => ({text: i.text, box: labelBox(i, layout(i), scene.size)}));
+  });
+}
+
+function segMeetsCircle({a, b}, {c, r}) {
+  const dx = b[0] - a[0], dy = b[1] - a[1], t = Math.max(0, Math.min(1, ((c[0] - a[0]) * dx + (c[1] - a[1]) * dy) / (dx * dx + dy * dy || 1)));
+  return Math.hypot(a[0] + t * dx - c[0], a[1] + t * dy - c[1]) < r;
+}
+
+// Turning to a far-side place eases there, or jumps under reduced motion. MapLibre keeps the globe one size.
+function turnTo(map, at) {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) map.jumpTo({center: at});
+  else map.easeTo({center: at, duration: 1000});
+}
+
+function placeNotes(map) {
+  const cell = $('dm-map-cell');
+  const layer = cell.querySelector('.dm-notes') || svg('svg', {class: 'dm-notes'}, cell);
+  layer.replaceChildren();
+  if (!notes.length) return;
+  const scene = labelScene(map, labelPlan?.labels || [], labelPlan?.deck ?? !!pageLibs.deck);
+  const names = drawnNames(map, scene), taken = names.map(n => n.box), line = scene.size * 1.25;
+  const areas = layersOf().filter(([name, L]) => L.kind === 'classes' && map.getLayer(name)).map(([name]) => name);
+  // The share of the box over a class area, from a grid of 8 by 3 points.
+  const under = box => {
+    if (!areas.length) return 0;
+    let hit = 0;
+    for (let i = 0; i < 8; i++) for (let j = 0; j < 3; j++) {
+      const x = box[0] + (i + 0.5) * (box[2] - box[0]) / 8, y = box[1] + (j + 0.5) * (box[3] - box[1]) / 3;
+      if (map.queryRenderedFeatures([x, y], {layers: areas}).length) hit++;
+    }
+    return hit / 24;
+  };
+  for (const n of notes) {
+    Object.assign(n, {drawn: false, far: false, box: null, g: null, covers: [], shown: n.text});
+    if (!n.at) continue;
+    const a = noteAnchor(map, n);
+    if (!a) { n.why = 'its place is outside the view'; continue; }
+    n.far = a.far;
+    n.shown = a.far ? `${n.text} (far side)` : n.text;
+    let best = null;
+    for (const [k, width] of NOTE.widths.entries()) for (const reach of NOTE.reaches) for (const [, sx, sy] of CORNERS) {
+      const rows = wrap(n.shown, width), w = Math.max(...rows.map(measure)), h = rows.length * line;
+      const u = sx && sy ? Math.SQRT1_2 : 1, end = [a.p[0] + sx * u * (a.r + reach), a.p[1] + sy * u * (a.r + reach)];
+      const x0 = sx > 0 ? end[0] + 2 : sx < 0 ? end[0] - 2 - w : end[0] - w / 2;
+      const y0 = sy > 0 ? end[1] + 1 : sy < 0 ? end[1] - 1 - h : end[1] - h / 2;
+      const box = [x0, y0, x0 + w, y0 + h], lead = {a: [a.p[0] + sx * u * a.r, a.p[1] + sy * u * a.r], b: end, hw: 0.5};
+      let cost = reach / 2 + 4 * k + boxCost(box, scene, null) + 400 * taken.filter(t => boxesMeet(box, t, 2)).length + NOTE.area * under(box);
+      cost += 100 * taken.filter(t => clippedLength(lead, t) > 0).length;
+      cost += 100 * scene.circles.filter(k => k.key !== n.circle && segMeetsCircle(lead, k)).length;
+      if (!best || cost < best.cost) best = {cost, box, lead, sx, rows};
+    }
+    if (best.cost >= 1000) { n.why = 'no corner around its place has room inside the map'; continue; }
+    const {box, lead, sx, rows} = best, g = svg('g', {class: a.far ? 'dm-note dm-note-far' : 'dm-note'}, layer);
+    svg('line', {x1: lead.a[0], y1: lead.a[1], x2: lead.b[0], y2: lead.b[1], class: 'dm-leader'}, g);
+    if (!n.circle || a.far) svg('circle', {cx: a.p[0], cy: a.p[1], r: NOTE.dot, class: 'dm-leader-dot'}, g);
+    const x = sx > 0 ? box[0] : sx < 0 ? box[2] : (box[0] + box[2]) / 2;
+    const text = svg('text', {'text-anchor': sx > 0 ? 'start' : sx < 0 ? 'end' : 'middle'}, g);
+    rows.forEach((row, i) => svg('tspan', {x, y: box[1] + line * (i + 0.5), dy: '0.35em'}, text, row));
+    if (a.far) {
+      Object.assign(g.dataset, {dmControl: 'turn'});
+      for (const [k, v] of Object.entries({tabindex: 0, role: 'button', 'aria-label': `Turn the globe to ${n.text}`})) g.setAttribute(k, v);
+      g.addEventListener('click', () => turnTo(map, n.at));
+      g.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); turnTo(map, n.at); } });
+    }
+    n.covers = names.filter(nm => boxesMeet(box, nm.box, 0) || clippedLength(lead, nm.box) > 0).map(nm => nm.text);
+    Object.assign(n, {drawn: true, box, g, anchor: a.p});
+    taken.push(box);
+  }
+}
+
+// While the map moves, each note rides with its place; it hides when the place crosses the horizon or leaves the
+// view, and every note is placed again when the move ends.
+function moveNotes(map) {
+  for (const n of notes) {
+    if (!n.g) continue;
+    const a = noteAnchor(map, n);
+    n.g.style.display = a && a.far === n.far ? '' : 'none';
+    if (a) n.g.setAttribute('transform', `translate(${a.p[0] - n.anchor[0]} ${a.p[1] - n.anchor[1]})`);
+  }
+}
+
+function notesReport(map) {
+  const at = map.getCanvas().getBoundingClientRect();
+  return notes.map(n => ({text: n.shown ?? n.text, at: n.at, node: n.node, drawn: !!n.drawn, farSide: !!n.far, why: n.drawn ? null : n.why,
+    covers: n.covers || [], box: n.box && {x: at.x + n.box[0], y: at.y + n.box[1], w: n.box[2] - n.box[0], h: n.box[3] - n.box[1]}}));
+}
+
 // ---------- the report `datamap.py check` judges ----------
 
 const rect = e => { const r = e.getBoundingClientRect(); return {x: r.x, y: r.y, w: r.width, h: r.height}; };
@@ -956,6 +1100,7 @@ function report(map, arcs) {
     arcs: (arcs || []).map(a => ({layer: a.name, apex: a.apex, longestKm: a.longest, height: a.height})),
     arrows: arrowAgreement(map),
     labels: labelReport(map),
+    annotations: map ? notesReport(map) : [],
     tooltips: !!document.querySelector('.dm-tip'),
     rendered: renderedCounts(map),
     viewport: {w: innerWidth, h: innerHeight, dpr: devicePixelRatio}
@@ -1082,6 +1227,7 @@ async function start(libs, extend) {
   const t = Object.fromEntries(['page', 'ocean', 'graticule', 'sphere-edge', 'land', 'land-edge', 'base-line', 'flow', 'node', 'symbol', 'text']
     .map(k => [k, tok(k)]));
   const {style, hover, labels} = buildStyle(libs, t);
+  resolveNotes();
   const map = new maplibregl.Map({container: 'map', style, attributionControl: {compact: true},
     pitch: spec.pitch || 0, maxPitch: spec.pitch || 0, dragRotate: false, pitchWithRotate: false, touchPitch: false,
     renderWorldCopies: false, fadeDuration: 0});
@@ -1109,6 +1255,9 @@ async function start(libs, extend) {
     map.addControl(overlay);
   }
   await placeLabels(map, labels, !!deck);
+  placeNotes(map);
+  map.on('move', () => moveNotes(map));
+  map.on('moveend', () => placeNotes(map));
   if (extend) await extend({map, overlay, layers: (arcs || []).map(a => a.layer), data, spec, legend, libs});
   map.triggerRepaint();
   await Promise.all([once(map, 'idle'), drawn]);

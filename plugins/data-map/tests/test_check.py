@@ -190,6 +190,7 @@ STATIC_BAD = [
      ("FAIL", "pins", None)),
     ("the library edited by hand", "deck-globe", lib_edit, ("FAIL", "library", None)),
     ("dm-spec that doesn't parse", "maplibre-crs", page('"version": 1,', '"version": 1,,'), ("FAIL", "spec", None)),
+    ("a note with no place", "maplibre-crs", spec(annotations=[{"text": "Bangladesh"}]), ("FAIL", "annotations", 24)),
 ]
 
 BROWSER_BAD = [
@@ -605,6 +606,61 @@ class Render(unittest.TestCase):
                 rep = self.render(copy(name, self.tmp / name))[1]["report"]
                 said = any(b["text"] == "Arc height shows distance, not movers." for b in rep["textBoxes"])
                 self.assertEqual(said, want)
+
+    def test_notes_draw_on_the_map_wrapped_and_clear_of_the_names(self):
+        long = "Bangladesh packs about 1,200 people into each square kilometer, more than any other large country"
+        for name, at, text in (("maplibre-crs", [90.4, 23.7], long), ("maplibre-globe", "node:TYO", "Tokyo draws the most movers")):
+            with self.subTest(name):
+                folder = copy(name, self.tmp / name)
+                spec(annotations=[{"text": text, "at": at}])(folder)
+                code, result = self.render(folder)
+                self.assertEqual(code, 0, findings(result, "FAIL"))
+                (note,) = result["report"]["annotations"]
+                self.assertEqual((note["drawn"], note["farSide"], note["covers"]), (True, False, []), note)
+                box, frame = note["box"], result["report"]["mapBox"]
+                self.assertTrue(frame["x"] <= box["x"] and box["x"] + box["w"] <= frame["x"] + frame["w"], (box, frame))
+                self.assertEqual(note["node"], None if name == "maplibre-crs" else "Tokyo")
+                if text == long:
+                    self.assertGreaterEqual(box["h"], 2 * 11 * 1.25, "a long note wraps")
+                    self.assertLessEqual(box["w"], 181)
+                self.assertIn(("PASS", "annotations", 24), findings(result))
+
+    def test_a_note_that_cannot_render_warns(self):
+        for what, at in (("a place outside the view", [10, 50]), ("a node that doesn't exist", "node:NOPE")):
+            with self.subTest(what):
+                folder = copy("maplibre-mercator", self.tmp / what.replace(" ", "-"))
+                spec(annotations=[{"text": "Somewhere", "at": at}])(folder)
+                code, result = self.render(folder)
+                warns = [f["message"] for f in result["findings"] if (f["status"], f["check"]) == ("WARN", "annotations")]
+                self.assertEqual(code, 0, findings(result, "FAIL"))
+                self.assertEqual(len(warns), 1, warns)
+                self.assertIn('the note "Somewhere" didn\'t render', warns[0])
+
+    def test_a_far_side_note_sits_at_the_rim_toward_its_place_and_turns_the_globe_there(self):
+        lima = list(make.PACIFIC["LIM"][1:3])
+        folder = copy("maplibre-globe", self.tmp / "far")
+        spec(annotations=[{"text": "Lima", "at": "node:LIM"}])(folder)
+        rep = self.render(folder)[1]["report"]
+        (note,) = rep["annotations"]
+        self.assertEqual((note["text"], note["drawn"], note["farSide"]), ("Lima (far side)", True, True))
+        frame, box = rep["mapBox"], note["box"]
+        cx, cy = frame["x"] + frame["w"] / 2, frame["y"] + frame["h"] / 2
+        near = math.hypot(max(box["x"] - cx, 0, cx - box["x"] - box["w"]), max(box["y"] - cy, 0, cy - box["y"] - box["h"]))
+        self.assertGreater(near, 0.6 * min(frame["w"], frame["h"]) / 2, "the note sits out by the rim")
+        self.assertGreater(box["x"] + box["w"] / 2, cx, "Lima lies east of the opening center, so its note sits on the right")
+        click = "document.querySelector('.dm-note-far').dispatchEvent(new MouseEvent('click', {bubbles: true}))"
+        for what, code in (("eases there", f"{click}; await map.once('moveend')"),
+                           ("jumps under reduced motion", f"window.matchMedia = () => ({{matches: true}}); {click}; "
+                                                          "if (map.isMoving()) throw new Error('the globe animated under reduced motion')")):
+            with self.subTest(what):
+                folder = copy("maplibre-globe", self.tmp / what.replace(" ", "-"))
+                spec(annotations=[{"text": "Lima", "at": "node:LIM"}])(folder)
+                extend(code)(folder)
+                result = self.render(folder)[1]
+                self.assertIn(("PASS", "ready", 33), findings(result))
+                rep = result["report"]
+                self.assertLess(degrees(rep["center"], lima), 0.01)
+                self.assertEqual(rep["annotations"][0]["farSide"], False)
 
     def test_a_synced_page_without_data_renders_and_passes(self):
         folder = copy("maplibre-globe", self.tmp)
