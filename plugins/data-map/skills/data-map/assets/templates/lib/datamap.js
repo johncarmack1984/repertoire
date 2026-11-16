@@ -108,7 +108,7 @@ const LEGENDS = {
     }
     const s = svg('svg', {width: '100%', height: y}, sec);
     const pattern = svg('pattern', {id: `dm-hatch-${name}`, width: 6, height: 6, patternUnits: 'userSpaceOnUse', patternTransform: 'rotate(45)'}, svg('defs', {}, s));
-    svg('line', {x1: 0, y1: 0, x2: 0, y2: 6, stroke: 'rgba(40,40,40,0.5)', 'stroke-width': 1.2}, pattern);
+    svg('line', {x1: 0, y1: 0, x2: 0, y2: 6, stroke: 'rgba(40,40,40,0.3)', 'stroke-width': 1.2}, pattern);
     colors.forEach((c, i) => {
       if (across) {
         mark(svg('rect', {x: i * cell, y: 0, width: cell, height: sh, fill: c}, s), name, 'class', c, labels[i], (counts[i] ?? 1) > 0);
@@ -333,7 +333,7 @@ function arrowImage() {
 function hatchImage() {
   const s = 24, px = new Uint8ClampedArray(s * s * 4);
   for (let y = 0; y < s; y++) for (let x = 0; x < s; x++) {
-    if ((x + y) % 12 < 2) px.set([40, 40, 40, 120], (y * s + x) * 4);
+    if ((x + y) % 12 < 2) px.set([40, 40, 40, 70], (y * s + x) * 4);
   }
   return {width: s, height: s, data: px};
 }
