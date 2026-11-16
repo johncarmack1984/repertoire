@@ -36,9 +36,9 @@ graders:
     type: regex
     pattern: 'setInterval|auto-?play|auto-?advanc|loops?\b|looping|animat|advances every|forever|endless'
     flags: i
-  - name: names-a-denominator
+  - name: fixes-the-filled-totals
     type: regex
-    pattern: 'per[ -]capita|per (?:1,000|1000|100,000|million|thousand|person|people)|normali[sz]|share of (?:new )?(?:car )?sales|\bpopulation\b'
+    pattern: 'per[ -]capita|per (?:1,000|1000|100,000|million|thousand|person|people)|normali[sz]|share of (?:new )?(?:car )?sales|\bpopulation\b|proportional (?:symbol|circle)|circles? sized|sized by (?:area|total)|graduated (?:symbol|circle)'
     flags: i
   # Indicator: reported, not scored.
   - name: skill-fired
