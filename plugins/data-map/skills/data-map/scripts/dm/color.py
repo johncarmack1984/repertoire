@@ -23,6 +23,10 @@ CVD = {
 # class pairs must keep. Every ColorBrewer scheme rated colorblind-safe at k <= 7 clears it (lowest 5.3,
 # BrBG at 7); RdYlGn at 6 and 7 (1.3) and Spectral at 7 (4.5) do not. Named schemes use Brewer's own rating.
 MIN_DELTA_E = 5.0
+# Smallest difference, under the same four visions, for two colors that alone carry a sign (a gain and a loss).
+# Every ColorBrewer diverging scheme rated colorblind-safe keeps its two ends at least 36.7 apart (PRGn at 3);
+# RdYlGn's red and green ends fall to 19.6 to 23.2.
+PAIR_MIN_DELTA_E = 30.0
 
 
 @dataclass(frozen=True)

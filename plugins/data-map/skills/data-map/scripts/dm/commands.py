@@ -772,6 +772,7 @@ def run_flows(args) -> int:
     drawn = flows.net(all_flows) if args.net else all_flows
     kept, share = flows.keep_top(drawn, args.top, args.share)
     unit = args.unit or vcol
+    node_colors = node_color_pair(args, findings)
     note = flows.omitted_note(len(kept), len(drawn), share, unit)
     limit = flows.HAIRBALL[args.geometry]
     if args.top is None and args.share is None and len(drawn) > limit:
@@ -790,8 +791,10 @@ def run_flows(args) -> int:
     reciprocal = sum(1 for p in placed if (p.flow.d, p.flow.o) in pair_set) // 2
     lines, arrows, arcs = [], [], []
     node_ids = {key: i + 1 for i, key in enumerate(sorted({x for p in placed for x in (p.flow.o, p.flow.d)}))}
-    gross_max = max(totals[k]["gross"] for k in node_ids)
-    node_r = {k: symbols.radius(totals[k]["gross"], gross_max, flows.NODE_RMAX) for k in node_ids}
+    measure = flows.NODE_VALUES[args.node_value]
+    sized = {k: measure.size(totals[k]) for k in node_ids}
+    size_max = max(sized.values())
+    node_r = {k: symbols.radius(sized[k], size_max, flows.NODE_RMAX) for k in node_ids}
     split = 0
     for fid, p in enumerate(sorted(placed, key=lambda p: order[p.flow]), start=1):
         f = p.flow
@@ -805,24 +808,26 @@ def run_flows(args) -> int:
         alpha = flows.opacity(f.value, vmin, vmax, fade_min)
         offset = flows.side_offset(w) if (f.d, f.o) in pair_set else 0
         props = {"dm_o": f.o, "dm_d": f.d, "dm_value": f.value, "dm_width": w, "dm_offset": offset, "dm_opacity": alpha,
-                 "dm_order": order[f], "dm_km": round(p.km, 1), "dm_fill": color,
+                 "dm_order": order[f], "dm_rank": order[f] + 1, "dm_km": round(p.km, 1), "dm_fill": color,
                  "dm_label": label, "dm_tip": text}
         # Six decimals, about 0.1 m: at five, rounding turns the vertices of a short curve by several degrees.
         lines.append(data.feature(fid, props, g, nd=6))
         arrows.append(data.feature(fid, {"dm_o": f.o, "dm_d": f.d, "dm_value": f.value, "dm_bearing": round(geo.end_bearing(p.coords), 2),
                                          "dm_arrow": round(flows.arrow_size(w), 2), "dm_width": w, "dm_offset": offset, "dm_opacity": alpha,
-                                         "dm_order": order[f], "dm_setback": round(node_r[f.d], 2), "dm_fill": color},
+                                         "dm_order": order[f], "dm_rank": order[f] + 1, "dm_setback": round(node_r[f.d], 2), "dm_fill": color},
                                    {"type": "Point", "coordinates": nodes[f.d].pos}))
         arcs.append({"source": data.round_coords(nodes[f.o].pos), "target": data.round_coords(nodes[f.d].pos), "value": f.value,
                      "width": w, "color": color, "opacity": alpha, "km": round(p.km, 1)})
-    node_order = symbols.order_largest_first([totals[k]["gross"] for k in node_ids])
+    node_order = symbols.order_largest_first([sized[k] for k in node_ids])
     node_feats = []
     for (key, nid), rank in zip(node_ids.items(), node_order):
         tt = totals[key]
-        node_feats.append(data.feature(nid, {"dm_key": key, "dm_label": nodes[key].label, "dm_value": tt["gross"],
-                                             "dm_r": round(node_r[key], 2), "dm_order": rank, "dm_fill": flows.NODE_COLOR,
-                                             "dm_tip": f"{nodes[key].label}: {num(tt['out'])} out, {num(tt['in'])} in, {num(tt['gross'])} in all"},
-                                       {"type": "Point", "coordinates": nodes[key].pos}))
+        props = {"dm_key": key, "dm_label": nodes[key].label, "dm_value": sized[key], "dm_r": round(node_r[key], 2), "dm_order": rank,
+                 "dm_fill": flows.node_fill(tt["net"], node_colors),
+                 "dm_tip": f"{nodes[key].label}: {num(tt['in'])} {unit} in, {num(tt['out'])} out, net {'+' if tt['net'] > 0 else ''}{num(tt['net'])}"}
+        if node_colors:
+            props["dm_net"] = tt["net"]
+        node_feats.append(data.feature(nid, props, {"type": "Point", "coordinates": nodes[key].pos}))
     if args.geometry == "curved":
         findings.append(PASS("curves", f"each flow bows to the right of travel, more for longer flows (curvature {flows.CURVE_MIN} to {flows.CURVE_MAX}); {reciprocal} reciprocal {'pair sits' if reciprocal == 1 else 'pairs sit'} on opposite sides", 15))
     else:
@@ -845,6 +850,16 @@ def run_flows(args) -> int:
     lvals = flows.legend_values(vmin, vmax, args.max_width, args.min_width)
     lwidths = [round(flows.width(v, vmax, args.max_width, args.min_width), 2) for v in lvals]
     lopacities = [flows.opacity(v, vmin, vmax, fade_min) for v in lvals]
+    positive = [v for v in sized.values() if v > 0]
+    nvals = symbols.legend_values(min(positive), size_max) if positive else []
+    node_legend = {"rmax": flows.NODE_RMAX, "scaling": "area", "value": args.node_value,
+                   "title": flows.nodes_title(unit, len(all_flows), args.node_value),
+                   "legend_values": nvals, "legend_radii": [round(symbols.radius(v, size_max, flows.NODE_RMAX), 2) for v in nvals]}
+    fills = ""
+    if node_colors:
+        node_legend["colors"] = {"gain": node_colors[0], "loss": node_colors[1]}
+        fills = f"; {node_colors[0]} where more arrive than leave, {node_colors[1]} where more leave"
+    findings.append(PASS("nodes", f"each circle's area is true to its {unit} {measure.words}, and the largest ({num(size_max)}) has a {flows.NODE_RMAX:g} px radius{fills}"))
     name = args.layer or "flows"
     layer = {"kind": "flows", "title": args.title or unit, "unit": unit, "geometry": args.geometry, "color": color,
              "kept": len(kept), "total": len(drawn), "kept_share": round(share, 4), "omitted_note": note, "net": bool(args.net),
@@ -852,7 +867,7 @@ def run_flows(args) -> int:
              "fade": {"min": fade_min, "vmin": vmin, "vmax": vmax, "scale": "linear"},
              "legend_values": lvals, "legend_widths": lwidths, "legend_opacities": lopacities,
              "arrow": {"ratio": flows.ARROW_RATIO, "min_px": flows.ARROW_MIN_PX},
-             "nodes": {"rmax": flows.NODE_RMAX, "scaling": "area", "value": "gross", "title": flows.nodes_title(unit, len(all_flows))},
+             "nodes": node_legend,
              "files": {"lines": f"{name}.geojson", "nodes": f"{name}-nodes.geojson", "arrows": f"{name}-arrows.geojson", "arcs": f"{name}-arcs.json"}}
     decisions = [
         legend.decision("geometry", args.geometry, "curves separate reciprocal and overlapping flows" if args.geometry == "curved" else "great circles on a globe", "Jenny et al. 2018 §4.1"),
@@ -861,9 +876,26 @@ def run_flows(args) -> int:
                         "larger flows darker, faded by magnitude and never by length" if fade_min < 1 else "--no-fade",
                         "Jenny et al. 2018 §4.2", "Slocum §20.7.2.1"),
         legend.decision("top-n", note, "fewer flows read; the cut is stated", "Jenny et al. 2018", "Yang et al. 2019"),
+        legend.decision("nodes", f"circle area by {unit} {measure.words}" + (", filled by sign" if node_colors else ""),
+                        "a place's balance, which the pairs can't show" if node_colors else "true to area, across every flow before the cut",
+                        "Slocum §20.7.2.2" if node_colors else "Slocum §17.5"),
     ]
     files = {f"{name}-nodes.geojson": node_feats, f"{name}-arrows.geojson": arrows, f"{name}-arcs.json": arcs}
     return write_layer(args, lines, layer, flows.answers(all_flows, nodes, totals), decisions, findings, files)
+
+
+def node_color_pair(args, findings: list) -> tuple | None:
+    """(gain, loss) fills for --node-value net, warned when colorblind readers can't tell them apart; None otherwise."""
+    if args.node_value != "net":
+        if args.node_colors:
+            raise InputError("--node-colors fills gains and losses, so it needs --node-value net")
+        return None
+    pair = args.node_colors or (flows.GAIN_COLOR, flows.LOSS_COLOR)
+    worst, vision, _, _ = color.worst_pair(pair, "qual")
+    if worst < color.PAIR_MIN_DELTA_E:
+        findings.append(WARN("node colors", f"gains ({pair[0]}) and losses ({pair[1]}) differ by {worst:.1f} CIE76 under {vision} vision",
+                             "pick two colors that colorblind readers can tell apart, such as the defaults", 8))
+    return pair
 
 
 def km_range(placed: list) -> tuple:
@@ -912,6 +944,13 @@ def hex_color(text: str) -> str:
     if not re.fullmatch(r"#[0-9a-fA-F]{6}", text):
         raise argparse.ArgumentTypeError("a color as #rrggbb")
     return text.lower()
+
+
+def color_pair(text: str) -> tuple:
+    bits = text.split(",")
+    if len(bits) != 2:
+        raise argparse.ArgumentTypeError("two colors as #rrggbb,#rrggbb")
+    return tuple(hex_color(b.strip()) for b in bits)
 
 
 def register(sub) -> None:
@@ -994,6 +1033,10 @@ def register(sub) -> None:
     p.add_argument("--fade-min", type=share, default=flows.FADE_MIN, metavar="A",
                    help=f"opacity of the smallest kept flow; the largest is 1 (default {flows.FADE_MIN:g})")
     p.add_argument("--no-fade", action="store_true", help="draw every flow fully opaque")
+    p.add_argument("--node-value", choices=list(flows.NODE_VALUES), default="gross",
+                   help="what a node's circle area counts: in plus out (gross), arrivals (in), departures (out), or |in - out| (net, filled by sign)")
+    p.add_argument("--node-colors", type=color_pair, metavar="GAIN,LOSS",
+                   help=f"fills for --node-value net (default {flows.GAIN_COLOR},{flows.LOSS_COLOR}, a teal and a violet)")
     add_layer_output(p)
     add_common(p)
     p.set_defaults(run=run_flows)

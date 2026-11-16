@@ -7,7 +7,7 @@ The chooser's row in `SKILL.md` for origin-destination pairs, regional or global
 Flows fit origin-destination pairs whose route doesn't matter, where the task is the largest flows and their direction (Slocum §20.3). Go back to the chooser when one of these holds:
 
 - The question is the network's structure, such as hubs, clusters, or paths. Take the networks row.
-- The balance per place matters more than the pairs. Map each place's net flow, (in - out) / (in + out), on the choropleth row with a diverging scheme around zero (Slocum §20.7.2.2).
+- The balance per place matters more than the pairs. Map each place's net flow, (in - out) / (in + out), on the choropleth row with a diverging scheme around zero (Slocum §20.7.2.2). When the pairs matter too, keep this row and size the nodes by their balance, as **Nodes** below says.
 - Thousands of flows, where their overall density is the message. A density of flows answers it, not single lines (Muehlenhaus ch. 13).
 
 Two adjustments keep the row. When origins differ greatly in size and the question is propensity, divide each flow by its origin's size first, or the largest origin wins by default (Slocum §20.3). When the route matters, as for the tracks of tagged animals, draw the tracks themselves, and this file's rules on width, order, and direction still hold (Slocum §20.3).
@@ -42,9 +42,11 @@ python3 <skill>/scripts/datamap.py flows routes.csv --nodes airports.csv --origi
 
 **Direction.** Arrowheads at the destination end, scaled with the flow's width, enlarged on thin flows, and set back from the node symbol (Jenny §4.2). `flows` writes them as points with `dm_bearing` and `dm_arrow`. "Direction is best indicated with arrowheads." (Jenny §4.2), and in Jenny's study they beat tapered lines on every question, 51 against 14 percent correct for incoming flows (Jenny §3.2.3.2). Tapers suit only links of equal length and width, the case where graph-drawing studies favored them (Jenny §2.2.3). For dense two-way flows, Koylu and Guo's half arrowhead with biased curvature did best overall (Slocum §20.7.2.1); record it as a Departure.
 
-**Draw order.** Small flows on top of large ones (Slocum §20.4; Jenny §4.1). `dm_order` rises as the value falls. MapLibre reads it through `line-sort-key`, and deck.gl draws in data order.
+**Draw order.** Small flows on top of large ones (Slocum §20.4; Jenny §4.1). `dm_order` rises as the value falls. MapLibre reads it through `line-sort-key`, and deck.gl draws in data order. `dm_rank` counts from 1 at the largest flow, for a page that filters by rank.
 
 **Color.** One hue for every flow, a dark warm brown by default; `--color` sets another. `flows` makes larger flows more opaque through `dm_opacity`, which Jenny offers as a hypothesis (Jenny §4.2), so short heavy hops keep their weight beside long thin arcs; `--fade-min` sets the faintest, and `--no-fade` turns it off. Fade by magnitude, never by length (Slocum §20.7.2.1). Never show direction with red and green (Slocum §20.7.3). Broad, swooping red arrows read as an army's advance, which is wrong for people forced from their homes (Slocum §20.4). A moderate gray casing separates overlapping flows (Slocum §20.7.2.2).
+
+**Nodes.** Each node of a drawn flow gets a circle true to area, totaled over every flow before the cut. `--node-value` picks what the area counts: `gross`, in plus out, by default; `in` or `out`; or `net`, the size of in minus out. Gross makes a large origin look like a destination, so take `in` when the reader asks where people go. Take `net` when the decision turns on each place's balance, such as where bikes pile up overnight. It fills a gain teal (`#018571`) and a loss violet (`#6a51a3`); `--node-colors` sets others. The two stay at least 36 CIE76 apart under normal and simulated protan, deutan, and tritan vision, and 39 from the flows' brown, so no node reads as a flow, and their lightness differs by 8, so neither side outweighs the other. `flows` warns on a pair under 30 apart, where red and green fall. Every node's `dm_tip` gives in, out, and net.
 
 **Raised arcs.** Flat by default, because Munzner allows 3D only for a task about 3D shape (Munzner §6.3). Yang found raised arcs on a globe the most accurate, but in VR headsets, with 12 to 20 participants and one comparison task (Yang §4 to §6). Raise arcs only when the extent is the world, the stack is deck.gl or a custom layer, the height comes from the flow's length and never its volume (the deck.gl page sets it from `dm_km`), and Departures records the reason. Height by distance scored 0.98 where height by quantity scored 0.87 (Yang §4.3). Readers of raised arcs tilted and moved the view more (Yang §4.3), so the page allows pitch and rotation, and `dm-spec` records both. On mln-rs, raised arcs wait for custom layers on the globe.
 
@@ -58,7 +60,7 @@ python3 <skill>/scripts/datamap.py flows routes.csv --nodes airports.csv --origi
 
 - The title states the point. The subtitle names what flows, its unit, the period, and the kept line, as in `The 40 largest of 1,212 routes, 78% of passengers` (P24).
 - Show three or four reference widths from `legend_widths`, each with its value and unit (Jenny §3.2.2).
-- Label only the top origins and destinations. Node circles take area-true sizes from their gross totals.
+- Label only the top origins and destinations. The nested circles and their heading come from `nodes` in `legend.json`, which names what the area counts; under `net`, show its two colors with their meaning.
 - With raised arcs, the legend says that height shows distance (Yang §4.1).
 
 ## Interaction

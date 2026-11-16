@@ -8,6 +8,7 @@ too near a node it does not connect flips side, then bends more.
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from . import geo, symbols
@@ -23,6 +24,10 @@ NODE_RMAX = 10.0
 FLOW_COLOR = "#a63603"
 FADE_MIN = 0.45
 NODE_COLOR = "#525252"
+# ColorBrewer's BrBG teal and Purples violet: under normal vision and simulated protan, deutan, and tritan
+# vision they stay at least 36 CIE76 apart, and 39 from FLOW_COLOR; their L* differ by 8, so neither a gain
+# nor a loss outweighs the other.
+GAIN_COLOR, LOSS_COLOR = "#018571", "#6a51a3"
 HAIRBALL = {"curved": 100, "great-circle": 300}
 CANDIDATES = [(1, 1.0), (-1, 1.0), (1, 1.5), (-1, 1.5), (1, 2.0), (-1, 2.0)]
 
@@ -120,9 +125,32 @@ def omitted_note(kept: int, total: int, share: float, unit: str) -> str:
     return f"The {kept:,} largest of {total:,} flows, {share:.0%} of all {unit}"
 
 
-def nodes_title(unit: str, flows: int) -> str:
+@dataclass(frozen=True)
+class NodeMeasure:
+    """What a node's circle area counts: the words after the unit in the legend, and the total from in and out."""
+
+    words: str
+    size: Callable[[dict], float]
+
+
+NODE_VALUES = {
+    "gross": NodeMeasure("in and out", lambda t: t["in"] + t["out"]),
+    "in": NodeMeasure("arriving", lambda t: t["in"]),
+    "out": NodeMeasure("leaving", lambda t: t["out"]),
+    "net": NodeMeasure("gained or lost (in minus out)", lambda t: abs(t["in"] - t["out"])),
+}
+
+
+def nodes_title(unit: str, flows: int, value: str = "gross") -> str:
     """The circles count every flow, before any cut, so the heading says so."""
-    return f"Circle area: {unit} in and out, across all {flows:,} flows"
+    return f"Circle area: {unit} {NODE_VALUES[value].words}, across all {flows:,} flows"
+
+
+def node_fill(net: float, colors: tuple | None) -> str:
+    """With colors (gain, loss), a node that gains takes the first and one that loses the second; else the plain gray."""
+    if colors is None or net == 0:
+        return NODE_COLOR
+    return colors[0] if net > 0 else colors[1]
 
 
 def curvature_for(d: float, dmin: float, dmax: float) -> float:
@@ -253,13 +281,14 @@ def legend_values(vmin: float, vmax: float, max_px: float, min_px: float) -> lis
 
 
 def node_totals(flows: list) -> dict:
-    """In, out, and gross totals per node over every flow, before any top-N cut."""
+    """In, out, gross, and net (in minus out) totals per node over every flow, before any top-N cut."""
     t = {}
     for f in flows:
         t.setdefault(f.o, {"in": 0.0, "out": 0.0})["out"] += f.value
         t.setdefault(f.d, {"in": 0.0, "out": 0.0})["in"] += f.value
     for v in t.values():
         v["gross"] = v["in"] + v["out"]
+        v["net"] = v["in"] - v["out"]
     return t
 
 

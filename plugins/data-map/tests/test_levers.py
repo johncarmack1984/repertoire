@@ -17,7 +17,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / "skills" / "data-map" / "scripts"))
 
 import datamap  # noqa: E402
-from dm import classify, commands, crs, data, flows, geo, symbols  # noqa: E402
+from dm import classify, color, commands, crs, data, flows, geo, symbols  # noqa: E402
 
 FIX = HERE / "fixtures"
 EVALS = HERE.parent / "evals"
@@ -417,6 +417,89 @@ class Flows(unittest.TestCase):
                 both = (p["dm_d"], p["dm_o"]) in pairs
                 self.assertEqual(p["dm_offset"], round(p["dm_width"] / 2 + 0.5, 2) if both else 0)
                 self.assertEqual(arrows[(p["dm_o"], p["dm_d"])]["dm_offset"], p["dm_offset"])
+
+
+class NodeValues(unittest.TestCase):
+    """Circles sized by arrivals, departures, or the balance, from the bike case's 380 pairs."""
+
+    def totals(self):
+        rows = list(data.read_table(BikeCase.folder() / "trips_od.csv").rows)
+        t = {}
+        for r in rows:
+            v = float(r["trips"])
+            t.setdefault(r["start_station_id"], {"in": 0.0, "out": 0.0})["out"] += v
+            t.setdefault(r["end_station_id"], {"in": 0.0, "out": 0.0})["in"] += v
+        return t
+
+    def run_bike(self, out, *args):
+        code, text = BikeCase.flows(out, "--top", 40, *args)
+        self.assertEqual(code, 0, text)
+        read = lambda name: [f["properties"] for f in json.loads((Path(out) / name).read_text())["features"]]
+        layer = json.loads((Path(out) / "legend.json").read_text())["layers"]["bike"]
+        return read("bike-nodes.geojson"), read("bike.geojson"), read("bike-arrows.geojson"), layer, text
+
+    def test_net_sizes_by_the_balance_and_fills_gains_and_losses_apart(self):
+        t = self.totals()
+        with tempfile.TemporaryDirectory() as out:
+            nodes, _, _, layer, text = self.run_bike(out, "--node-value", "net")
+        # The scaffold's notes: Rose Quarter gains 1,250 bikes over October and Union Station loses 1,036.
+        by_key = {n["dm_key"]: n for n in nodes}
+        self.assertEqual((by_key["S09"]["dm_net"], by_key["S01"]["dm_net"]), (1250, -1036))
+        for n in nodes:
+            net = t[n["dm_key"]]["in"] - t[n["dm_key"]]["out"]
+            self.assertEqual(n["dm_net"], net)
+            self.assertEqual(n["dm_value"], abs(net))
+            self.assertEqual(n["dm_fill"], "#018571" if net > 0 else "#6a51a3" if net < 0 else "#525252")
+            self.assertIn(f"net {'+' if net > 0 else ''}{net:,.0f}", n["dm_tip"])
+            self.assertAlmostEqual(n["dm_r"], 10 * math.sqrt(abs(net) / 1250), places=2)
+        self.assertTrue({"#018571", "#6a51a3"} <= {n["dm_fill"] for n in nodes})
+        legend = layer["nodes"]
+        self.assertEqual((legend["value"], legend["colors"]), ("net", {"gain": "#018571", "loss": "#6a51a3"}))
+        self.assertEqual(legend["title"], "Circle area: trips gained or lost (in minus out), across all 380 flows")
+        for v, r in zip(legend["legend_values"], legend["legend_radii"]):
+            self.assertAlmostEqual(r, 10 * math.sqrt(v / 1250), places=2)
+        self.assertEqual(legend["legend_values"], sorted(legend["legend_values"], reverse=True))
+        self.assertRegex(text, r"(?m)^PASS nodes: ")
+
+    def test_in_and_out_size_by_arrivals_and_departures_in_one_gray(self):
+        t = self.totals()
+        for mode, words in (("in", "arriving"), ("out", "leaving"), ("gross", "in and out")):
+            with tempfile.TemporaryDirectory() as out:
+                nodes, _, _, layer, _ = self.run_bike(out, "--node-value", mode)
+            want = {k: v["in"] + v["out"] if mode == "gross" else v[mode] for k, v in t.items()}
+            biggest = max(want[n["dm_key"]] for n in nodes)
+            for n in nodes:
+                self.assertEqual(n["dm_value"], want[n["dm_key"]])
+                self.assertAlmostEqual(n["dm_r"], 10 * math.sqrt(want[n["dm_key"]] / biggest), places=2)
+                self.assertEqual(n["dm_fill"], "#525252")
+                self.assertNotIn("dm_net", n)
+            self.assertEqual(layer["nodes"]["title"], f"Circle area: trips {words}, across all 380 flows")
+            self.assertNotIn("colors", layer["nodes"])
+
+    def test_every_line_and_arrow_carries_its_rank_from_one(self):
+        with tempfile.TemporaryDirectory() as out:
+            _, lines, arrows, _, _ = self.run_bike(out)
+        for feats in (lines, arrows):
+            ranked = sorted(feats, key=lambda p: p["dm_rank"])
+            self.assertEqual([p["dm_rank"] for p in ranked], list(range(1, 41)))
+            self.assertEqual(ranked[0]["dm_value"], 1486)
+            self.assertEqual([p["dm_value"] for p in ranked], sorted((p["dm_value"] for p in feats), reverse=True))
+
+    def test_node_colors_need_net_and_warn_when_colorblind_readers_cannot_part_them(self):
+        with tempfile.TemporaryDirectory() as out, redirect_stderr(io.StringIO()):
+            self.assertEqual(BikeCase.flows(out, "--node-colors", "#018571,#88419d")[0], 2)
+        with tempfile.TemporaryDirectory() as out:
+            code, text = BikeCase.flows(out, "--node-value", "net", "--node-colors", "#1a9641,#d7191c")
+            self.assertEqual(code, 0, text)
+            self.assertRegex(text, r"(?m)^WARN node colors \[P8\]: ")
+
+    def test_default_gain_and_loss_part_for_every_vision_and_from_the_flows(self):
+        pair = (flows.GAIN_COLOR, flows.LOSS_COLOR)
+        for vision in (None, "protan", "deutan", "tritan"):
+            self.assertGreaterEqual(color.delta_e(*pair, vision), 36)
+            for c in pair:
+                self.assertGreaterEqual(color.delta_e(c, flows.FLOW_COLOR, vision), 39)
+        self.assertLess(abs(color.lab(pair[0])[0] - color.lab(pair[1])[0]), 10)
 
 
 class Symbols(unittest.TestCase):
