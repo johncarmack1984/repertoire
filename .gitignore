@@ -15,3 +15,9 @@ __pycache__/
 # data-dashboard check screenshots (<page>.<W>x<H>.png and <page>.phone.png)
 plugins/data-dashboard/**/*.[0-9]*x[0-9]*.png
 plugins/data-dashboard/**/*.phone.png
+
+# data-map check output (<page>.<W>x<H>.png, @2x, check.json) and mln-rs builds
+plugins/data-map/**/*.[0-9]*x[0-9]*.png
+plugins/data-map/**/*.[0-9]*x[0-9]*@2x.png
+plugins/data-map/**/check.json
+plugins/data-map/**/target/

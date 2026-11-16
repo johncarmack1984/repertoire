@@ -1,0 +1,36 @@
+name: data-map native
+
+# Builds data-map's mln-rs template on fixture flows and checks its offscreen snapshot. It runs on macOS,
+# where Metal renders with no setup, and only when the template, the levers, or the check change.
+on:
+  push:
+    branches: [main]
+    paths:
+      - plugins/data-map/skills/data-map/assets/templates/mln-rs/**
+      - plugins/data-map/skills/data-map/scripts/**
+      - plugins/data-map/tests/native.sh
+      - .github/workflows/data-map-native.yml
+  pull_request:
+    paths:
+      - plugins/data-map/skills/data-map/assets/templates/mln-rs/**
+      - plugins/data-map/skills/data-map/scripts/**
+      - plugins/data-map/tests/native.sh
+      - .github/workflows/data-map-native.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: data-map-native-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  template:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install Rust
+        run: rustup toolchain install stable --profile minimal && rustup default stable
+      - name: Build the template, render it offscreen, and check the snapshot
+        run: bash plugins/data-map/tests/native.sh
