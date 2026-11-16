@@ -759,7 +759,7 @@ function labelScene(map, labels, deck) {
     .map(f => {
       const c = f.geometry.coordinates, p = xy(c);
       return {layer: id, rank: layer, lid: f.properties.dm_lid, key: `${source}:${f.properties.dm_lid}`, text: String(f.properties.dm_label),
-        order: f.properties.dm_order ?? 0, p, r: f.properties.dm_r || 3, w: measure(f.properties.dm_label),
+        order: f.properties.dm_order ?? 0, p, r: f.properties.dm_r || 3, w: measure(f.properties.dm_label), front: front(c),
         seen: front(c) && p[0] >= 0 && p[1] >= 0 && p[0] <= W && p[1] <= H};
     }))
     // Larger names first, as symbol-sort-key places them (Slocum §12.5.1).
@@ -897,7 +897,8 @@ async function placeLabels(map, labels, deck) {
   }
 }
 
-// Per label layer: the names in view, the ones MapLibre drew, and each arrowhead over a drawn name's letters.
+// Per label layer: the names in view, the ones MapLibre drew, each arrowhead over a drawn name's letters, and the
+// names out of view, on a globe's far side or past the frame.
 function labelReport(map) {
   if (!map || !labelPlan) return [];
   const {labels, deck} = labelPlan;
@@ -910,7 +911,8 @@ function labelReport(map) {
       const box = labelBox(i, layout(i), scene.size, scene.size * 0.1);
       return scene.heads.filter(hd => triangleMeetsBox(hd.tri, box)).map(hd => ({name: i.text, arrow: hd.flow}));
     });
-    return {layer: id, nodes: mine.length, rendered: drawn.map(i => i.text), hidden: mine.filter(i => !shown.has(i.key)).map(i => i.text), covered};
+    const unseen = scene.items.filter(i => i.layer === id && !i.seen).map(i => ({name: i.text, far: !i.front}));
+    return {layer: id, nodes: mine.length, rendered: drawn.map(i => i.text), hidden: mine.filter(i => !shown.has(i.key)).map(i => i.text), covered, unseen};
   });
 }
 

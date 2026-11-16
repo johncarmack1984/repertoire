@@ -662,6 +662,18 @@ class Render(unittest.TestCase):
                 self.assertLess(degrees(rep["center"], lima), 0.01)
                 self.assertEqual(rep["annotations"][0]["farSide"], False)
 
+    def test_a_title_place_hidden_at_load_warns_until_a_note_marks_it(self):
+        retitle = page('stay on its western side</h1>', 'stay on its western side, and few reach Lima</h1>')
+        for notes, warned in (([], True), ([{"text": "Lima", "at": "node:LIM"}], False)):
+            with self.subTest(notes=notes):
+                folder = copy("maplibre-globe", self.tmp / str(len(notes)))
+                retitle(folder)
+                spec(annotations=notes)(folder)
+                code, result = self.render(folder)
+                warns = [f["message"] for f in result["findings"] if (f["status"], f["check"]) == ("WARN", "title-places")]
+                self.assertEqual(code, 0, findings(result, "FAIL"))
+                self.assertEqual(warns, ["the title names Lima, which is on the far side of the globe at load"] if warned else [])
+
     def test_a_synced_page_without_data_renders_and_passes(self):
         folder = copy("maplibre-globe", self.tmp)
         shutil.rmtree(folder / "data")

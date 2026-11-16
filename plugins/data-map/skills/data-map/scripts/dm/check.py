@@ -274,10 +274,14 @@ def rule_legend(page: Page) -> list:
     return out or [PASS("legend", f"{len(layers)} legend layers: {', '.join(layers) or 'none'}", 9)]
 
 
+def slot(page: Page, key: str) -> str | None:
+    m = re.search(rf'id="{key}"[^>]*>(.*?)</', page.text, re.S)
+    return m[1].strip() if m else None
+
+
 def rule_text(page: Page) -> list:
     out = []
-    text = lambda key: (m[1].strip() if (m := re.search(rf'id="{key}"[^>]*>(.*?)</', page.text, re.S)) else None)
-    title, subtitle, source = text("dm-title"), text("dm-subtitle"), text("dm-source")
+    title, subtitle, source = slot(page, "dm-title"), slot(page, "dm-subtitle"), slot(page, "dm-source")
     for key, value, what in (("title", title, "a title that states the point"), ("subtitle", subtitle, "a subtitle saying what, where, and when"),
                              ("source", source, "a source line with the date")):
         if not value or "[" in value:
@@ -384,6 +388,7 @@ def judge_report(rep: dict, page: Page) -> list:
         out += judge_layers(rep, page)
         out += judge_labels(rep)
         out += judge_annotations(rep)
+        out += judge_title_places(rep, page)
     fonts = rep.get("fonts") or []
     if len(fonts) > 2:
         out.append(WARN("fonts", f"{len(fonts)} font families in use: {', '.join(fonts)}", "use at most two families", 23))
@@ -468,6 +473,24 @@ def judge_annotations(rep: dict) -> list:
     if notes and not out:
         far = sum(1 for a in notes if a.get("farSide"))
         out.append(PASS("annotations", f"{len(notes)} notes drawn on the map" + (f", {far} at the globe's rim for places on its far side" if far else ""), 24))
+    return out
+
+
+def judge_title_places(rep: dict, page: Page) -> list:
+    """A place the title names must show at load, or carry a note: a globe can open with it on the far side."""
+    title = slot(page, "dm-title")
+    if not title or "[" in title:
+        return []
+    notes = [a for a in rep.get("annotations") or [] if a.get("drawn")]
+    marked = lambda name: any(a.get("node") == name or name.lower() in str(a.get("text", "")).lower() for a in notes)
+    out = []
+    for lab in rep.get("labels") or []:
+        for u in lab.get("unseen") or []:
+            name = u["name"]
+            if re.search(rf"(?<!\w){re.escape(name)}(?!\w)", title, re.I) and not marked(name):
+                where = "on the far side of the globe" if u.get("far") else "outside the view"
+                out.append(WARN("title-places", f"the title names {name}, which is {where} at load",
+                                'turn the view to it with dm-spec.center, or mark it with a note in dm-spec.annotations: {"text": "' + name + '", "at": "node:<key>"}', 24))
     return out
 
 
