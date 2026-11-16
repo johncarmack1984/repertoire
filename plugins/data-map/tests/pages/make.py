@@ -112,12 +112,17 @@ def build_maplibre_crs(out: Path, tmp: Path) -> None:
     world = json.loads(COUNTRIES.read_text())
     rows = []
     for f in world["features"]:
+        if f["id"] == "ATA":
+            continue
         p = f["properties"]
-        pop = "" if f["id"] == "ATA" else p["pop_est"]
-        rows.append([f["id"], p["name"], pop, round(area_km2(f["geometry"]))])
+        rows.append([f["id"], p["name"], p["pop_est"], round(area_km2(f["geometry"]))])
     src = write_csv(tmp / "population.csv", ["iso_a3", "name", "pop_est", "area_km2"], rows)
     dense = tmp / "countries.geojson"
     dm("geo", "--countries", "--densify", 250, "--out", dense)
+    # Antarctica has no permanent population, so it is left off, as a world rate map usually leaves it.
+    countries = json.loads(dense.read_text())
+    countries["features"] = [f for f in countries["features"] if f.get("id") != "ATA"]
+    dense.write_text(json.dumps(countries))
     dm("new", "maplibre", out, "--preset", "equal-earth", "--force")
     dm("geo", "--sphere", "--graticule", 30, "--out", out / "data" / "frame.geojson")
     dm("classes", src, "--field", "pop_est", "--per", "area_km2", "--scale", 1, "--geo", dense, "--key", "iso_a3=id",
@@ -126,7 +131,7 @@ def build_maplibre_crs(out: Path, tmp: Path) -> None:
     fill(out, title="Bangladesh packs more people into each square kilometer than any other country",
          subtitle="People per square kilometer of land, by country, 2019",
          source="Source: Natural Earth, Admin 0 Countries 1:110m, v5.1.2 (population estimates for 2019); land area measured from the same boundaries.",
-         credits="Equal Earth projection.",
+         credits="Equal Earth projection. Antarctica, with no permanent population, is left off.",
          spec={"idiom": ["choropleth"], "extent": "world",
                "companions": [{"type": "bars", "layer": "density", "title": "The ten most crowded countries", "top": 10}]})
 

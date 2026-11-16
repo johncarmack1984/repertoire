@@ -689,6 +689,43 @@ class Render(unittest.TestCase):
         self.assertEqual(len(warns), 1, warns)
         self.assertIn(f"Shanghai to Manila over Tokyo by {px:g} px", warns[0])
 
+    def test_a_world_map_with_no_frame_crops_to_its_latitudes_on_the_bare_page(self):
+        ocean, page_white = (0xed, 0xf1, 0xf4), (255, 255, 255)
+        for frame in (None, "sphere"):
+            with self.subTest(frame=frame):
+                folder = copy("maplibre-crs", self.tmp / str(frame))
+                # A figure's map row hugs the map, so the crop shows at its edges.
+                spec(frame=frame, figure={"size": "640x700"}, companions=[])(folder)
+                code, result = self.render(folder)
+                self.assertEqual(code, 0, findings(result, "FAIL"))
+                rep, img = result["report"], png.read(Path(result["png"]).read_bytes())
+                box = rep["mapBox"]
+                x0, y0, x1, y1 = (round(v) for v in (box["x"], box["y"], box["x"] + box["w"], box["y"] + box["h"]))
+                inked = [y for y in range(y0, y1) if any(img.rgba[(y * img.w + x) * 4:(y * img.w + x) * 4 + 3] != bytes(page_white) for x in range(x0, x1, 2))]
+                counts = img.histogram((x0, y0, x1 - x0, y1 - y0))
+                if frame is None:
+                    # The fit pads 14 px, so the land runs from about 14 px below the top to 14 px above the bottom.
+                    self.assertLessEqual(inked[0] - y0, 17)
+                    self.assertLessEqual(y1 - 1 - inked[-1], 17)
+                    # A few edge pixels blend to the ocean's gray; a drawn ocean fills tens of thousands.
+                    self.assertLess(png.near(counts, "#%02x%02x%02x" % ocean, 2), 50, "no ocean drawn")
+                else:
+                    self.assertGreater(png.near(counts, "#%02x%02x%02x" % ocean, 2), 10000, "the sphere's ocean is drawn")
+
+    def test_a_figure_taller_than_its_content_warns_with_the_height_that_fits(self):
+        folder = copy("maplibre-crs", self.tmp / "tall")
+        spec(figure={"size": "640x900"}, companions=[])(folder)
+        result = self.render(folder)[1]
+        warn = next(f for f in result["findings"] if f["check"] == "figure")
+        self.assertEqual(warn["status"], "WARN")
+        size = re.search(r'figure.size to "(\d+x\d+)"', warn["fix"])[1]
+        folder = copy("maplibre-crs", self.tmp / "fits")
+        spec(figure={"size": size}, companions=[])(folder)
+        code, result = self.render(folder)
+        self.assertEqual(code, 0, findings(result, "FAIL"))
+        self.assertNotIn("figure", {f["check"] for f in result["findings"]})
+        self.assertLessEqual(result["report"]["figure"]["slack"], 2)
+
     def test_a_title_place_hidden_at_load_warns_until_a_note_marks_it(self):
         retitle = page('stay on its western side</h1>', 'stay on its western side, and few reach Lima</h1>')
         for notes, warned in (([], True), ([{"text": "Lima", "at": "node:LIM"}], False)):

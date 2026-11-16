@@ -14,6 +14,7 @@ const EARTH_KM = 6371;
 const NONE = ['==', ['id'], '__dm_none__'];
 const ARROW = {len: 20, base: 19, pad: 4};
 const ARC_APEX = 0.08;
+const FRAME = 'none';
 const METHOD = {quantile: k => `${k} quantile classes`, jenks: k => `${k} classes by natural breaks (Jenks)`,
   equal: k => `${k} equal-interval classes`, stddev: k => `${k} classes by standard deviation from the mean`,
   headtail: k => `${k} classes by head/tail breaks`, manual: k => `${k} classes set by hand`};
@@ -379,7 +380,8 @@ function buildKinds(t, crs, deck) {
       return {sources: {[name]: fc}, hover: [[name, name + '-hover']], fill: [
         {id: name, type: 'fill', source: name, paint: {'fill-color': fill}},
         {id: name + '-low-n', type: 'fill', source: name, filter: ['==', ['get', 'dm_low_n'], true], paint: {'fill-pattern': 'dm-hatch'}},
-        {id: name + '-edge', type: 'line', source: name, paint: {'line-color': t.page, 'line-width': 0.5}},
+        // On the bare page a white edge would leave the palest class with no coast, so the edges turn light gray.
+        {id: name + '-edge', type: 'line', source: name, paint: {'line-color': crs && frameOf() === 'none' ? t.rule : t.page, 'line-width': 0.5}},
         {id: name + '-hover', type: 'line', source: name, filter: NONE, paint: {'line-color': t.text, 'line-width': 1.5}}]};
     },
     sizes(name, L) {
@@ -439,7 +441,8 @@ function buildStyle(libs, t) {
   const sources = {}, groups = {base: [], fill: [], line: [], point: [], edge: [], label: [], arrow: []};
   const hover = [];
   groups.base.push({id: 'dm-background', type: 'background', paint: {'background-color': crs ? t.page : t.ocean}});
-  for (const s of ['frame', 'sphere', 'graticule'].filter(s => data[s])) {
+  // Under a CRS, dm-spec.frame "none" leaves out the sphere, its ocean, and its graticule, so the land sits on the page.
+  for (const s of ['frame', 'sphere', 'graticule'].filter(s => data[s] && !(crs && frameOf() === 'none'))) {
     sources[s] = {type: 'geojson', data: data[s]};
     groups.base.push({id: s + '-lines', type: 'line', source: s, filter: ['==', ['geometry-type'], 'LineString'],
       paint: {'line-color': t.graticule, 'line-width': 0.5}});
@@ -517,6 +520,22 @@ async function registerCrs(maplibregl, proj4, url, p) {
 }
 
 // ---------- the view: fitted to the data, with zoom and panning bounded by it ----------
+
+const frameOf = () => spec.frame ?? FRAME;
+
+// What the view fits: a named world, a [W, S, E, N] box, or the data's bounds. A world under a CRS with no frame
+// runs the full width but only the latitudes its data covers, so no band of empty ocean sits below the southernmost
+// country when Antarctica is left off.
+function fitBox(pts) {
+  const e = spec.extent;
+  if (e === 'world') {
+    if (spec.projection.type !== 'crs' || frameOf() !== 'none' || !pts.length) return [[-180, -90], [180, 90]];
+    const ys = pts.map(p => p[1]);
+    return [[-180, ys.reduce((a, b) => Math.min(a, b))], [180, ys.reduce((a, b) => Math.max(a, b))]];
+  }
+  if (Array.isArray(e)) return [[e[0], e[1]], [e[2], e[3]]];
+  return bbox(pts.length ? pts : [[-180, -90], [180, 90]]);
+}
 
 function walk(c, out) {
   if (typeof c[0] === 'number') out.push(c);
@@ -599,10 +618,12 @@ function globeScale(map) {
   return Math.hypot(p.x - o.x, p.y - o.y) / Math.sin(0.5 * RAD);
 }
 
+// The view's margin: 14 px past the data, and past its largest circle.
+const fitPad = () => 14 + Math.max(0, ...layersOf().flatMap(([name, L]) => [name, filesOf(name, L).nodes])
+  .flatMap(s => (data[s]?.features || []).map(f => f.properties?.dm_r || 0)));
+
 function fitView(map) {
-  const type = spec.projection.type, pts = thematicPoints();
-  const pad = 14 + Math.max(0, ...layersOf().flatMap(([name, L]) => [name, filesOf(name, L).nodes])
-    .flatMap(s => (data[s]?.features || []).map(f => f.properties?.dm_r || 0)));
+  const type = spec.projection.type, pts = thematicPoints(), pad = fitPad();
   const {clientWidth: w, clientHeight: h} = map.getContainer();
   map.setTransformCameraUpdate(null);
   zoomBand = null;
@@ -615,8 +636,7 @@ function fitView(map) {
     map.jumpTo({center, zoom: 1.5});
     for (let i = 0; i < 3; i++) map.setZoom(map.getZoom() + Math.log2((Math.min(w, h) / 2 - pad) / globeRadius(map, center)));
   } else {
-    const e = spec.extent;
-    const b = e === 'world' ? [[-180, -90], [180, 90]] : Array.isArray(e) ? [[e[0], e[1]], [e[2], e[3]]] : bbox(pts.length ? pts : [[-180, -90], [180, 90]]);
+    const b = fitBox(pts);
     map.fitBounds(b, {padding: pad, animate: false});
     fitted = b;
   }
@@ -1150,6 +1170,7 @@ function report(map, arcs) {
     labels: labelReport(map),
     annotations: map ? notesReport(map) : [],
     crossings: map ? crossings(map) : [],
+    figure: figureSlack(),
     tooltips: !!document.querySelector('.dm-tip'),
     rendered: renderedCounts(map),
     viewport: {w: innerWidth, h: innerHeight, dpr: devicePixelRatio}
@@ -1213,7 +1234,9 @@ function angularKm([a, b], [c, d]) {
 function baseColors(style) {
   const ids = new Set((style?.layers || []).map(l => l.id));
   const has = re => [...ids].some(id => re.test(id));
-  return [['page', true], ['ocean', !!style], ['graticule', has(/-lines$/)], ['sphere-edge', has(/-edge$/)],
+  // Under a CRS the ocean is the sphere's fill, which dm-spec.frame "none" leaves out.
+  const ocean = !!style && (spec.projection?.type !== 'crs' || has(/-ocean$/));
+  return [['page', true], ['ocean', ocean], ['graticule', has(/-lines$/)], ['sphere-edge', has(/-edge$/)],
     ['land', ids.has('land') || has(/^base-.*-fill$/)], ['land-edge', ids.has('land-edge') || has(/^base-.*-outline$/)],
     ['base-line', has(/^base-.*-line$/)]].filter(([, on]) => on).map(([k]) => tok(k));
 }
@@ -1230,11 +1253,13 @@ function layOutFigure() {
   Object.assign(document.body.style, {width: `${size[1]}px`, height: `${size[2]}px`});
 }
 
+// A static figure keeps its size, so its map row hugs the map and any height left over falls below the source line,
+// where the report measures it.
 function hugMap(map) {
   const cell = $('dm-map-cell'), {clientWidth: w, clientHeight: h} = cell;
-  if (spec.projection.type === 'globe' || spec.figure?.size || innerWidth <= 720) return false;
-  const e = spec.extent, pts = [];
-  const b = e === 'world' ? [-180, -90, 180, 90] : Array.isArray(e) ? e : bbox(thematicPoints()).flat();
+  const figure = !!spec.figure?.size, narrow = document.body.classList.contains('dm-narrow');
+  if (spec.projection.type === 'globe' || (!figure && innerWidth <= 720)) return false;
+  const pts = [], b = fitBox(thematicPoints()).flat();
   for (let i = 0; i <= 36; i++) {
     const t = i / 36;
     pts.push([b[0] + t * (b[2] - b[0]), b[1]], [b[0] + t * (b[2] - b[0]), b[3]], [b[0], b[1] + t * (b[3] - b[1])], [b[2], b[1] + t * (b[3] - b[1])]);
@@ -1242,15 +1267,28 @@ function hugMap(map) {
   const xy = pts.map(p => map.project(p)), xs = xy.map(p => p.x), ys = xy.map(p => p.y);
   const aspect = (Math.max(...xs) - Math.min(...xs)) / (Math.max(...ys) - Math.min(...ys));
   const aside = $('dm-side'), top = aside ? aside.getBoundingClientRect().top : 0;
-  const side = aside ? Math.max(0, ...[...aside.querySelectorAll('section')].map(e => e.getBoundingClientRect().bottom - top)) : 0;
-  const want = Math.max(Math.ceil(w / aspect) + 28, side);
+  const side = aside && !narrow ? Math.max(0, ...[...aside.querySelectorAll('section')].map(e => e.getBoundingClientRect().bottom - top)) : 0;
+  const pad = fitPad(), want = Math.max(Math.ceil((w - 2 * pad) / aspect) + 2 * pad, side);
   if (want >= h - 8) return false;
-  document.body.style.height = 'auto';
-  document.body.style.minHeight = '100%';
-  document.body.style.gridTemplateRows = `auto ${want}px auto`;
-  document.body.style.alignContent = 'center';
+  if (figure) {
+    document.body.style.gridTemplateRows = narrow ? `auto ${want}px auto auto` : `auto ${want}px auto`;
+    document.body.style.alignContent = 'start';
+  } else {
+    document.body.style.height = 'auto';
+    document.body.style.minHeight = '100%';
+    document.body.style.gridTemplateRows = `auto ${want}px auto`;
+    document.body.style.alignContent = 'center';
+  }
   map.resize();
   return true;
+}
+
+// The empty page below a static figure's source line, in px: the height its size asks for and nothing fills.
+function figureSlack() {
+  if (!spec.figure?.size) return null;
+  const body = document.body.getBoundingClientRect(), foot = document.querySelector('footer')?.getBoundingClientRect();
+  const pad = parseFloat(getComputedStyle(document.body).paddingBottom) || 0;
+  return {w: Math.round(body.width), h: Math.round(body.height), slack: Math.max(0, Math.round(body.bottom - pad - (foot ? foot.bottom : body.bottom)))};
 }
 
 // ---------- start ----------
@@ -1273,7 +1311,7 @@ async function start(libs, extend) {
   const proj = spec.projection, crs = proj.type === 'crs';
   if (crs) await registerCrs(maplibregl, libs.proj4, libs.proj4Url, proj);
   if (libs.pmtiles) maplibregl.addProtocol('pmtiles', new libs.pmtiles.Protocol().tile);
-  const t = Object.fromEntries(['page', 'ocean', 'graticule', 'sphere-edge', 'land', 'land-edge', 'base-line', 'flow', 'node', 'symbol', 'text']
+  const t = Object.fromEntries(['page', 'ocean', 'graticule', 'sphere-edge', 'land', 'land-edge', 'base-line', 'flow', 'node', 'symbol', 'text', 'rule']
     .map(k => [k, tok(k)]));
   const {style, hover, labels} = buildStyle(libs, t);
   resolveNotes();

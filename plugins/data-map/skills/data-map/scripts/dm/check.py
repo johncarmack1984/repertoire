@@ -400,6 +400,9 @@ def judge_report(rep: dict, page: Page) -> list:
                         "make each level at least 2 pt (2.7 px) from the next, or the same size", 23))
     if not close and len(fonts) <= 2:
         out.append(PASS("type", f"{', '.join(fonts)}; sizes {', '.join(f'{s:g}' for s in sizes)} px", 23))
+    if (fig := rep.get("figure")) and fig.get("slack", 0) > 24:
+        out.append(WARN("figure", f"the {fig['w']}x{fig['h']} figure ends in {fig['slack']} px of empty page below its source line",
+                        f'set dm-spec figure.size to "{fig["w"]}x{fig["h"] - fig["slack"]}", the height its content fills'))
     if clipped := rep.get("clipped"):
         out.append(FAIL("clipped", f"{len(clipped)} lines of the side panel are cut off at {(rep.get('viewport') or {}).get('w')}x{(rep.get('viewport') or {}).get('h')}: {'; '.join(clipped[:3])}",
                         "cut the companions to what fits beside the map at this size, or move one below the map", 24))
