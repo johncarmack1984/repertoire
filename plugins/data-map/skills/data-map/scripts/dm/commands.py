@@ -263,6 +263,8 @@ def run_geo(args) -> int:
             g = f.get("geometry")
             if not g:
                 continue
+            if args.lon0 is not None:
+                g = geo.recenter(g, args.lon0)
             if args.densify:
                 g = geo.map_coords(g, lambda c: geo.densify_planar(c, args.densify))
             feats.append(data.feature(f.get("id", str(i)), dict(f.get("properties") or {}), g))
@@ -272,13 +274,18 @@ def run_geo(args) -> int:
         elif longest > 200:
             findings.append(WARN("densify", f"edges up to {num(longest)} km long will draw straight under a CRS or on a globe",
                                  "pass --densify 100", 12))
+        if args.lon0 is not None:
+            findings.append(PASS("center", f"cut along {crs.deg(crs.edge_of(args.lon0))}, the meridian opposite {crs.deg(args.lon0)}, "
+                                           f"so every longitude lies within {crs.deg(args.lon0 - 180)} to {crs.deg(args.lon0 + 180)}", 20))
+    lon0 = args.lon0 or 0.0
     if args.graticule:
-        feats += [data.feature(f["id"], f["properties"], f["geometry"]) for f in geo.graticule(args.graticule)]
+        feats += [data.feature(f["id"], f["properties"], f["geometry"]) for f in geo.graticule(args.graticule, lon0=lon0)]
         findings.append(PASS("graticule", f"meridians and parallels every {num(args.graticule)} degrees, a vertex every degree", 12))
     if args.sphere:
-        s = geo.sphere()
+        s = geo.sphere(lon0=lon0)
         feats.append(data.feature(s["id"], s["properties"], s["geometry"]))
-        findings.append(PASS("sphere", "the world outline, a vertex every degree along 180 and the poles", 12))
+        edges = "180" if lon0 == 0 else f"{crs.deg(lon0 - 180)} and {crs.deg(lon0 + 180)}"
+        findings.append(PASS("sphere", f"the world outline, a vertex every degree along {edges} and the poles", 12))
     if not feats:
         raise InputError("geo needs IN, --countries, --graticule, or --sphere")
     data.write_geojson(Path(args.out), feats)
@@ -340,8 +347,11 @@ def run_crs(args) -> int:
         findings.append(WARN("tiles", f"GL JS can't draw Web Mercator tiles under {rec.name}; they land in the wrong place",
                              "draw GeoJSON layers, or tiles cut in this CRS's grid (martin's tile_grids), and list each source's grid in dm-spec", 11))
     snippet = crs.snippet(rec)
+    geo_lines = crs.geo_commands(rec, str(Path(__file__).resolve().parents[1] / "datamap.py"))
+    for line in geo_lines:
+        findings.append(PASS("geo", line))
     extra = {"type": rec.type, "name": rec.name, "definition": rec.definition, "property": rec.property,
-             "reason": rec.reason, "alternatives": rec.alternatives, "snippet": snippet,
+             "reason": rec.reason, "alternatives": rec.alternatives, "snippet": snippet, "geo": geo_lines,
              "extent": [ext.west, ext.south, ext.east, ext.north]}
     code = emit(findings, args.json, extra)
     if not args.json:
@@ -976,6 +986,13 @@ def hex_color(text: str) -> str:
     return text.lower()
 
 
+def central_meridian(text: str) -> float:
+    v = float(text)
+    if not -180 <= v <= 180:
+        raise argparse.ArgumentTypeError("a longitude from -180 to 180")
+    return v
+
+
 def view_size(text: str) -> tuple:
     m = re.fullmatch(r"(\d+(?:\.\d+)?)x(\d+(?:\.\d+)?)", text)
     if not m or min(float(m[1]), float(m[2])) < 100:
@@ -1005,6 +1022,8 @@ def register(sub) -> None:
     p.add_argument("--densify", type=positive, metavar="KM", help="add vertices so no edge is longer than KM")
     p.add_argument("--graticule", type=positive, metavar="DEG", help="meridians and parallels every DEG degrees")
     p.add_argument("--sphere", action="store_true", help="the world outline polygon, for an ocean fill under a CRS")
+    p.add_argument("--lon0", type=central_meridian, metavar="DEG",
+                   help="the CRS's central meridian (+lon_0): cut every polygon, line, the graticule, and the outline at the meridian opposite it")
     p.add_argument("--out", required=True, metavar="F", help="output GeoJSON")
     add_common(p)
     p.set_defaults(run=run_geo)

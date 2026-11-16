@@ -681,6 +681,101 @@ class Projection(unittest.TestCase):
                         self.assertIn("+x_0=0 +y_0=0", d)
 
 
+
+def rings_of(geom):
+    t, c = geom["type"], geom["coordinates"]
+    return [c] if t == "Polygon" else c if t == "MultiPolygon" else []
+
+
+def lonlat_area(poly):
+    """A polygon's area in square degrees of longitude and latitude, holes taken out; cutting and moving by 360 keeps it."""
+    shoelace = lambda r: abs(sum(x0 * y1 - x1 * y0 for (x0, y0), (x1, y1) in zip(r, r[1:]))) / 2
+    return shoelace(poly[0]) - sum(shoelace(h) for h in poly[1:])
+
+
+class WorldCenter(unittest.TestCase):
+    """A world map's central meridian, measured on the bundled countries rather than assumed."""
+
+    WORLD = json.loads((HERE.parent / "skills" / "data-map" / "assets" / "geo" / "world-110m.json").read_text())
+
+    def cut_countries(self, lon0):
+        """Countries whose land the map's edge, the meridian opposite lon0, runs through. Rings that meet at 180
+        are one piece of land, so a cut between Chukotka's -180 and its eastern tip runs through Russia."""
+        edge = (lon0 + 360) % 360 - 180
+        hit = set()
+        for f in self.WORLD["features"]:
+            spans = [(min(x for x, _ in poly[0]), max(x for x, _ in poly[0])) for poly in rings_of(f["geometry"])]
+            if any(lo < edge < hi for lo, hi in spans):
+                hit.add(f["id"])
+            if any(hi >= 180 for _, hi in spans) and any(edge < hi for lo, hi in spans if lo <= -180):
+                hit.add(f["id"])
+        return hit - {"ATA"}
+
+    def test_the_world_center_keeps_russia_whole_and_cuts_no_country_but_antarctica(self):
+        self.assertEqual(self.cut_countries(crs.WORLD_LON0), set())
+        # At 0 the edge runs through Russia and Fiji; at 10, Cape Dezhnev (-169.9 here) and St. Lawrence Island;
+        # at 11, St. Lawrence Island (-171.79 to -168.69) alone.
+        self.assertEqual(self.cut_countries(0), {"RUS", "FJI"})
+        self.assertEqual(self.cut_countries(10), {"RUS", "USA"})
+        self.assertEqual(self.cut_countries(11), {"USA"})
+        rec = crs.recommend(crs.WORLD)
+        self.assertIn(f"+lon_0={crs.WORLD_LON0:g} ", rec.definition)
+        self.assertTrue(all(f"+lon_0={crs.WORLD_LON0:g} " in a["definition"] for a in rec.alternatives))
+
+    def test_crs_prints_the_geo_runs_that_match_its_center(self):
+        code, text = cli("crs", "--extent", "world", "--json")
+        self.assertEqual(code, 0)
+        out = json.loads(text)
+        self.assertEqual(len(out["geo"]), 2)
+        self.assertTrue(all(re.search(rf" geo .*--lon0 {crs.WORLD_LON0:g} ", line) for line in out["geo"]))
+        self.assertIn("--countries", out["geo"][0])
+        self.assertIn("--sphere", out["geo"][1])
+        self.assertIn(f"forward([{crs.WORLD_LON0 + 180:g}, 0])", out["snippet"])
+        code, text = cli("crs", "--extent=-124.8,24.5,-66.9,49.4", "--json")
+        self.assertEqual(json.loads(text)["geo"], [])
+
+    def test_geo_cuts_every_country_and_the_frame_at_the_edge(self):
+        lon0 = crs.WORLD_LON0
+        with tempfile.TemporaryDirectory() as out:
+            code, text = cli("geo", "--countries", "--lon0", lon0, "--out", Path(out) / "c.geojson")
+            self.assertEqual(code, 0, text)
+            cut = {f["id"]: f["geometry"] for f in json.loads((Path(out) / "c.geojson").read_text())["features"]}
+            self.assertEqual(cli("geo", "--sphere", "--graticule", 30, "--lon0", lon0, "--out", Path(out) / "f.geojson")[0], 0)
+            frame = json.loads((Path(out) / "f.geojson").read_text())["features"]
+        src = {f["id"]: f["geometry"] for f in self.WORLD["features"]}
+        for fid, geom in cut.items():
+            xs = [x for poly in rings_of(geom) for ring in poly for x, _ in ring]
+            self.assertTrue(lon0 - 180 - 1e-9 <= min(xs) and max(xs) <= lon0 + 180 + 1e-9, fid)
+            # No edge spans half the world, so nothing draws from one side of the map to the other; an edge along
+            # a pole is the frame's flat top or bottom under Equal Earth, which Antarctica's ring follows.
+            for poly in rings_of(geom):
+                for ring in poly:
+                    wide = [(a, b) for a, b in zip(ring, ring[1:]) if abs(b[0] - a[0]) >= 180]
+                    self.assertTrue(all(abs(a[1]) == abs(b[1]) == 90 for a, b in wide), fid)
+            self.assertAlmostEqual(sum(map(lonlat_area, rings_of(geom))), sum(map(lonlat_area, rings_of(src[fid]))), places=3)
+        # Russia runs unbroken from Kaliningrad to Chukotka at 190.1, the right edge; nothing of it sits on the left.
+        russia = [x for poly in rings_of(cut["RUS"]) for x, _ in poly[0]]
+        self.assertEqual((round(min(russia), 2), round(max(russia), 2)), (19.66, 190.1))
+        sphere = next(f for f in frame if f["id"] == "sphere")["geometry"]["coordinates"][0]
+        self.assertEqual((min(x for x, _ in sphere), max(x for x, _ in sphere)), (round(lon0 - 180, 5), round(lon0 + 180, 5)))
+        for f in frame:
+            parts = f["geometry"]["coordinates"] if f["geometry"]["type"] != "LineString" else [f["geometry"]["coordinates"]]
+            for part in parts:
+                self.assertTrue(all(lon0 - 180 - 1e-9 <= x <= lon0 + 180 + 1e-9 for x, _ in part), f["id"])
+
+    def test_a_center_west_of_greenwich_moves_eastern_land_west_and_zero_changes_nothing(self):
+        for lon0 in (-150.0, 75.0):
+            for f in self.WORLD["features"]:
+                g = geo.recenter(f["geometry"], lon0)
+                xs = [x for poly in rings_of(g) for ring in poly for x, _ in ring]
+                self.assertTrue(lon0 - 180 - 1e-9 <= min(xs) and max(xs) <= lon0 + 180 + 1e-9, (lon0, f["id"]))
+                self.assertAlmostEqual(sum(map(lonlat_area, rings_of(g))), sum(map(lonlat_area, rings_of(f["geometry"]))), places=3)
+        with tempfile.TemporaryDirectory() as out:
+            cli("geo", "--countries", "--sphere", "--graticule", 30, "--out", Path(out) / "a.geojson")
+            cli("geo", "--countries", "--sphere", "--graticule", 30, "--lon0", 0, "--out", Path(out) / "b.geojson")
+            self.assertEqual((Path(out) / "a.geojson").read_text(), (Path(out) / "b.geojson").read_text())
+
+
 class Legend(unittest.TestCase):
     def test_levers_merge_into_one_legend_and_reruns_change_nothing(self):
         args = ["classes", FIX / "countries-visits.csv", "--field", "visits", "--per", "population", "--scale", 1000,

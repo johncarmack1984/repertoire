@@ -155,34 +155,107 @@ def walk_back(line: list, km: float) -> list:
     return list(line[0])
 
 
-def graticule(step: float, densify_deg: float = 1.0) -> list:
-    """Meridians and parallels every step degrees, as LineString features with string ids."""
+def graticule(step: float, densify_deg: float = 1.0, lon0: float = 0.0) -> list:
+    """Meridians and parallels every step degrees, as LineString features with string ids, between the map's
+    edges at lon0 - 180 and lon0 + 180."""
+    west = lon0 - 180
     feats = []
-    lon = -180.0
-    while lon < 180:
+    lon = math.ceil(round(west / step, 9)) * step
+    while lon < lon0 + 180:
         line = [[lon, -90 + i * densify_deg] for i in range(int(round(180 / densify_deg)) + 1)]
         feats.append({"type": "Feature", "id": f"meridian-{lon:g}", "properties": {"dm_label": f"{lon:g}"},
                       "geometry": {"type": "LineString", "coordinates": line}})
         lon += step
     lat = -90 + step
     while lat < 90:
-        line = [[-180 + i * densify_deg, lat] for i in range(int(round(360 / densify_deg)) + 1)]
+        line = [[west + i * densify_deg, lat] for i in range(int(round(360 / densify_deg)) + 1)]
         feats.append({"type": "Feature", "id": f"parallel-{lat:g}", "properties": {"dm_label": f"{lat:g}"},
                       "geometry": {"type": "LineString", "coordinates": line}})
         lat += step
     return feats
 
 
-def sphere(densify_deg: float = 1.0) -> dict:
-    """The whole world as one polygon, densified along +/-180 and the poles, for an ocean fill under a CRS."""
+def sphere(densify_deg: float = 1.0, lon0: float = 0.0) -> dict:
+    """The whole world as one polygon, densified along its edges at lon0 +/- 180 and the poles, for an ocean fill
+    under a CRS."""
+    west = lon0 - 180
     n_lon, n_lat = int(round(360 / densify_deg)), int(round(180 / densify_deg))
-    ring = [[-180 + i * densify_deg, -90.0] for i in range(n_lon)]
-    ring += [[180.0, -90 + i * densify_deg] for i in range(n_lat)]
-    ring += [[180 - i * densify_deg, 90.0] for i in range(n_lon)]
-    ring += [[-180.0, 90 - i * densify_deg] for i in range(n_lat)]
+    ring = [[west + i * densify_deg, -90.0] for i in range(n_lon)]
+    ring += [[west + 360, -90 + i * densify_deg] for i in range(n_lat)]
+    ring += [[west + 360 - i * densify_deg, 90.0] for i in range(n_lon)]
+    ring += [[west, 90 - i * densify_deg] for i in range(n_lat)]
     ring.append(ring[0])
     return {"type": "Feature", "id": "sphere", "properties": {"dm_label": "sphere"},
             "geometry": {"type": "Polygon", "coordinates": [ring]}}
+
+
+def recenter(geom: dict, lon0: float) -> dict:
+    """Cuts a geometry along the map's edge, the meridian opposite lon0, and moves each piece by 360 where it must,
+    so every longitude falls within lon0 +/- 180 and nothing draws from one edge of the map to the other.
+
+    Boundary files hold each ring within -180 to 180, with land that crosses 180 already cut there, so every
+    ring is a plain polygon in longitude and latitude, and a straight cut along one meridian splits it.
+    """
+    west = lon0 - 180
+    if west == -180:
+        return geom
+    edge = west if west > -180 else west + 360
+    shift = (0, 360) if west > -180 else (-360, 0)
+    t, c = geom["type"], geom["coordinates"]
+    if t == "Point":
+        return {"type": t, "coordinates": [c[0] + shift[c[0] < edge], c[1]]}
+    if t in ("LineString", "MultiLineString"):
+        lines = [c] if t == "LineString" else c
+        parts = [part for line in lines for part in cut_line(line, edge, shift)]
+        return {"type": "LineString", "coordinates": parts[0]} if len(parts) == 1 else {"type": "MultiLineString", "coordinates": parts}
+    if t in ("Polygon", "MultiPolygon"):
+        polys = [c] if t == "Polygon" else c
+        out = [piece for poly in polys for piece in cut_polygon(poly, edge, shift)]
+        return {"type": "Polygon", "coordinates": out[0]} if len(out) == 1 else {"type": "MultiPolygon", "coordinates": out}
+    return geom
+
+
+def cut_polygon(rings: list, edge: float, shift: tuple) -> list:
+    """A polygon's parts east and west of the edge, each with its holes, moved by shift[0] and shift[1]."""
+    out = []
+    for keep, dx in ((lambda x: x >= edge, shift[0]), (lambda x: x <= edge, shift[1])):
+        cut = [clip_ring(r, edge, keep) for r in rings]
+        if cut[0]:
+            out.append([[[x + dx, y] for x, y in r] for r in cut if r])
+    return out
+
+
+def clip_ring(ring: list, edge: float, keep) -> list:
+    """Sutherland-Hodgman against the half-plane keep(lon), with a vertex on the edge wherever the ring crosses it."""
+    pts = ring[:-1] if ring[0] == ring[-1] else ring
+    out = []
+    for i, p in enumerate(pts):
+        q = pts[(i + 1) % len(pts)]
+        if keep(p[0]):
+            out.append(list(p))
+        if keep(p[0]) != keep(q[0]) and edge not in (p[0], q[0]):
+            out.append([edge, p[1] + (edge - p[0]) / (q[0] - p[0]) * (q[1] - p[1])])
+    if len(out) < 3 or all(x == edge for x, _ in out):
+        return []
+    return out + [list(out[0])]
+
+
+def cut_line(line: list, edge: float, shift: tuple) -> list:
+    """A line's runs east and west of the edge, each ending on it where it crosses, moved by shift[0] and shift[1]."""
+    parts, cur = [], [list(line[0])]
+    for p, q in zip(line, line[1:]):
+        if (p[0] < edge) != (q[0] < edge) and edge not in (p[0], q[0]):
+            y = p[1] + (edge - p[0]) / (q[0] - p[0]) * (q[1] - p[1])
+            parts.append(cur + [[edge, y]])
+            cur = [[edge, y]]
+        cur.append(list(q))
+    parts.append(cur)
+    out = []
+    for part in parts:
+        if len(part) > 1:
+            dx = shift[sum(x for x, _ in part) / len(part) < edge]
+            out.append([[x + dx, y] for x, y in part])
+    return out
 
 
 def map_coords(geom: dict, fn) -> dict:

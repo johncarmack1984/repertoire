@@ -3,12 +3,18 @@
 from __future__ import annotations
 
 import math
+import re
 from dataclasses import dataclass, field
 
 # proj4 2.22.0 projects aea, laea, cea, stere, lcc, and tmerc to NaN when the false origin is left out.
 TAIL = "+x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"
 WORLD_SPAN = 270
 GLOBE_SPAN = 180
+# A world map's central meridian. Its edge, the meridian opposite, runs through the Bering Strait at -168.4, between
+# St. Lawrence Island (-171.79 to -168.69 in world-110m.json) and Alaska's Seward Peninsula (-168.11), so it cuts
+# no country but Antarctica. At 0, Chukotka draws beside Alaska; at 10, a sliver east of -170 still does, since
+# Cape Dezhnev lies at -169.9; at 11, the edge cuts St. Lawrence Island. Every center from 11.31 to 11.89 works.
+WORLD_LON0 = 11.6
 
 
 @dataclass(frozen=True)
@@ -62,6 +68,15 @@ def _d(x: float) -> str:
     return f"{round(x, 2):g}"
 
 
+def deg(x: float) -> str:
+    return f"{round(x, 4):g}"
+
+
+def edge_of(lon0: float) -> float:
+    """The meridian opposite lon0, where a map centered on it is cut, from -180 up to 180."""
+    return (lon0 + 360) % 360 - 180
+
+
 def one_sixth(ext: Extent) -> tuple:
     """Standard parallels one-sixth of the latitude range in from each limit (Slocum §9.4.2)."""
     sixth = ext.lat_span / 6
@@ -72,10 +87,10 @@ def equal_earth(lon0: float = 0) -> str:
     return f"+proj=eqearth +lon_0={_d(lon0)} {TAIL}"
 
 
-def world_alternatives() -> list:
+def world_alternatives(lon0: float = WORLD_LON0) -> list:
     return [
-        {"name": "custom:mollweide", "definition": f"+proj=moll +lon_0=0 {TAIL}", "why": "equal-area with pointed poles; high latitudes compressed"},
-        {"name": "custom:behrmann", "definition": f"+proj=cea +lon_0=0 +lat_ts=30 {TAIL}", "why": "equal-area with flat poles; keeps high latitudes wide, at a cost in shape"},
+        {"name": "custom:mollweide", "definition": f"+proj=moll +lon_0={_d(lon0)} {TAIL}", "why": "equal-area with pointed poles; high latitudes compressed"},
+        {"name": "custom:behrmann", "definition": f"+proj=cea +lon_0={_d(lon0)} +lat_ts=30 {TAIL}", "why": "equal-area with flat poles; keeps high latitudes wide, at a cost in shape"},
     ]
 
 
@@ -103,12 +118,13 @@ def recommend(ext: Extent, idiom: str = "area", interactive: bool = False) -> Re
         return Recommendation(
             "globe", "globe", "", "none (a rotatable globe; true shape and direction near the center)",
             "flows or points across half the world or more, read interactively: a globe keeps great circles whole and has no edge to cut flows (Yang et al. 2019)",
-            [{"name": "custom:equal-earth", "definition": equal_earth(), "why": "a static, equal-area world map"}],
+            [{"name": "custom:equal-earth", "definition": equal_earth(WORLD_LON0), "why": "a static, equal-area world map"}],
         )
     if world:
         return Recommendation(
-            "crs", "custom:equal-earth", equal_earth(), "equal-area",
-            "world extent: an equal-area pseudocylindrical keeps every country's area true (Šavrič, Patterson and Jenny 2018; Slocum §9.4.1)",
+            "crs", "custom:equal-earth", equal_earth(WORLD_LON0), "equal-area",
+            "world extent: an equal-area pseudocylindrical keeps every country's area true (Šavrič, Patterson and Jenny 2018; Slocum §9.4.1); "
+            f"centered on {deg(WORLD_LON0)}, its edge runs through the Bering Strait and cuts no country but Antarctica",
             world_alternatives(),
         )
     if max(abs(ext.south), abs(ext.north)) <= 30 and ext.east_west:
@@ -136,6 +152,22 @@ def recommend(ext: Extent, idiom: str = "area", interactive: bool = False) -> Re
     )
 
 
+def lon0_of(definition: str) -> float:
+    m = re.search(r"\+lon_0=([-\d.]+)", definition)
+    return float(m.group(1)) if m else 0.0
+
+
+def geo_commands(rec: Recommendation, script: str) -> list:
+    """The geo runs whose boundaries and frame match a world CRS's center; none for a regional CRS or the globe."""
+    if rec.type != "crs" or rec.name not in ("custom:equal-earth", "custom:mollweide", "custom:behrmann"):
+        return []
+    lon0 = deg(lon0_of(rec.definition))
+    run = f"python3 {script} geo"
+    return [f"{run} --countries --densify 100 --lon0 {lon0} --out OUT/data/countries.geojson (or IN in place of --countries; "
+            "join to that file with --geo, not to the bundled countries)",
+            f"{run} --sphere --graticule 30 --lon0 {lon0} --out OUT/data/frame.geojson"]
+
+
 def snippet(rec: Recommendation) -> str:
     """The registration that the maplibre-gl 6.18.0 prototype rendered with, before the map is made."""
     if rec.type == "globe":
@@ -146,7 +178,7 @@ def snippet(rec: Recommendation) -> str:
         "await maplibregl.importScriptInWorkers(URL.createObjectURL(handler));",
         f"const definition = '{rec.definition}';",
         "const projection = proj4('EPSG:4326', definition);",
-        "const halfWidth = projection.forward([180, 0])[0] * 1.04;",
+        f"const halfWidth = projection.forward([{deg(lon0_of(rec.definition) + 180)}, 0])[0] * 1.04;",
         f"maplibregl.addProjection({{name: '{rec.name}', definition, projection,",
         "  tileMatrixSet: {origin: [-halfWidth, halfWidth], extentAtZoom0: 2 * halfWidth}});",
         f"// in the style: projection: {{type: '{rec.name}'}}",

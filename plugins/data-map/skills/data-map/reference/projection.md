@@ -28,6 +28,17 @@ Center a world map on its area of interest by setting `+lon_0`; Slocum recenters
 
 Don't interrupt a world map for a general audience, because the breaks confuse readers who don't know the globe well (Slocum §9.4.1).
 
+## The edge of a world map
+
+A world map is cut along the meridian opposite its center, and whatever land that meridian crosses draws at both edges. At `+lon_0=0` the cut runs through Chukotka, and its tip draws beside Alaska, where readers take it for part of the United States. `crs` centers a world map on 11.6° E, which puts the cut through the Bering Strait at 168.4° W, between St. Lawrence Island and Alaska, so Russia stays whole and no country but Antarctica is cut. In the bundled 110m countries the cut must fall between 168.69° W and 168.11° W. At 10° E a sliver of Chukotka still crosses, since Cape Dezhnev lies at 169.9° W there; at 11° E the cut splits St. Lawrence Island.
+
+Whatever the center, give it to `geo` as `--lon0`. It cuts every polygon and line at the opposite meridian and moves the far side by 360°, so each longitude lies within `lon0 ± 180`, and it draws the graticule and the outline between those edges. `crs` prints both runs for a world projection. Join the data to the file `geo` wrote, not to the bundled countries, which would draw Antarctica across the map.
+
+```sh
+python3 <skill>/scripts/datamap.py geo --countries --densify 100 --lon0 11.6 --out map/data/countries.geojson
+python3 <skill>/scripts/datamap.py geo --sphere --graticule 30 --lon0 11.6 --out map/data/frame.geojson
+```
+
 ## The conic rule
 
 Set every conic's parameters from the data's extent (Slocum §9.4.2):
@@ -66,7 +77,7 @@ Under a registered CRS in maplibre-gl:
 
 - GeoJSON sources are reprojected in the workers once proj4 is loaded there, through `importScriptInWorkers` and `setProjectionHandler`. `stacks/maplibre.md` has the code.
 - Web Mercator tiles draw in the wrong place. Use GeoJSON layers, or tiles cut in the CRS's own grid, such as martin's `tile_grids`. List every tile source with its grid in `dm-spec.tiles`; `check` fails a mismatch (P11).
-- With no Mercator basemap, draw the ocean and the frame from `geo --sphere --graticule 30`.
+- With no Mercator basemap, draw the ocean and the frame from `geo --sphere --graticule 30`, with the definition's `+lon_0` as `--lon0`.
 - Densify long edges with `geo --densify 100`, because the renderer joins vertices with straight segments and a long one skips the curve the projection gives it (P12). `flows` writes densified lines already.
 - Clip the data to the hemisphere a view shows, in the prep script. The renderer doesn't clip it.
 - Call `fitBounds` in the map's `load` event. Bounds given to the constructor are fitted in Web Mercator and draw the world at half size.
@@ -92,9 +103,9 @@ python3 <skill>/scripts/datamap.py crs --extent world --idiom flows --interactiv
 ## proj4 definitions
 
 ```
-# World, equal-area. Set +lon_0 to the center of interest.
-custom:equal-earth    +proj=eqearth +lon_0=0 +datum=WGS84 +units=m +no_defs        (EPSG:8857)
-custom:mollweide      +proj=moll +lon_0=0 +datum=WGS84 +units=m +no_defs           (ESRI:54009)
+# World, equal-area, centered so the edge runs through the Bering Strait. Set +lon_0 to the center of interest.
+custom:equal-earth    +proj=eqearth +lon_0=11.6 +datum=WGS84 +units=m +no_defs     (EPSG:8857 at +lon_0=0)
+custom:mollweide      +proj=moll +lon_0=11.6 +datum=WGS84 +units=m +no_defs        (ESRI:54009 at +lon_0=0)
 
 # Lambert azimuthal equal-area, centered on a hemisphere or a compact continent.
 custom:laea           +proj=laea +lat_0=<lat> +lon_0=<lon> +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs
