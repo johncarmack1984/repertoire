@@ -1,6 +1,6 @@
 {
   "name": "data-dashboard",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Build, refine, and review dashboards the way Stephen Few's Information Dashboard Design teaches: one screen read at a glance, every measure against its comparison, bullet graphs and sparklines, and color only for what needs attention.",
   "author": {
     "name": "John Carmack",

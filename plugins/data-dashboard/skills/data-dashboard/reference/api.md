@@ -80,7 +80,7 @@ An alert dot is one line of text across, 1.3 times the type size: 16 px at 12.5 
 | `dd.state(m, policy?)` | `{level, ratio, text}`, as above. |
 | `dd.flags(target)` | Writes the count of flagged rows into `target`, as above, and keeps it current. `dd.svg.flags({alert, warn})` returns the line as HTML from two lists of labels. |
 | `dd.flagged(root = document)` | `{total, alert: [labels], warn: [labels]}`, the rows under `root` with each row counted once, as above. `dd.flags` and the check's alert count both read it. |
-| `dd.version` | `"0.2.0"`. |
+| `dd.version` | `"0.2.2"`. |
 
 Format specs:
 
@@ -209,7 +209,7 @@ An item is a measure record (`label`, `value`, a comparison such as `target`, an
 
 Color follows the item's state, on the alert hue. A cell at or above its basis is the neutral `--dd-heat-0`. A cell under the alert threshold is the alert red, `--dd-alert`, with its text in `--dd-bg`. Between them, an `ok` or `warn` cell takes one of four tints, `--dd-heat-1` to `--dd-heat-4`, by how far its ratio falls from the basis toward the alert threshold; a cell whose state comes from `state`, `ranges` or `norm` takes tint 1 for `ok` and 3 for `warn`. So the full-red cells are exactly the critical ones, which `dd.flagged()` counts. The tints stop at a red light enough to keep text on it at 4.5:1, and the alert cells step past them to the full red.
 
-The layout is squarified (Bruls, Huizing and van Wijk): the groups first, then each group's cells inside it, largest first, so cells come out near square, with a mean aspect ratio of about 1.4 for a flat list. Each group has a header strip with its label in semibold gray, and a gap of 0.4 type sizes to the next group; a group too short to hold its header drops it. Cells sit 1 px apart. Within a group, a cell's area, its gap included, is its share of the group to within the rounding of its edges to whole pixels. Across groups, each group's header and gap are paid for out of its weight, so 95% of cells come within 3% of their share of the whole and the median within 1%; a small group squeezed into a thin band at the end of a row can be off by as much as 30%.
+The layout is squarified (Bruls, Huizing and van Wijk): the groups first, then each group's cells inside it, largest first, so cells come out near square, with a mean aspect ratio of about 1.4 for a flat list. Each group has a header strip with its label in semibold gray, and a gap of 0.4 type sizes to the next group; a group too short to hold its header drops it. Cells sit 1 px apart. Within a group, a cell's area, its gap included, is its share of the group to within the rounding of its edges to whole pixels. Each group's box is grown by what its header strip and gaps cost, with squarify's rows held fixed while the sizes are corrected, so across the map too a cell's area is its share of the total to within the rounding of its edges and its group's box to whole pixels: the median cell is within 1%, and a cell 20 px on a side within about 11%.
 
 Each cell shows its label and, under it, its value in the item's format, at small type in its top-left corner, only when they fit inside the cell. A label that doesn't fit is left out, never cut short. The value is bold when the cell is flagged. Every cell's `<title>` holds its exact values: the state text, the target, and the size when it differs from the value.
 

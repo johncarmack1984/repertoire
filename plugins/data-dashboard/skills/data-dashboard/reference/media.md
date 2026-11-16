@@ -102,7 +102,7 @@ A scatter plot shows whether two paired sets of values are related, in which dir
 
 A treemap fits a large hierarchy into the least space, with rectangle size for one quantity and one hue from neutral to saturated red for another. In a sales treemap, each state's area is its revenue and its color is its percent of quota. Few keeps it for spotting conditions that need attention across many items, never for comparing or ranking values. Use it when there are too many items for a table's rows, and a graphical table, worst first, when there are few.
 
-- Cells are squarified, so they stay near square, and grouped one level deep under header strips. A cell at or above its target stays neutral, a cell under the alert threshold is the full alert red, and the cells between take tints of it, so a cell's color and its alert agree. A label and its value appear only where they fit; every cell's exact values are on hover. Most cells' areas come within 3% of their share, close enough to spot a condition; `reference/api.md` gives the worst case.
+- Cells are squarified, so they stay near square, and grouped one level deep under header strips. A cell at or above its target stays neutral, a cell under the alert threshold is the full alert red, and the cells between take tints of it, so a cell's color and its alert agree. A label and its value appear only where they fit; every cell's exact values are on hover. Every cell's area is its share of the total to within the rounding of its edges to whole pixels, as `reference/api.md` details.
 - `dd.treemap("#states", d.states, {sizeLabel: "Revenue"})`, keyed with `dd.legend` and its `heat` mark.
 
 ## Icons
