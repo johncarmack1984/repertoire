@@ -1,0 +1,21 @@
+{
+  "name": "data-map",
+  "version": "0.1.0",
+  "description": "Design, build, and check thematic maps the way Slocum, Munzner, and Muehlenhaus teach: the right idiom for the data and the reader's task, an equal-area projection where area matters, classes and color computed by code, flows that curve and point, and a render a cold reader checks.",
+  "author": {
+    "name": "John Carmack",
+    "url": "https://github.com/johncarmack1984"
+  },
+  "homepage": "https://github.com/johncarmack1984/repertoire/tree/main/plugins/data-map",
+  "repository": "https://github.com/johncarmack1984/repertoire",
+  "license": "MIT",
+  "keywords": [
+    "cartography",
+    "thematic-maps",
+    "choropleth",
+    "flow-maps",
+    "geovisualization",
+    "maplibre",
+    "deck-gl"
+  ]
+}
