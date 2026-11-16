@@ -171,7 +171,7 @@ Refine an existing dashboard by reviewing it first, then fixing what the review 
 
 ## Reviewing
 
-A review changes nothing. Open with one line that names the dashboard's role and says whether a glance shows what needs action. Then list the faults, worst for the viewer first. For each, quote or locate it, name the mistake from `reference/mistakes.md` by number, and give the fix in one line in the dashboard's own stack. List every measure that has nothing to compare against. Put no mark on anything that keeps the rules, however differently you would have built it.
+A review changes nothing. Open with one line that names the dashboard's role and says whether a glance shows what needs action. Then list the faults, worst for the viewer first. For each, quote or locate it, name the mistake from `reference/mistakes.md` by number, and give the fix in one line in the dashboard's own stack. List every measure that has nothing to compare against. Put no mark on anything that keeps the rules, however differently you would have built it. Name it once as one to keep, and suggest nothing for it, not even an addition such as annotations, markers, or another series, since a suggestion on a correct panel reads as one more fault. When a fix to the arrangement moves it, say that it moves unchanged.
 
 ## Worked example
 
