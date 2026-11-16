@@ -1,6 +1,6 @@
 # The library
 
-This file holds the detail for step 6: every call, option, and data field. The library is `assets/dashboard.js`, the styles are `assets/dashboard.css`, and the tooling is `scripts/dashboard.py`. Every page reaches the library through the global `DataDashboard`, aliased in page code as `const dd = DataDashboard`.
+This file holds the detail for step 6: every call, option, and data field. The library is `assets/dashboard.js`, the styles are `assets/dashboard.css`, and the tooling is `scripts/dashboard.py` with `assets/check.js`, which only the check loads. Every page reaches the library through the global `DataDashboard`, aliased in page code as `const dd = DataDashboard`.
 
 ## The page
 
@@ -80,7 +80,6 @@ An alert dot is one line of text across, 1.3 times the type size: 16 px at 12.5 
 | `dd.state(m, policy?)` | `{level, ratio, text}`, as above. |
 | `dd.flags(target)` | Writes the count of flagged rows into `target`, as above, and keeps it current. `dd.svg.flags({alert, warn})` returns the line as HTML from two lists of labels. |
 | `dd.flagged(root = document)` | `{total, alert: [labels], warn: [labels]}`, the rows under `root` with each row counted once, as above. `dd.flags` and the check's alert count both read it. |
-| `dd.check()` | Runs only under `?dd-check`. It measures the page, writes the report into `<script type="application/json" id="dd-report">`, and returns it. Otherwise returns `null`. The library runs it 300 ms after `load` when the query is present. |
 | `dd.version` | `"0.1.0"`. |
 
 Format specs:
@@ -233,13 +232,15 @@ Below the width at which body text would drop under 11 px (1,267 px for 72 colum
 - `sync OUT [--data D.json] [--check]` rewrites the css and lib regions from `assets/` and, with `--data`, the data block. `--check` writes nothing and exits 1 when anything differs; with `--data` its PASS line says the data block matched too.
 - `check OUT [--viewport WxH] [--phone WxH] [--json] [--no-browser]` runs the static pass, then the browser pass, prints one `PASS`, `WARN` or `FAIL` line per finding with the mistake number and the fix, saves `<stem>.<W>x<H>.png` at the design viewport and `<stem>.phone.png`, the full length of the one-column phone layout, beside the page, and exits 1 on any FAIL.
 
+The page carries no check code. `check` writes a copy of the page beside it, named `.<stem>.<random>.dd-check.html`, with `assets/check.js` inlined after the lib region, renders the copy, and deletes it, so the page keeps its relative paths and is never changed. `check.js` reads the page through the DOM and the library's public `DataDashboard.flagged()` and `DataDashboard.version`, records the errors the page script throws, and writes the report once the page has loaded and its fonts are ready. The screenshots are of the page itself.
+
 The static pass checks the regions' hashes, the data block, comparisons (mistake 2), refused media calls (5), hand-drawn `<rect>`, `<circle>`, `<path>`, `<line>`, `<polyline>`, `<polygon>` or `<ellipse>` (7), network loads, gradients and shadows (11), canvas and rotated text (7), rounded or fully bordered boxes (11), saturated or red-and-green colors in the page's CSS (12), and that `--dd-cols` and `--dd-rows` match the viewport meta.
 
 The browser pass judges the page's report for fit against the viewport and the footer (1), overlapping sections (9), clipped or colliding text and type under 9 px (7), text contrast under 4.5:1 (3:1 for large text) and marks under 3:1 (12), saturated colors other than the two alert reds (12), alert share over 20% (10), groups outside 3 to 9 (9), mounts that drew nothing (2), and script errors, which carry their own mistake number.
 
 ### The report
 
-`#dd-report` holds `{version, viewport: {w, h}, layout, page: {w, h}, fontPx, sections: [{name, x, y, w, h, bottom, right}], footTop, overlaps: [{a, b, w, h}], clipped: [{text, px}], collide: [{a, b}], small: [{text, px}], contrast: [{text, ratio, need, color, bg}], marks: [{el, color, ratio}], colors: [{color, count, where}], rows: {total, alert: [labels], warn: [labels]}, groups, empty: [elements], noComparison: [labels], asOf, errors: [messages]}`. `rows` is `dd.flagged()`, so the check's alert count and the page's count line always agree.
+`check.js` writes `<script type="application/json" id="dd-report">`, which holds `{version, viewport: {w, h}, layout, page: {w, h}, fontPx, sections: [{name, x, y, w, h, bottom, right}], footTop, overlaps: [{a, b, w, h}], clipped: [{text, px}], collide: [{a, b}], small: [{text, px}], contrast: [{text, ratio, need, color, bg}], marks: [{el, color, ratio}], colors: [{color, count, where}], rows: {total, alert: [labels], warn: [labels]}, groups, empty: [elements], noComparison: [labels], asOf, errors: [messages]}`. `rows` is `dd.flagged()`, so the check's alert count and the page's count line always agree.
 
 ### Browser
 

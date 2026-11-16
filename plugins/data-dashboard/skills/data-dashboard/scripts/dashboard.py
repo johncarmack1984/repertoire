@@ -8,8 +8,9 @@
 `new` writes the page with dashboard.css and dashboard.js inlined between
 version and sha256 markers. `sync` rewrites those regions from assets/ and
 optionally the data block. `check` runs a static pass over the file, then
-renders it in headless Chrome, reads the report the page's own dd.check()
-writes, and saves a screenshot at the design viewport and one at phone width,
+renders a temporary copy of it with assets/check.js inlined after the library
+in headless Chrome, reads the report check.js writes, and saves a screenshot
+of the page itself at the design viewport and one at phone width,
 <page>.phone.png, the full length of the one scrolling column.
 Each finding cites the mistake it guards against, numbered as in chapter 3 of
 Stephen Few's Information Dashboard Design. Exit status 1 means a FAIL.
@@ -113,10 +114,15 @@ def asset(name: str) -> str:
     return (ASSETS / LIB[name][1]).read_text(encoding="utf-8")
 
 
-def block(name: str) -> str:
-    tag, body = LIB[name][0], asset(name)
+def inline(tag: str, name: str) -> str:
+    body = (ASSETS / name).read_text(encoding="utf-8")
     if f"</{tag}" in body:
-        die(f"{LIB[name][1]} contains </{tag}, which would end the inlined region early")
+        die(f"{name} contains </{tag}, which would end the inlined region early")
+    return body
+
+
+def block(name: str) -> str:
+    tag, body = LIB[name][0], inline(*LIB[name])
     return f"<!-- data-dashboard:{name} {VERSION} sha256:{sha(body)} -->\n<{tag}>\n{body}</{tag}>\n<!-- /data-dashboard:{name} -->"
 
 
@@ -307,13 +313,24 @@ def chrome(browser: str, extra: list[str], w: int, h: int, url: str) -> subproce
             raise Hung(f"{browser} did not finish within 60 s") from None
 
 
+def probe(page: Path, text: str) -> Path:
+    """Write a copy of the page beside it with check.js inlined after the library, so the
+    page keeps its relative paths and the page itself never carries the check."""
+    end = "<!-- /data-dashboard:lib -->"
+    script = f"{end}\n<script>\n{inline('script', 'check.js')}</script>"
+    fd, name = tempfile.mkstemp(prefix=f".{page.stem}.", suffix=".dd-check.html", dir=page.parent)
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        f.write(text.replace(end, script, 1))
+    return Path(name)
+
+
 def measure(browser: str, page: Path, w: int, h: int, delta=(0, 0)):
     """Lay the page out at w x h and return its report. --dump-dom lays out shorter than
     --window-size on some platforms (87 px on Chrome 157 for macOS), so read the real
     inner size back and relaunch with the difference added."""
     dw, dh = delta
     for _ in range(3):
-        run = chrome(browser, ["--dump-dom"], w + dw, h + dh, page.as_uri() + "?dd-check")
+        run = chrome(browser, ["--dump-dom"], w + dw, h + dh, page.as_uri())
         m = REPORT.search(run.stdout)
         if not m:
             return None, (dw, dh), run.stderr.strip().splitlines()[-3:]
@@ -423,10 +440,13 @@ def cmd_check(a) -> int:
         why = "--no-browser" if a.no_browser else "no Chrome, Chromium, Edge or Brave found (set DD_BROWSER)"
         out.append(finding("WARN", "fit", 1, f"{why}: fit, overlap, type and contrast were not measured", "do the row budget by hand, or install Chrome and rerun"))
     else:
+        copy = probe(page, text)
         try:
-            out, shots, reports = browser_pass(browser, page, w, h, pw, ph, out)
+            out, shots, reports = browser_pass(browser, page, copy, w, h, pw, ph, out)
         except Hung as hung:
             out.append(finding("WARN", "fit", 1, f"{hung}: fit, overlap, type and contrast were not measured", "set DD_BROWSER to a Chrome that runs headless here"))
+        finally:
+            copy.unlink(missing_ok=True)
     failed = any(f["status"] == "FAIL" for f in out)
     if a.json:
         print(json.dumps({"page": str(page), "ok": not failed, "findings": out, "screenshots": shots, "reports": reports}, indent=1))
@@ -440,11 +460,11 @@ def cmd_check(a) -> int:
     return 1 if failed else 0
 
 
-def browser_pass(browser: str, page: Path, w: int, h: int, pw: int, ph: int, out: list[dict]):
+def browser_pass(browser: str, page: Path, copy: Path, w: int, h: int, pw: int, ph: int, out: list[dict]):
     shots, reports = [], {}
-    rep, delta, err = measure(browser, page, w, h)
+    rep, delta, err = measure(browser, copy, w, h)
     if rep is None:
-        out.append(finding("FAIL", "browser", None, "the page wrote no #dd-report under ?dd-check" + (f" ({'; '.join(err)})" if err else ""), "check that the lib region is intact; run sync"))
+        out.append(finding("FAIL", "browser", None, "check.js wrote no #dd-report in the page" + (f" ({'; '.join(err)})" if err else ""), "check that the lib region is intact; run sync"))
         return out, shots, reports
     reports["desktop"] = rep
     out += judge(rep, w, h)
@@ -453,7 +473,7 @@ def browser_pass(browser: str, page: Path, w: int, h: int, pw: int, ph: int, out
         shots.append(str(png))
     else:
         out.append(finding("WARN", "screenshot", None, f"no screenshot at {png}"))
-    phone, _, _ = measure(browser, page, pw, ph, delta)
+    phone, _, _ = measure(browser, copy, pw, ph, delta)
     if phone:
         reports["phone"] = phone
         out += judge_phone(phone, pw)
