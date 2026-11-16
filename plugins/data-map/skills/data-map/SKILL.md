@@ -29,15 +29,15 @@ Write the brief before touching the data or the design. It is working notes, nev
 ```
 Reader:      who reads it, and what they decide with it
 Task:        one action and one target, such as "compare rates between regions" or "find the largest flows"
-Question:    the one sentence the map answers; it becomes the title
+Question:    the one sentence the map answers for that decision; it becomes the title
 Data:        geometry (areas, points, OD pairs, field samples, network); kind (count, rate, ratio, ordinal, category); unit; denominator; n; period; source; margins of error, if the figures are estimates
-Supports:    the claims this data can carry, and the ones it can't
+Supports:    the claims this data can carry, every column that bears on the decision (capacity beside flows, a target beside a rate), and the claims it can't
 Location:    why where matters; if you can't say, the first chooser row applies
 Candidates:  up to three idioms, each with its default lie
 Idiom:       the chosen row, and why it beat the other candidates
-Companions:  the views beside the map
+Companions:  the views beside the map, each answering part of the decision; a static lead figure takes one at most
 Visual plan: what dominates, what recedes, what is left out; the tone
-Interface:   static or interactive; where it will be shown and at what width; device; time spent on it; guided or exploratory; controls refused
+Interface:   static or interactive; where it will be shown and at what width, which a static figure is laid out at; device; time spent on it; guided or exploratory; controls refused
 Projection:  name, and why (settled at step 4)
 Stack:       maplibre, deck-gl, mln-rs, or the project's own, and why (settled at step 4)
 Sensitive:   locations or small counts to mask before they reach the page
@@ -124,7 +124,7 @@ Done when the page's `dm-spec` matches the brief's projection, interface, and re
 python3 <skill>/scripts/datamap.py check map
 ```
 
-The check renders the page in headless Chrome, saves a screenshot beside it, and prints a line per finding: the pitfall, the measured fact, and the fix. It fails a Mercator world map of an areal idiom, Web Mercator tiles under a registered CRS, a layer with no legend, a legend color missing from the render, a blank frame, controls or fonts the brief didn't ask for, and motion that starts by itself. It warns on a node name that didn't render or that an arrowhead covers. Check a static figure at the size it will be shown and at device scale 2: set `figure` in `dm-spec`, or pass `--size` and `--scale`. Type that reads at the design size shrinks below legibility in a narrower column. For the mln-rs stack, run the app's `cargo run --release -- --snapshot map.png`, then `datamap.py check --png map.png --legend map/data/legend.json`.
+The check renders the page in headless Chrome, saves a screenshot beside it, and prints a line per finding: the pitfall, the measured fact, and the fix. It fails a Mercator world map of an areal idiom, Web Mercator tiles under a registered CRS, a layer with no legend, a legend color missing from the render, a blank frame, controls or fonts the brief didn't ask for, a side panel that cuts off a legend or companion, and motion that starts by itself. It warns on a node name that didn't render or that an arrowhead covers. Check a static figure at the size it will be shown and at device scale 2: set `figure` in `dm-spec`, or pass `--size` and `--scale`. Type that reads at the design size shrinks below legibility in a narrower column. For the mln-rs stack, run the app's `cargo run --release -- --snapshot map.png`, then `datamap.py check --png map.png --legend map/data/legend.json`.
 
 - Fix every FAIL and read every WARN.
 - Open the screenshot with Read and look at it as the reader would.
