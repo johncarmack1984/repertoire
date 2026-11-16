@@ -35,7 +35,7 @@ Supports:    the claims this data can carry, every column that bears on the deci
 Location:    why where matters; if you can't say, the first chooser row applies
 Candidates:  up to three idioms, each with its default lie
 Idiom:       the chosen row, and why it beat the other candidates
-Companions:  the views beside the map, each answering part of the decision; a static lead figure takes one at most
+Companions:  the views beside the map, each answering part of the decision, with the largest values or flows ranked beside whatever else serves it; a static lead figure takes one at most
 Visual plan: what dominates, what recedes, what is left out; the tone
 Interface:   static or interactive; where it will be shown and at what width, which a static figure is laid out at; device; time spent on it; guided or exploratory; controls refused
 Projection:  name, and why (settled at step 4)
