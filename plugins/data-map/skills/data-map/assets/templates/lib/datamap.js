@@ -17,7 +17,7 @@ const ARC_APEX = 0.08;
 const FRAME = 'none';
 const METHOD = {quantile: k => `${k} quantile classes`, jenks: k => `${k} classes by natural breaks (Jenks)`,
   equal: k => `${k} equal-interval classes`, stddev: k => `${k} classes by standard deviation from the mean`,
-  headtail: k => `${k} classes by head/tail breaks`, manual: k => `${k} classes set by hand`};
+  headtail: k => `${k} classes by head/tail breaks`, geometric: k => `${k} classes in a constant ratio`, manual: k => `${k} classes set by hand`};
 // Slocum's order of label positions (§12.5.2): the corner of the name that touches the point, and the way the name runs from it.
 const CORNERS = [['bottom-left', 1, -1], ['top-left', 1, 1], ['bottom-right', -1, -1], ['top-right', -1, 1],
   ['bottom', 0, -1], ['top', 0, 1], ['left', 1, 0], ['right', -1, 0]];

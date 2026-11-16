@@ -1010,6 +1010,12 @@ class Render(unittest.TestCase):
                              {k: before["focus"][k] for k in ("key", "title", "subtitle", "drawn", "note")})
             self.assertTrue(rep["annotations"][0]["drawn"])
 
+    def test_the_legend_names_each_classing_method(self):
+        folder = copy("maplibre-crs", self.tmp)
+        data("legend", lambda doc: doc["layers"]["density"].update(method="geometric"))(folder)
+        texts = [b["text"] for b in self.render(folder)[1]["report"]["textBoxes"]]
+        self.assertIn("5 classes in a constant ratio", texts)
+
     def test_a_synced_page_without_data_renders_and_passes(self):
         folder = copy("maplibre-globe", self.tmp)
         shutil.rmtree(folder / "data")
