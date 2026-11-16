@@ -468,7 +468,14 @@ def judge_labels(rep: dict) -> list:
         if covered:
             out.append(WARN("labels", f"arrowheads cover {len(covered)} names of {layer}: " + "; ".join(f"{c['name']} under the head of {c['arrow']}" for c in covered),
                             "let the library place the names (drop any text-anchor or text-offset the page sets), or draw fewer flows"))
-        if not hidden and not covered and lab["nodes"]:
+        if nearer := lab.get("nearer") or []:
+            out.append(WARN("labels", f"{len(nearer)} names of {layer} sit nearer another circle than their own: "
+                            + "; ".join(f"{n['name']}, nearer {n['circle']}" for n in nearer),
+                            "let the library place the names (drop any text-anchor or text-offset the page sets), or draw fewer flows or points"))
+        if cut := lab.get("cut") or []:
+            out.append(WARN("labels", f"{len(cut)} names of {layer} run past the map's edge: {', '.join(cut)}",
+                            "let the library place the names, or give the map more room around the data"))
+        if not hidden and not covered and not nearer and not cut and lab["nodes"]:
             out.append(PASS("labels", f"all {lab['nodes']} names of {layer} rendered, and no arrowhead covers one"))
     return out
 

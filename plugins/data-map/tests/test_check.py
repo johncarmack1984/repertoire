@@ -553,11 +553,17 @@ class Render(unittest.TestCase):
                 code, result = self.render(folder)
                 self.assertEqual((code, result["report"]["tooltips"]), (0, want))
 
-    def test_labels_warn_on_a_name_that_did_not_render_or_sits_under_a_head(self):
+    def test_labels_warn_on_a_name_that_did_not_render_sits_under_a_head_or_strays(self):
         cases = [("a name under an arrowhead", "map.setLayoutProperty('movers-labels', 'text-radial-offset', undefined); "
                   "map.setLayoutProperty('movers-labels', 'text-anchor', 'center'); map.setLayoutProperty('movers-labels', 'text-offset', [0, 0])",
                   "arrowheads cover", "Tokyo under the head of"),
-                 ("names too big to fit", "map.setLayoutProperty('movers-labels', 'text-size', 40)", "didn't render", "names of movers-labels")]
+                 ("names too big to fit", "map.setLayoutProperty('movers-labels', 'text-size', 40)", "didn't render", "names of movers-labels"),
+                 ("names pushed toward their neighbors", "map.setLayoutProperty('movers-labels', 'text-radial-offset', undefined); "
+                  "map.setLayoutProperty('movers-labels', 'text-anchor', 'left'); map.setLayoutProperty('movers-labels', 'text-offset', [3, 0])",
+                  "nearer another circle than their own", "Shanghai, nearer Tokyo"),
+                 ("names pushed off the frame", "map.setLayoutProperty('movers-labels', 'text-radial-offset', undefined); "
+                  "map.setLayoutProperty('movers-labels', 'text-anchor', 'left'); map.setLayoutProperty('movers-labels', 'text-offset', [8, 0])",
+                  "run past the map's edge", "Los Angeles")]
         for what, code, says, names in cases:
             with self.subTest(what):
                 folder = copy("maplibre-globe", self.tmp / what.replace(" ", "-"))

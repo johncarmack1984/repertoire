@@ -442,12 +442,31 @@ function prepArrows(fc, sideways) {
   }
 }
 
+// A name wider than LABEL_EMS breaks at the space that leaves its two lines most even. The page breaks names itself,
+// with MapLibre's own wrapping off, so it knows each name's box before placing it; MapLibre wraps at 10 ems by default,
+// and a box measured as one line put the second line under the neighbors and off the frame.
+const LABEL_EMS = 10;
+function breakName(text) {
+  text = String(text);
+  const words = text.split(' ');
+  if (measure(text) <= LABEL_EMS * parseFloat(tok('t4')) || words.length < 2) return text;
+  let best = null;
+  for (let i = 1; i < words.length; i++) {
+    const a = words.slice(0, i).join(' '), b = words.slice(i).join(' '), w = Math.max(measure(a), measure(b));
+    if (!best || w < best.w) best = {w, text: `${a}\n${b}`};
+  }
+  return best.text;
+}
+
 function labelLayer(id, source, t) {
   const size = parseFloat(tok('t4'));
-  (data[source]?.features || []).forEach((f, i) => { f.properties.dm_lid = i; });
+  (data[source]?.features || []).forEach((f, i) => {
+    f.properties.dm_lid = i;
+    if (f.properties.dm_label != null) f.properties.dm_text = breakName(f.properties.dm_label);
+  });
   // Slocum's first corner for every name until placeLabels gives each its own.
   return {id, type: 'symbol', source,
-    layout: {'text-field': ['get', 'dm_label'], 'text-font': fontStack(), 'text-size': size,
+    layout: {'text-field': ['get', 'dm_text'], 'text-font': fontStack(), 'text-size': size, 'text-max-width': 100, 'text-justify': 'auto',
       'text-anchor': 'bottom-left', 'text-radial-offset': ['+', 0.25, ['/', ['coalesce', ['get', 'dm_r'], 3], size]],
       'symbol-sort-key': ['get', 'dm_order']},
     paint: {'text-color': t.text, 'text-halo-color': t.page, 'text-halo-width': 1.25}};
@@ -866,7 +885,7 @@ function labelScene(map, labels, deck) {
     const points = data[L.kind === 'flows' ? f.nodes : name]?.features || [];
     for (const n of L.kind === 'classes' ? [] : points) {
       if (front(n.geometry.coordinates) && !nodeHidden(f.nodes, n)) circles.push({key: `${L.kind === 'flows' ? f.nodes : name}:${n.properties.dm_lid}`,
-        c: xy(n.geometry.coordinates), r: n.properties.dm_r || 3});
+        c: xy(n.geometry.coordinates), r: n.properties.dm_r || 3, name: n.properties.dm_label ?? null});
     }
     if (L.kind !== 'flows') continue;
     const names = Object.fromEntries(points.map(n => [n.properties.dm_key ?? n.id, n.properties.dm_label ?? n.id]));
@@ -892,11 +911,13 @@ function labelScene(map, labels, deck) {
       segs.push({a: tip, b: base, hw: len * 0.3, weight: 3});
     }
   }
+  const rows = f => String(f.properties.dm_text ?? f.properties.dm_label).split('\n');
   const items = labels.flatMap(({id, source}, layer) => (data[source]?.features || []).filter(f => f.properties.dm_label != null && !nodeHidden(source, f))
     .map(f => {
       const c = f.geometry.coordinates, p = xy(c);
       return {layer: id, rank: layer, lid: f.properties.dm_lid, key: `${source}:${f.properties.dm_lid}`, text: String(f.properties.dm_label),
-        order: f.properties.dm_order ?? 0, p, r: f.properties.dm_r || 3, w: measure(f.properties.dm_label), front: front(c),
+        order: f.properties.dm_order ?? 0, p, r: f.properties.dm_r || 3, front: front(c),
+        w: Math.max(...rows(f).map(measure)), lines: rows(f).length,
         seen: front(c) && p[0] >= 0 && p[1] >= 0 && p[0] <= W && p[1] <= H};
     }))
     // Larger names first, as symbol-sort-key places them (Slocum §12.5.1).
@@ -926,7 +947,7 @@ function labelOptions(item, size) {
 }
 // The name's box for an anchor's direction (sx, sy) and an offset in ems.
 function labelBox(item, {sx, sy, offset}, size, inset = 0) {
-  const h = size * 1.2;
+  const h = size * 1.2 * (item.lines || 1);
   const cx = item.p[0] + offset[0] * size + sx * item.w / 2, cy = item.p[1] + offset[1] * size + sy * h / 2;
   return [cx - item.w / 2, cy - h / 2 + inset, cx + item.w / 2, cy + h / 2 - inset];
 }
@@ -984,8 +1005,16 @@ function boxCost(box, scene, own) {
   if (box[0] < 0 || box[1] < 0 || box[2] > scene.W || box[3] > scene.H) cost += 1000;
   return cost;
 }
-// A name farther from its point costs a little, so the outer ring wins only where it clears a line.
-const labelCost = (item, o, scene) => o.ring * 4 + boxCost(labelBox(item, o, scene.size), scene, item.key);
+// A name farther from its point costs a little, so the outer ring wins only where it clears a line. A name that sits
+// nearer another circle than its own reads as that circle's name (Slocum §12.5.2), so that costs nearly as much as
+// covering the circle.
+function labelCost(item, o, scene) {
+  const box = labelBox(item, o, scene.size);
+  const gap = (c, r) => Math.hypot(c[0] - Math.min(Math.max(c[0], box[0]), box[2]), c[1] - Math.min(Math.max(c[1], box[1]), box[3])) - r;
+  const own = gap(item.p, item.r);
+  const nearer = scene.circles.filter(k => k.key !== item.key && gap(k.c, k.r) < own + 2).length;
+  return o.ring * 4 + boxCost(box, scene, item.key) + 150 * nearer;
+}
 function shownLabels(map, labels) {
   const out = new Set();
   for (const {id, source} of labels) for (const f of map.queryRenderedFeatures({layers: [id]})) out.add(`${source}:${f.properties.dm_lid}`);
@@ -1049,7 +1078,19 @@ function labelReport(map) {
       return scene.heads.filter(hd => triangleMeetsBox(hd.tri, box)).map(hd => ({name: i.text, arrow: hd.flow}));
     });
     const unseen = scene.items.filter(i => i.layer === id && !i.seen).map(i => ({name: i.text, far: !i.front}));
-    return {layer: id, nodes: mine.length, rendered: drawn.map(i => i.text), hidden: mine.filter(i => !shown.has(i.key)).map(i => i.text), covered, unseen};
+    // A drawn name nearer another circle than its own, which a reader takes for that circle's name, and a name
+    // that runs past the map's edge.
+    const nearer = drawn.flatMap(i => {
+      const box = labelBox(i, layout(i), scene.size);
+      const gap = (c, r) => Math.hypot(c[0] - Math.min(Math.max(c[0], box[0]), box[2]), c[1] - Math.min(Math.max(c[1], box[1]), box[3])) - r;
+      const own = gap(i.p, i.r), other = scene.circles.filter(k => k.key !== i.key).sort((a, b) => gap(a.c, a.r) - gap(b.c, b.r))[0];
+      return other && gap(other.c, other.r) < own - 1 ? [{name: i.text, circle: other.name ?? '?'}] : [];
+    });
+    const cut = drawn.filter(i => {
+      const [x0, y0, x1, y1] = labelBox(i, layout(i), scene.size, scene.size * 0.1);
+      return x0 < -1 || y0 < -1 || x1 > scene.W + 1 || y1 > scene.H + 1;
+    }).map(i => i.text);
+    return {layer: id, nodes: mine.length, rendered: drawn.map(i => i.text), hidden: mine.filter(i => !shown.has(i.key)).map(i => i.text), covered, unseen, nearer, cut};
   });
 }
 
