@@ -372,8 +372,8 @@ function buildKinds(t, crs, deck) {
       const fill = ['case', ['==', ['get', 'dm_class'], -1], nodata, ['coalesce', ['get', 'dm_fill'], nodata]];
       const polys = fc.features.some(f => /Polygon/.test(f.geometry?.type));
       if (!polys) return {sources: {[name]: fc}, hover: [[name, name + '-hover']], point: [
-        {id: name, type: 'circle', source: name, paint: {'circle-radius': 4.5, 'circle-color': fill, 'circle-stroke-color': t.page, 'circle-stroke-width': 0.75}},
-        {id: name + '-hover', type: 'circle', source: name, filter: NONE, paint: {'circle-radius': 4.5, 'circle-opacity': 0, 'circle-stroke-color': t.text, 'circle-stroke-width': 1.5}}]};
+        {id: name, type: 'circle', source: name, paint: {'circle-radius': 4.5, 'circle-pitch-scale': 'viewport', 'circle-color': fill, 'circle-stroke-color': t.page, 'circle-stroke-width': 0.75}},
+        {id: name + '-hover', type: 'circle', source: name, filter: NONE, paint: {'circle-radius': 4.5, 'circle-pitch-scale': 'viewport', 'circle-opacity': 0, 'circle-stroke-color': t.text, 'circle-stroke-width': 1.5}}]};
       return {sources: {[name]: fc}, hover: [[name, name + '-hover']], fill: [
         {id: name, type: 'fill', source: name, paint: {'fill-color': fill}},
         {id: name + '-low-n', type: 'fill', source: name, filter: ['==', ['get', 'dm_low_n'], true], paint: {'fill-pattern': 'dm-hatch'}},
@@ -385,9 +385,9 @@ function buildKinds(t, crs, deck) {
       if (!fc) return {};
       return {sources: {[name]: fc}, hover: [[name, name + '-hover']], label: [labelLayer(name + '-labels', name, t)], point: [
         {id: name, type: 'circle', source: name, layout: {'circle-sort-key': ['get', 'dm_order']},
-          paint: {'circle-radius': ['get', 'dm_r'], 'circle-color': ink(L.color || t.symbol), 'circle-stroke-color': t.page, 'circle-stroke-width': 0.75}},
+          paint: {'circle-radius': ['get', 'dm_r'], 'circle-pitch-scale': 'viewport', 'circle-color': ink(L.color || t.symbol), 'circle-stroke-color': t.page, 'circle-stroke-width': 0.75}},
         {id: name + '-hover', type: 'circle', source: name, filter: NONE,
-          paint: {'circle-radius': ['get', 'dm_r'], 'circle-opacity': 0, 'circle-stroke-color': t.text, 'circle-stroke-width': 1.5}}]};
+          paint: {'circle-radius': ['get', 'dm_r'], 'circle-pitch-scale': 'viewport', 'circle-opacity': 0, 'circle-stroke-color': t.text, 'circle-stroke-width': 1.5}}]};
     },
     flows(name, L) {
       const f = filesOf(name, L), lines = data[f.main], nodes = data[f.nodes], arrows = data[f.arrows];
@@ -407,9 +407,9 @@ function buildKinds(t, crs, deck) {
         part.sources[f.nodes] = nodes;
         part.point.push(
           {id: name + '-nodes', type: 'circle', source: f.nodes, layout: {'circle-sort-key': ['get', 'dm_order']},
-            paint: {'circle-radius': ['coalesce', ['get', 'dm_r'], 3], 'circle-color': ink(t.node), 'circle-stroke-color': t.page, 'circle-stroke-width': 1}},
+            paint: {'circle-radius': ['coalesce', ['get', 'dm_r'], 3], 'circle-pitch-scale': 'viewport', 'circle-color': ink(t.node), 'circle-stroke-color': t.page, 'circle-stroke-width': 1}},
           {id: name + '-nodes-hover', type: 'circle', source: f.nodes, filter: NONE,
-            paint: {'circle-radius': ['coalesce', ['get', 'dm_r'], 3], 'circle-opacity': 0, 'circle-stroke-color': t.text, 'circle-stroke-width': 1.5}});
+            paint: {'circle-radius': ['coalesce', ['get', 'dm_r'], 3], 'circle-pitch-scale': 'viewport', 'circle-opacity': 0, 'circle-stroke-color': t.text, 'circle-stroke-width': 1.5}});
         part.label.push(labelLayer(name + '-labels', f.nodes, t));
         part.hover.push([name + '-nodes', name + '-nodes-hover']);
       }
@@ -551,11 +551,33 @@ function globeRadius(map, center) {
   const r = [0, 90, 180, 270].map(b => { const p = map.project(destination(center, b, 80)); return Math.hypot(p.x - c.x, p.y - c.y); });
   return Math.max(...r) / Math.sin(80 * RAD);
 }
+// MapLibre keeps the globe one size as its center moves by adding log2 of the ratio of the latitudes' cosines to the
+// zoom, but it holds the zoom to maxZoom as it stands, so limits set at the fitted latitude let the reader shrink
+// the globe, or stop zooming in, once it turns toward the equator. Its minZoom also binds between the two steps of
+// a jumpTo or easeTo, which adds the latitude's change twice. So on a globe the camera hook holds the zoom between
+// the fitted zoom at the center's latitude plus the dm-spec offsets, and MapLibre's own limits stay out of the way.
+let zoomBand = null;
+const fittedAt = (band, lat) => band.z0 + Math.log2(Math.cos(Math.min(Math.abs(lat), 85) * RAD) / Math.cos(band.lat0 * RAD));
+function zoomLimits(map) {
+  if (!zoomBand) return [map.getMinZoom(), map.getMaxZoom()];
+  const z = fittedAt(zoomBand, map.getCenter().lat);
+  return [zoomBand.lo == null ? map.getMinZoom() : z + zoomBand.lo, zoomBand.hi == null ? map.getMaxZoom() : z + zoomBand.hi];
+}
+
+// The globe's radius in px, read as its scale at the view's center, where the surface faces the camera: unlike the
+// disk's outline, this holds at any zoom.
+function globeScale(map) {
+  const c = map.getCenter().toArray(), o = map.project(c), p = map.project(destination(c, 90, 0.5));
+  return Math.hypot(p.x - o.x, p.y - o.y) / Math.sin(0.5 * RAD);
+}
+
 function fitView(map) {
   const type = spec.projection.type, pts = thematicPoints();
   const pad = 14 + Math.max(0, ...layersOf().flatMap(([name, L]) => [name, filesOf(name, L).nodes])
     .flatMap(s => (data[s]?.features || []).map(f => f.properties?.dm_r || 0)));
   const {clientWidth: w, clientHeight: h} = map.getContainer();
+  map.setTransformCameraUpdate(null);
+  zoomBand = null;
   map.setMinZoom(null);
   map.setMaxZoom(null);
   map.setMaxBounds(null);
@@ -573,8 +595,19 @@ function fitView(map) {
   const z0 = map.getZoom();
   const zoomOf = v => typeof v === 'number' ? v : typeof v === 'string' && /^fit([+-]\d+(\.\d+)?)?$/.test(v) ? z0 + Number(v.slice(3) || 0) : null;
   const zmin = zoomOf(spec.zoom?.min), zmax = zoomOf(spec.zoom?.max);
-  if (zmin != null) map.setMinZoom(zmin);
-  if (zmax != null) map.setMaxZoom(zmax);
+  if (type === 'globe' && (zmin != null || zmax != null)) {
+    const band = zoomBand = {z0, lat0: map.getCenter().lat, lo: zmin == null ? null : zmin - z0, hi: zmax == null ? null : zmax - z0};
+    map.setMinZoom(-2);
+    if (band.hi != null) map.setMaxZoom(Math.min(24, fittedAt(band, 0) + band.hi));
+    map.setTransformCameraUpdate(tr => {
+      const z = fittedAt(band, tr.center.lat);
+      const zoom = Math.min(Math.max(tr.zoom, band.lo == null ? -2 : z + band.lo), band.hi == null ? 24 : z + band.hi);
+      return zoom === tr.zoom ? {} : {zoom};
+    });
+  } else {
+    if (zmin != null) map.setMinZoom(zmin);
+    if (zmax != null) map.setMaxZoom(zmax);
+  }
   if (fitted && spec.extent !== 'world') {
     // Panning stops about 4 degrees of longitude and 3 of latitude past the data (Muehlenhaus ch. 9).
     const v = map.getBounds();
@@ -874,7 +907,9 @@ function report(map, arcs) {
   return {
     projection: map ? (map.getProjection()?.type || 'mercator') : null,
     pitch: map?.getPitch() ?? 0, bearing: map?.getBearing() ?? 0,
-    zoom: map?.getZoom() ?? null, minZoom: map?.getMinZoom() ?? null, maxZoom: map?.getMaxZoom() ?? null,
+    zoom: map?.getZoom() ?? null, minZoom: map ? zoomLimits(map)[0] : null, maxZoom: map ? zoomLimits(map)[1] : null,
+    center: map?.getCenter().toArray() ?? null,
+    globe: spec.projection?.type === 'globe' && map ? {radius: globeScale(map)} : null,
     maxBounds: map?.getMaxBounds()?.toArray() ?? null,
     controls: [...new Set([...document.querySelectorAll('[class*="maplibregl-ctrl"]')].flatMap(e => [...e.classList])
       .filter(c => /^maplibregl-ctrl-/.test(c)))],

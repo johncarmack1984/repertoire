@@ -461,6 +461,27 @@ class PngCheck(unittest.TestCase):
         self.assertIn(("FAIL", "motion", 26), findings(result))
 
 
+def blobs(img, rgb: tuple, tol: int = 60) -> list[tuple]:
+    """Each connected patch of RGB in the image, as (pixels, width, height)."""
+    w, h, px = img.w, img.h, img.rgba
+    hit = {i // 4 for i in range(0, len(px), 4) if all(abs(px[i + k] - rgb[k]) <= tol for k in range(3))}
+    out = []
+    while hit:
+        stack = [hit.pop()]
+        seen = list(stack)
+        while stack:
+            i = stack.pop()
+            x, y = i % w, i // w
+            for j in (i - 1 if x else None, i + 1 if x < w - 1 else None, i - w if y else None, i + w if y < h - 1 else None):
+                if j is not None and j in hit:
+                    hit.discard(j)
+                    stack.append(j)
+                    seen.append(j)
+        xs, ys = [i % w for i in seen], [i // w for i in seen]
+        out.append((len(seen), max(xs) - min(xs) + 1, max(ys) - min(ys) + 1))
+    return out
+
+
 @unittest.skipUnless(BROWSER, "no Chrome, Chromium, Edge, or Brave to render with")
 class Render(unittest.TestCase):
     def setUp(self):
@@ -533,6 +554,29 @@ class Render(unittest.TestCase):
                 warns = [f["message"] for f in result["findings"] if (f["status"], f["check"]) == ("WARN", "labels")]
                 self.assertEqual(status, 0, findings(result, "FAIL"))
                 self.assertTrue(any(says in m and names in m for m in warns), warns)
+
+    def test_the_globe_keeps_its_size_and_its_zoom_range_as_it_turns(self):
+        folder = copy("maplibre-globe", self.tmp / "load")
+        fitted = self.render(folder)[1]["report"]["globe"]["radius"]
+        for lat, zoom, limit, factor in ((0, -10, "minZoom", 1), (0, 30, "maxZoom", 8), (70, 30, "maxZoom", 8)):
+            with self.subTest(lat=lat, zoom=zoom):
+                folder = copy("maplibre-globe", self.tmp / f"{lat}-{zoom}")
+                extend(f"map.jumpTo({{center: [150, {lat}]}}); map.setZoom({zoom})")(folder)
+                rep = self.render(folder)[1]["report"]
+                self.assertAlmostEqual(rep["globe"]["radius"] / fitted, factor, delta=0.02 * factor)
+                self.assertAlmostEqual(rep["zoom"], rep[limit], places=3)
+
+    def test_globe_circles_keep_their_legend_size_out_to_the_rim(self):
+        folder = copy("maplibre-globe", self.tmp)
+        extend("for (const l of map.getStyle().layers) if (l.id !== 'movers-nodes') map.setLayoutProperty(l.id, 'visibility', 'none'); "
+               "map.setPaintProperty('movers-nodes', 'circle-color', '#ff00ff'); map.setPaintProperty('movers-nodes', 'circle-stroke-width', 0); "
+               "map.setPaintProperty('movers-nodes', 'circle-radius', 8); map.jumpTo({center: [175, 10]})")(folder)
+        result = self.render(folder, "--scale", "2")[1]
+        img = png.read(Path(result["png"]).read_bytes())
+        # Round patches only: two circles that touch merge into one patch.
+        radii = [round((n / 3.14159) ** 0.5 / 2, 2) for n, w, h in blobs(img, (255, 0, 255)) if abs(w - h) <= 2]
+        self.assertGreaterEqual(len(radii), 6, radii)
+        self.assertTrue(all(7.4 <= r <= 8.4 for r in radii), radii)
 
     def test_a_synced_page_without_data_renders_and_passes(self):
         folder = copy("maplibre-globe", self.tmp)
