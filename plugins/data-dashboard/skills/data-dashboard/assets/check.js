@@ -30,7 +30,7 @@ function check () {
   const where = el => `${nameOf(secOf(el))} ${el.tagName.toLowerCase()}${el.getAttribute('class') ? '.' + el.getAttribute('class').split(/\s+/)[0] : ''}`
   const meet = (a, b) => [min(a.right, b.right) - max(a.left, b.left), min(a.bottom, b.bottom) - max(a.top, b.top)]
   const rep = {
-    version: dd.version, viewport: { w: innerWidth, h: innerHeight }, layout: doc.dataset.ddLayout || 'grid',
+    version: dd.version, viewport: { w: innerWidth, h: innerHeight }, layout: doc.dataset.ddLayout || 'grid', scheme: matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light',
     page: { w: doc.scrollWidth, h: doc.scrollHeight }, fontPx: parseFloat(cs(body).fontSize), sections: [], overlaps: [], clipped: [], collide: [],
     small: [], contrast: [], marks: [], colors: [], rows: { total: 0, warn: [], alert: [] }, groups: 0, noComparison: [], asOf: null, errors
   }

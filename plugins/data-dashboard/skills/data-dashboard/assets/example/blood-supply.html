@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="dd-viewport" content="1440x800">
 <title>Blood supply</title>
-<!-- data-dashboard:css 0.1.0 sha256:09a5d5bbc0ef17a7a6ca48395bc13775fd7490f4dc1e15c0ce43eb39de097ec8 -->
+<!-- data-dashboard:css 0.1.0 sha256:747d9b13b40267fb3cc2c0aeb437c6c5dbaa6a55661e1282472ee1df036f2ef6 -->
 <style>
 :root {
   --dd-cols: 72;
@@ -41,6 +41,71 @@
   --dd-norm: #E4E4E1;
   --dd-tint: #EDEDEA;
   --dd-box: #D8D8D6;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --dd-bg: #1C1C1B;
+    --dd-ink: #E8E8E5;
+    --dd-ink-2: #A1A19E;
+    --dd-ink-3: #90908D;
+    --dd-accent: #8FA2B4;
+    --dd-title: #627384;
+    --dd-rule: #3A3A38;
+    --dd-axis: #575755;
+
+    --dd-alert: #EF5B50;
+    --dd-warn: #B24B41;
+
+    --dd-bar: #E2E2E2;
+    --dd-proj: #8E8E8E;
+    --dd-band-0: #616161;
+    --dd-band-1: #4D4D4D;
+    --dd-band-2: #3F3F3F;
+    --dd-band-3: #363636;
+    --dd-band-4: #2D2D2D;
+    --dd-fill: #767676;
+    --dd-fill-hi: #B4B4B4;
+    --dd-tone-0: #B8B8B8;
+    --dd-tone-1: #8E8E8E;
+    --dd-tone-2: #727272;
+    --dd-spark: #B0B0B0;
+    --dd-norm: #2F2F2D;
+    --dd-tint: #282826;
+    --dd-box: #3A3A38;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --dd-bg: #1C1C1B;
+  --dd-ink: #E8E8E5;
+  --dd-ink-2: #A1A19E;
+  --dd-ink-3: #90908D;
+  --dd-accent: #8FA2B4;
+  --dd-title: #627384;
+  --dd-rule: #3A3A38;
+  --dd-axis: #575755;
+
+  --dd-alert: #EF5B50;
+  --dd-warn: #B24B41;
+
+  --dd-bar: #E2E2E2;
+  --dd-proj: #8E8E8E;
+  --dd-band-0: #616161;
+  --dd-band-1: #4D4D4D;
+  --dd-band-2: #3F3F3F;
+  --dd-band-3: #363636;
+  --dd-band-4: #2D2D2D;
+  --dd-fill: #767676;
+  --dd-fill-hi: #B4B4B4;
+  --dd-tone-0: #B8B8B8;
+  --dd-tone-1: #8E8E8E;
+  --dd-tone-2: #727272;
+  --dd-spark: #B0B0B0;
+  --dd-norm: #2F2F2D;
+  --dd-tint: #282826;
+  --dd-box: #3A3A38;
 }
 
 :root[data-dd-layout="column"] { --u: 19.2px; }

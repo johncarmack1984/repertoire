@@ -218,7 +218,40 @@ For the `.dd-legend` slot on a section title. Items are `{mark, label, tone?, le
 
 ## CSS
 
-Tokens on `:root`: `--u` (the unit, `min(100vw / --dd-cols, 100vh / --dd-rows)`), `--dd-font`, `--dd-bg` #FBFBF9, `--dd-ink` #222, `--dd-ink-2` #5C5C5C, `--dd-ink-3` #6B6B6B, `--dd-accent` #4E6275 (section titles, 6.1:1), `--dd-title` #7D8FA0 (page title, 3.2:1 as large text), `--dd-rule`, `--dd-axis`, `--dd-alert` #A8261E (6.9:1), `--dd-warn` #DB6A5A (3.3:1), and the gray ramps for bars, bands and parts.
+Tokens on `:root`: `--u` (the unit, `min(100vw / --dd-cols, 100vh / --dd-rows)`), `--dd-font`, and the colors below. No component uses a literal color, and a page's own CSS should use the tokens too.
+
+### Themes
+
+The page follows the viewer's color scheme. The light values sit on `:root`. The dark values are redefined under `@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { … } }` and again under `:root[data-theme="dark"]`, and both dark blocks set `color-scheme: dark`, so `data-theme="light"` or `"dark"` on `<html>` forces one scheme whatever the viewer's setting. The dark palette is designed, not inverted. Few's ladder assumes a white page, where the worst band is the darkest and so contrasts most with the page. On the dark page the worst band is the lightest, the best sits closest to the background, and the bar and target stay the bullet graph's highest-contrast marks. Critical stays the more prominent red, the lighter one on the dark page. Each color's contrast against its own background:
+
+| Token | Role | Light | Dark |
+|---|---|---|---|
+| `--dd-bg` | background | #FBFBF9 | #1C1C1B |
+| `--dd-ink` | text | #222222, 15.4:1 | #E8E8E5, 13.9:1 |
+| `--dd-ink-2` | secondary text, units lines | #5C5C5C, 6.5:1 | #A1A19E, 6.6:1 |
+| `--dd-ink-3` | headers, tick labels | #6B6B6B, 5.1:1 | #90908D, 5.3:1 |
+| `--dd-accent` | section titles | #4E6275, 6.1:1 | #8FA2B4, 6.5:1 |
+| `--dd-title` | page title (large text) | #7D8FA0, 3.2:1 | #627384, 3.5:1 |
+| `--dd-rule` | hairlines | #D5D5D0, 1.4:1 | #3A3A38, 1.5:1 |
+| `--dd-axis` | axes and ticks | #B5B5B5, 2.0:1 | #575755, 2.4:1 |
+| `--dd-alert` | critical dots | #A8261E, 6.8:1 | #EF5B50, 5.1:1 |
+| `--dd-warn` | warning dots | #DB6A5A, 3.3:1 | #B24B41, 3.2:1 |
+| `--dd-bar` | bullet bar and target | #363636, 11.7:1 | #E2E2E2, 13.2:1 |
+| `--dd-proj` | projection segment | #7A7A7A, 4.1:1 | #8E8E8E, 5.2:1 |
+| `--dd-band-0` | worst band | #ABABAB, 2.2:1 | #616161, 2.8:1 |
+| `--dd-band-1` | band | #C2C2C2, 1.7:1 | #4D4D4D, 2.0:1 |
+| `--dd-band-2` | band | #D6D6D6, 1.4:1 | #3F3F3F, 1.6:1 |
+| `--dd-band-3` | band | #E0E0E0, 1.3:1 | #363636, 1.4:1 |
+| `--dd-band-4` | best band | #EAEAEA, 1.2:1 | #2D2D2D, 1.2:1 |
+| `--dd-fill` | bars | #8C8C8C, 3.2:1 | #767676, 3.8:1 |
+| `--dd-fill-hi` | highlighted bar | #4A4A4A, 8.6:1 | #B4B4B4, 8.2:1 |
+| `--dd-tone-0` | first line or part | #2B2B2B, 13.7:1 | #B8B8B8, 8.6:1 |
+| `--dd-tone-1` | second line or part | #6E6E6E, 4.9:1 | #8E8E8E, 5.2:1 |
+| `--dd-tone-2` | third line or part | #8E8E8E, 3.2:1 | #727272, 3.5:1 |
+| `--dd-spark` | sparklines | #4D4D4D, 8.2:1 | #B0B0B0, 7.9:1 |
+| `--dd-norm` | normal band | #E4E4E1, 1.2:1 | #2F2F2D, 1.3:1 |
+| `--dd-tint` | below-zero tint | #EDEDEA, 1.1:1 | #282826, 1.2:1 |
+| `--dd-box` | box-plot box | #D8D8D6, 1.4:1 | #3A3A38, 1.5:1 |
 
 Classes: `dd-page` (on body), `dd-head`, `dd-title`, `dd-asof`, `dd-flags`, `dd-grid`, `dd-stack` (a column of sections inside a grid cell), `dd-sec`, `dd-sec-title`, `dd-qual`, `dd-legend`, `dd-foot`, `dd-sr` (screen-reader-only).
 
@@ -230,7 +263,9 @@ Below the width at which body text would drop under 11 px (1,267 px for 72 colum
 
 - `new OUT [--viewport WxH] [--title T] [--data D.json] [--force]` writes the template. It refuses to overwrite without `--force`.
 - `sync OUT [--data D.json] [--check]` rewrites the css and lib regions from `assets/` and, with `--data`, the data block. `--check` writes nothing and exits 1 when anything differs; with `--data` its PASS line says the data block matched too.
-- `check OUT [--viewport WxH] [--phone WxH] [--json] [--no-browser]` runs the static pass, then the browser pass, prints one `PASS`, `WARN` or `FAIL` line per finding with the mistake number and the fix, saves `<stem>.<W>x<H>.png` at the design viewport and `<stem>.phone.png`, the full length of the one-column phone layout, beside the page, and exits 1 on any FAIL.
+- `check OUT [--viewport WxH] [--phone WxH] [--theme light|dark|both] [--json] [--no-browser]` runs the static pass, then the browser pass, prints one `PASS`, `WARN` or `FAIL` line per finding with the mistake number and the fix, saves `<stem>.<W>x<H>.png` at the design viewport, `<stem>.<W>x<H>.dark.png` in the dark scheme, and `<stem>.phone.png`, the full length of the one-column phone layout, beside the page, and exits 1 on any FAIL.
+
+The desktop pass runs once per scheme, light and dark by default, so contrast, color, fit and clipping are judged in both; `--theme light` or `--theme dark` runs one alone. Each desktop finding names the schemes it holds in, as in `PASS fit in light and dark`, and a finding that differs between them prints once for each, as the color line does, since it lists each scheme's reds. The phone pass runs in light. A run in which Chrome ignored the requested scheme WARNs that the scheme was not judged. `--json` prints the reports under `light`, `dark` and `phone`.
 
 The page carries no check code. `check` writes a copy of the page beside it, named `.<stem>.<random>.dd-check.html`, with `assets/check.js` inlined after the lib region, renders the copy, and deletes it, so the page keeps its relative paths and is never changed. `check.js` reads the page through the DOM and the library's public `DataDashboard.flagged()` and `DataDashboard.version`, records the errors the page script throws, and writes the report once the page has loaded and its fonts are ready. The screenshots are of the page itself.
 
@@ -240,10 +275,10 @@ The browser pass judges the page's report for fit against the viewport and the f
 
 ### The report
 
-`check.js` writes `<script type="application/json" id="dd-report">`, which holds `{version, viewport: {w, h}, layout, page: {w, h}, fontPx, sections: [{name, x, y, w, h, bottom, right}], footTop, overlaps: [{a, b, w, h}], clipped: [{text, px}], collide: [{a, b}], small: [{text, px}], contrast: [{text, ratio, need, color, bg}], marks: [{el, color, ratio}], colors: [{color, count, where}], rows: {total, alert: [labels], warn: [labels]}, groups, empty: [elements], noComparison: [labels], asOf, errors: [messages]}`. `rows` is `dd.flagged()`, so the check's alert count and the page's count line always agree.
+`check.js` writes `<script type="application/json" id="dd-report">`, which holds `{version, viewport: {w, h}, layout, scheme, page: {w, h}, fontPx, sections: [{name, x, y, w, h, bottom, right}], footTop, overlaps: [{a, b, w, h}], clipped: [{text, px}], collide: [{a, b}], small: [{text, px}], contrast: [{text, ratio, need, color, bg}], marks: [{el, color, ratio}], colors: [{color, count, where}], rows: {total, alert: [labels], warn: [labels]}, groups, empty: [elements], noComparison: [labels], asOf, errors: [messages]}`. `rows` is `dd.flagged()`, so the check's alert count and the page's count line always agree.
 
 ### Browser
 
-Discovery order: `$DD_BROWSER`; the Google Chrome, Chromium, Microsoft Edge and Brave Browser app bundles in `/Applications` and `~/Applications`; `google-chrome`, `google-chrome-stable`, `chromium`, `chromium-browser`, `microsoft-edge` and `brave-browser` on `PATH`; then the Playwright caches, headless shell first. Flags: `--headless=new --disable-gpu --hide-scrollbars --force-device-scale-factor=1 --no-first-run --no-default-browser-check --disable-extensions --virtual-time-budget=5000` and a throwaway `--user-data-dir`, plus `--no-sandbox` when running as root. With no browser, or one that does not finish within 60 s, the check runs the static pass and WARNs that fit was not measured.
+Discovery order: `$DD_BROWSER`; the Google Chrome, Chromium, Microsoft Edge and Brave Browser app bundles in `/Applications` and `~/Applications`; `google-chrome`, `google-chrome-stable`, `chromium`, `chromium-browser`, `microsoft-edge` and `brave-browser` on `PATH`; then the Playwright caches, headless shell first. Flags: `--headless=new --disable-gpu --hide-scrollbars --force-device-scale-factor=1 --no-first-run --no-default-browser-check --disable-extensions --virtual-time-budget=5000`, `--blink-settings=preferredColorScheme=1` for light or `=0` for dark, and a throwaway `--user-data-dir`, plus `--no-sandbox` when running as root. With no browser, or one that does not finish within 60 s, the check runs the static pass and WARNs that fit was not measured.
 
 The report pass reads `innerWidth` and `innerHeight` back and relaunches with the difference added, because `--dump-dom` on Chrome 157 for macOS lays out 87 px shorter than `--window-size`. Chrome on macOS also lays out no narrower than 500 px, so there the phone pass and its PNG run at 500 px and say so; Playwright's headless shell lays out at a true 390 px.
