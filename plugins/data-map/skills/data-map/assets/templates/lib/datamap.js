@@ -487,8 +487,9 @@ async function registerCrs(maplibregl, proj4, url, p) {
     throw new Error(`the CRS ${p.name} projects its own center (${center.join(', ')}) to ${at.join(', ')}, so nothing can draw: ` +
       `"${p.definition}"; add +x_0=0 +y_0=0 to the definition, as datamap.py crs prints it`);
   }
-  const handler = new Blob([`import proj4 from '${url}';\nself.setProjectionHandler(definition => proj4(definition));\n`], {type: 'text/javascript'});
-  await maplibregl.importScriptInWorkers(URL.createObjectURL(handler));
+  // A blob URL made on a file:// page is blob:null/..., which the workers can't import; a data URL works from any origin.
+  const handler = `import proj4 from '${url}';\nself.setProjectionHandler(definition => proj4(definition));\n`;
+  await maplibregl.importScriptInWorkers(`data:text/javascript;charset=utf-8,${encodeURIComponent(handler)}`);
   let half = 0;
   for (let lon = -180; lon <= 180; lon += 2) for (let lat = -90; lat <= 90; lat += 2) {
     try {

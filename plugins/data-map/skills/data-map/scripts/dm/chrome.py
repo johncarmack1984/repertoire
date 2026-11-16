@@ -276,11 +276,11 @@ class Chrome:
 
 
 def capture(browser: str, folder: Path, page: str, out: Path, w: int, h: int, scale: float, timeout: float,
-            flags: list[str]) -> dict:
+            flags: list[str], url: str | None = None) -> dict:
     """Serve FOLDER, open PAGE in it at WxH and device scale SCALE, wait on window.dataMap.ready (or, on a
     page without that hook, for the network to go quiet and the page to settle), and write the
     screenshot to OUT. `launch_error` means Chrome never answered, which is the machine's problem,
-    not the page's."""
+    not the page's. With URL, open that instead of serving FOLDER, as a reader opening the file does."""
     run = {"png": str(out), "viewport": [w, h, scale], "flags": flags, "seconds": {}}
     t0 = time.monotonic()
     try:
@@ -288,9 +288,12 @@ def capture(browser: str, folder: Path, page: str, out: Path, w: int, h: int, sc
     except OSError as e:
         run["launch_error"] = str(e)
         return run
-    server = ThreadingHTTPServer(("127.0.0.1", 0), functools.partial(RangeHandler, directory=str(folder)))
-    threading.Thread(target=server.serve_forever, daemon=True).start()
-    run["url"] = f"http://127.0.0.1:{server.server_address[1]}/{page}"
+    server = None
+    if url is None:
+        server = ThreadingHTTPServer(("127.0.0.1", 0), functools.partial(RangeHandler, directory=str(folder)))
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        url = f"http://127.0.0.1:{server.server_address[1]}/{page}"
+    run["url"] = url
     s = None
     try:
         try:
@@ -333,8 +336,9 @@ def capture(browser: str, folder: Path, page: str, out: Path, w: int, h: int, sc
     finally:
         events = chrome.events
         chrome.close()
-        server.shutdown()
-        server.server_close()
+        if server:
+            server.shutdown()
+            server.server_close()
     run["problems"] = problems(events, s)
     run["seconds"]["total"] = round(time.monotonic() - t0, 2)
     return run

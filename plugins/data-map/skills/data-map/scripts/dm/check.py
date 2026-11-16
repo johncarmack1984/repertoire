@@ -7,11 +7,12 @@ from __future__ import annotations
 
 import json
 import re
+import tempfile
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-from . import FAIL, PASS, WARN, report
+from . import FAIL, PASS, WARN, Finding, report
 from . import chrome as cdp
 from . import png
 from .page import DATA_FILE, DATA_REGION, LIB_REGION, SPEC, drift
@@ -522,6 +523,16 @@ def size_arg(text: str) -> tuple[int, int]:
     return int(m[1]), int(m[2])
 
 
+def judge_file_url(browser: str, folder: Path, w: int, h: int, timeout: float, flags: list) -> Finding:
+    """A reader may open index.html straight from disk, and a CRS page loads proj4 into the map's workers there too."""
+    with tempfile.TemporaryDirectory() as tmp:
+        run = cdp.capture(browser, folder.resolve(), "index.html", Path(tmp) / "file.png", w, h, 1, timeout, flags,
+                          url=(folder.resolve() / "index.html").as_uri())
+    if why := run.get("ready_error") or run.get("error"):
+        return FAIL("file", f"opened from file://, the page doesn't draw: {why}", "load anything the workers import from a data: URL, not a blob: URL", 33)
+    return PASS("file", "the page also draws when opened from file://", 33)
+
+
 def check_page(args) -> int:
     folder = Path(args.out)
     if folder.is_file():
@@ -553,6 +564,8 @@ def check_page(args) -> int:
         if measured and shot.exists():
             findings += judge_png(shot, run.get("report"), run, scale, page.legend, folder / "data")
             findings.append(PASS("screenshot", str(shot.resolve())))
+        if measured and page.is_map and page.projection.get("type") == "crs":
+            findings.append(judge_file_url(browser, folder, w, h, args.timeout, run.get("flags") or flags))
     record = {"page": str((folder / "index.html").resolve()), "png": str(shot.resolve()) if run and shot.exists() else None,
               "size": [w, h], "scale": scale, "report": (run or {}).get("report"),
               "run": {k: v for k, v in (run or {}).items() if k not in ("report",)}}
