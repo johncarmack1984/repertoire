@@ -46,7 +46,7 @@ The arc lands on the surface almost vertically, so the head sits at the landing 
 
 The two directions of a pair share one great circle and one height, so A to B and B to A draw as one arc with a head at each end. ArcLayer's `getTilt` would lean them apart, but 9.4.1 ignores it on great-circle arcs, and a render with a tilt of 15 degrees was byte-identical to one without. When the pair matters, run the lever with `--net`, or draw flat flows on the maplibre globe, where each direction moves `dm_offset` pixels to the right of travel.
 
-The `focus` control works here too, and rebuilds the arcs in the two focus colors; a pair's two directions still share one arc. The reveal slider works here too. When the lever ran with `--reveal` and `controls` lists `reveal`, the slider rebuilds the arc layer with the flows up to its value, and the heads and nodes follow. The arcs leave the ground, so `check` leaves them out when it looks for flows over unconnected nodes.
+The `focus` control works here too, and rebuilds the arcs in the two focus colors; a pair's two directions still share one arc. The reveal slider works here too. When the lever ran with `--reveal` and `controls` lists `reveal`, the slider rebuilds the arc layer with the flows up to its value, and the heads and nodes follow. The names and the notes keep clear of the arcs where the reader sees them: the page lifts each great circle as deck.gl does, by the square root of t(1 - t) times its length and height, and projects it to the screen. The arcs leave the ground, so `check` leaves them out when it looks for flows over unconnected nodes.
 
 ## Large layers
 

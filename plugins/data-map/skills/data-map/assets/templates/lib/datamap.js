@@ -938,8 +938,8 @@ function arcLayers(deck, t, show) {
 // ---------- point labels: each name in the corner its flows, arrowheads, and neighbors leave clearest ----------
 
 // Every name of every label layer, and what it must stay clear of, in screen px at the current view. Flows are
-// segments with their half-widths, each arrowhead is its triangle and a short wide segment along its line, and
-// nodes and symbols are circles. Raised deck.gl arcs leave the ground, so their segments are left out.
+// segments with their half-widths, deck.gl arcs too as the reader sees them raised, each arrowhead is its triangle
+// and a short wide segment along its line, and nodes and symbols are circles.
 function labelScene(map, labels, deck) {
   const xy = c => { const p = map.project(c); return [p.x, p.y]; };
   const center = map.getCenter().toArray(), horizon = spec.projection.type === 'globe' ? horizonDeg(map) : Infinity;
@@ -956,6 +956,7 @@ function labelScene(map, labels, deck) {
     }
     if (L.kind !== 'flows') continue;
     const names = Object.fromEntries(points.map(n => [n.properties.dm_key ?? n.id, n.properties.dm_label ?? n.id]));
+    if (deck) segs.push(...arcSegs(map, name, front));
     for (const line of deck ? [] : data[f.main]?.features || []) {
       if (!drawnFlow(name, line.properties)) continue;
       const g = line.geometry, hw = (line.properties.dm_width || 1) / 2;
@@ -990,6 +991,31 @@ function labelScene(map, labels, deck) {
     // Larger names first, as symbol-sort-key places them (Slocum §12.5.1).
     .sort((a, b) => a.rank - b.rank || a.order - b.order);
   return {items, segs, heads, circles, W, H, size};
+}
+
+// Each drawn deck.gl arc as screen segments. deck.gl lifts a great-circle arc sqrt(t(1 - t)) * length * height above
+// the ground (arc-layer-vertex.glsl), so the longest flow's apex sits at dm-spec.arcs.apex of the Earth's radius; on
+// the globe, whose camera is nearly orthographic, a point that high lies (1 + lift) times as far from the globe's
+// center on screen as the ground under it, and shows unless the globe hides it.
+function arcSegs(map, name, front) {
+  const arc = (live.arcs || []).find(a => a.name === name);
+  if (!arc) return [];
+  const globe = spec.projection.type === 'globe', c = map.project(map.getCenter()), out = [];
+  const center = map.getCenter().toArray();
+  for (const a of arc.layer.props.data) {
+    const deg = angularKm(a.from, a.to) / EARTH_KM / RAD, b = bearingTo(a.from, a.to), share = (a.dm_km || 0) / (arc.longest || 1);
+    let last = null;
+    for (let i = 0; i <= 24; i++) {
+      const s = i / 24, at = destination(a.from, b, deg * s), g = map.project(at);
+      const lift = globe ? 2 * arc.apex * share * Math.sqrt(s * (1 - s)) : 0;
+      const p = [c.x + (g.x - c.x) * (1 + lift), c.y + (g.y - c.y) * (1 + lift)];
+      const away = angularKm(at, center) / EARTH_KM;
+      const seen = front(at) || (globe && (1 + lift) * Math.sin(Math.min(away, Math.PI / 2)) > 1);
+      if (seen && last) out.push({a: last, b: p, hw: (a.dm_width || 1) / 2, weight: 1});
+      last = seen ? p : null;
+    }
+  }
+  return out;
 }
 
 // How far from the view's center the globe's horizon lies, in degrees. Past it a projected point turns back toward
@@ -1163,10 +1189,11 @@ function labelReport(map) {
 
 // ---------- annotations: the finding written on the map, a quiet note with a short leader to its place ----------
 
-// A note wraps at one of NOTE.widths px and sits at one of four leader lengths in each of Slocum's label corners,
-// whichever covers least of the flows, arrowheads, circles, names, other notes, and class areas; a place with no
-// node gets a dot.
-const NOTE = {widths: [180, 120], reaches: [12, 24, 40, 64], dot: 2, area: 60};
+// A note wraps at one of NOTE.widths px and sits at one of six leader lengths in each of Slocum's label corners,
+// whichever covers least of the flows and arcs, arrowheads, circles, names, other notes, and land: a note over land
+// reads as a place there, so it costs more than a long leader out to sea or off the globe. A place with no node gets
+// a dot.
+const NOTE = {widths: [180, 120], reaches: [12, 24, 40, 64, 100, 140], dot: 2, area: 320};
 let notes = [];
 
 function resolveNotes() {
@@ -1239,15 +1266,20 @@ function placeNotes(map) {
   if (!notes.length || focused) return;
   const scene = labelScene(map, labelPlan?.labels || [], labelPlan?.deck ?? !!pageLibs.deck);
   const names = drawnNames(map, scene), taken = names.map(n => n.box), line = scene.size * 1.25;
-  const areas = layersOf().filter(([name, L]) => L.kind === 'classes' && map.getLayer(name)).map(([name]) => name);
-  // The share of the box over a class area, from a grid of 8 by 3 points.
+  // Land is every polygon the page draws: class areas, land, and base polygons; a basemap's water and the sphere's
+  // ocean are polygons too, so they stay out.
+  const areas = map.getStyle().layers.filter(l => l.type === 'fill' && l.source !== 'basemap' && !/-ocean$/.test(l.id)).map(l => l.id);
+  const seen = new Map();
+  const land = (x, y) => {
+    const k = `${Math.round(x / 3)},${Math.round(y / 3)}`;
+    if (!seen.has(k)) seen.set(k, map.queryRenderedFeatures([x, y], {layers: areas}).length > 0);
+    return seen.get(k);
+  };
+  // The share of the box over land, from a grid of 8 by 3 points.
   const under = box => {
     if (!areas.length) return 0;
     let hit = 0;
-    for (let i = 0; i < 8; i++) for (let j = 0; j < 3; j++) {
-      const x = box[0] + (i + 0.5) * (box[2] - box[0]) / 8, y = box[1] + (j + 0.5) * (box[3] - box[1]) / 3;
-      if (map.queryRenderedFeatures([x, y], {layers: areas}).length) hit++;
-    }
+    for (let i = 0; i < 8; i++) for (let j = 0; j < 3; j++) hit += land(box[0] + (i + 0.5) * (box[2] - box[0]) / 8, box[1] + (j + 0.5) * (box[3] - box[1]) / 3);
     return hit / 24;
   };
   for (const n of notes) {

@@ -710,6 +710,31 @@ class Render(unittest.TestCase):
                     self.assertLessEqual(box["w"], 181)
                 self.assertIn(("PASS", "annotations", 24), findings(result))
 
+    def test_notes_keep_off_land_and_off_raised_arcs(self):
+        hide_text = page("</head>", "<style>.dm-notes text { fill: none; stroke: none; }</style>\n</head>")
+
+        def magenta(doc):
+            for f in doc["features"]:
+                f["properties"].update(dm_fill="#ff00ff", dm_opacity=1)
+        for name, edits, notes, ink in (
+                ("maplibre-crs", [hide_text], [{"text": "Mongolia: about 2 people per square kilometer", "at": [103, 47]}], None),
+                ("deck-globe", [hide_text, data("movers", magenta)], [{"text": "Seoul and Tokyo trade the most movers", "at": "node:SEL"},
+                                                                       {"text": "Los Angeles draws from all of Asia", "at": "node:LAX"},
+                                                                       {"text": "Manila", "at": "node:MNL"}], "#ff00ff")):
+            with self.subTest(name):
+                folder = copy(name, self.tmp / name)
+                spec(annotations=notes)(folder)
+                for edit in edits:
+                    edit(folder)
+                result = self.render(folder)[1]
+                img = png.read(Path(result["png"]).read_bytes())
+                colors = [ink] if ink else json.loads((folder / "data" / "legend.json").read_text())["layers"]["density"]["colors"]
+                for note in result["report"]["annotations"]:
+                    b = note["box"]
+                    counts = img.histogram((round(b["x"]), round(b["y"]), round(b["w"]), round(b["h"])))
+                    under = sum(png.near(counts, c, 60 if ink else 6) for c in colors) / sum(counts.values())
+                    self.assertLess(under, 0.05, f"{note['text']} sits {under:.0%} over {'an arc' if ink else 'land'}")
+
     def test_a_note_that_cannot_render_warns(self):
         for what, at in (("a place outside the view", [10, 50]), ("a node that doesn't exist", "node:NOPE")):
             with self.subTest(what):
