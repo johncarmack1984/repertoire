@@ -696,6 +696,36 @@ class Projection(unittest.TestCase):
         rec = crs.recommend(crs.Extent(-180, 60, 180, 90))
         self.assertIn("+proj=laea +lat_0=90", rec.definition)
 
+    def test_a_city_keeps_web_mercator_and_a_state_does_not(self):
+        # projection.md: a city stays on Web Mercator, whose area scale is sec² of the latitude; it may change across the
+        # extent by no more than the 1.6% Slocum's conics keep over Kansas (§9.4.4).
+        rows = data.read_table(BikeCase.folder() / "stations.csv").rows
+        lats, lons = [float(r["lat"]) for r in rows], [float(r["lon"]) for r in rows]
+        mid = (min(lats) + max(lats)) / 2
+        km_per_deg = math.pi * 6371.0088 / 180
+        side = max(max(lats) - min(lats), (max(lons) - min(lons)) * math.cos(math.radians(mid))) * km_per_deg
+        sec2 = lambda lat: 1 / math.cos(math.radians(lat)) ** 2
+        spread = lambda km: sec2(mid + km / km_per_deg / 2) / sec2(mid - km / km_per_deg / 2) - 1
+        self.assertAlmostEqual(side, 10.5, delta=0.05)
+        self.assertLess(spread(side), 0.016)
+        # At 45.5 degrees the 1.6% falls between a 49 and a 50 km square, which prints as 50.
+        self.assertTrue(spread(49.5) <= 0.016 < spread(50))
+        for idiom in ("area", "points", "flows"):
+            code, text = cli("crs", "--extent", BikeCase.folder() / "stations.csv", "--idiom", idiom, "--interactive", "--json")
+            self.assertEqual(code, 0, text)
+            out = json.loads(text)
+            self.assertEqual((out["type"], out["name"], out["definition"]), ("mercator", "mercator", ""))
+            self.assertIn(f"{side:.1f} km on its longer side", out["reason"])
+            self.assertIn(f"changes by {spread(side):.2%}", out["reason"])
+            self.assertIn("holds up to 50 km", out["reason"])
+            self.assertEqual(out["snippet"], "style.projection = {type: 'mercator'};")
+            self.assertTrue(out["alternatives"][0]["definition"].startswith("+proj=laea"))
+            self.assertFalse(any(f["status"] == "WARN" and f["check"] == "tiles" for f in out["findings"]))
+        # Kansas, 37 to 40 N: Web Mercator's area scale grows about 9% from its south edge to its north (projection.md).
+        kansas = crs.Extent(-102.05, 36.99, -94.59, 40.0)
+        self.assertAlmostEqual(sec2(40.0) / sec2(36.99) - 1, 0.09, delta=0.01)
+        self.assertEqual(crs.recommend(kansas, "points").name, "custom:albers")
+
     def test_every_printed_definition_is_one_proj4_2_22_implements(self):
         extents = ["world", "-124.8,24.5,-66.9,49.4", "-180,60,180,90", "-180,-90,180,-60", "95,-11,141,6",
                    "-18,-35,52,37", "-25,34,45,72", "27,41.7,-170,81.9", "-80,-56,-34,13", FIX / "pacific-nodes.csv"]

@@ -15,6 +15,12 @@ GLOBE_SPAN = 180
 # no country but Antarctica. At 0, Chukotka draws beside Alaska; at 10, a sliver east of -170 still does, since
 # Cape Dezhnev lies at -169.9; at 11, the edge cuts St. Lawrence Island. Every center from 11.31 to 11.89 works.
 WORLD_LON0 = 11.6
+# Web Mercator's area scale is sec² of the latitude. Slocum's conformal and equidistant conics keep Kansas within about
+# 1.6% of true area (§9.4.4), a small area "equally well represented by most projections" (§9.1), while Web Mercator's
+# scale grows 9% across Kansas. An extent over which it grows by no more than the conics' 1.6% keeps Web Mercator.
+MERCATOR_SPREAD = 0.016
+MERCATOR_LAT = 85.0511
+KM_PER_DEG = math.pi * 6371.0088 / 180
 
 
 @dataclass(frozen=True)
@@ -103,7 +109,50 @@ def polar(ext: Extent) -> bool:
     return False
 
 
+def area_spread(lat_a: float, lat_b: float) -> float:
+    """How much Web Mercator's area scale, sec² of the latitude, grows from one latitude to another, Equator between them or not."""
+    near = 0.0 if lat_a * lat_b < 0 else min(abs(lat_a), abs(lat_b))
+    far = max(abs(lat_a), abs(lat_b))
+    return (math.cos(math.radians(near)) / math.cos(math.radians(far))) ** 2 - 1
+
+
+def side_km(ext: Extent) -> float:
+    """The extent's longer side on the ground: north to south, or east to west at its middle latitude."""
+    return max(ext.lat_span, ext.lon_span * math.cos(math.radians(ext.center_lat))) * KM_PER_DEG
+
+
+def square_spread(lat: float, km: float) -> float:
+    """Web Mercator's area spread over a square km on a side, centered on lat."""
+    half = km / KM_PER_DEG / 2
+    return area_spread(lat - half, lat + half)
+
+
+def city_limit_km(lat: float) -> float:
+    """The side of the largest square centered on lat that keeps Web Mercator's area spread within MERCATOR_SPREAD."""
+    lo, hi = 0.0, 180 * KM_PER_DEG
+    for _ in range(60):
+        mid = (lo + hi) / 2
+        lo, hi = (mid, hi) if square_spread(lat, mid) <= MERCATOR_SPREAD and abs(lat) + mid / KM_PER_DEG / 2 < MERCATOR_LAT else (lo, mid)
+    return lo
+
+
 def recommend(ext: Extent, idiom: str = "area", interactive: bool = False) -> Recommendation:
+    """Web Mercator for a city or a small region, where its area scale barely changes and street tiles line up; otherwise
+    the projection the extent and idiom call for."""
+    km, limit = side_km(ext), city_limit_km(ext.center_lat)
+    if km > limit:
+        return by_extent(ext, idiom, interactive)
+    alt = by_extent(ext, idiom, interactive)
+    return Recommendation(
+        "mercator", "mercator", "", f"conformal; area scale within {MERCATOR_SPREAD:.1%} across the extent",
+        f"a city or small region, {km:,.1f} km on its longer side: Web Mercator's area scale (sec² of the latitude) changes by "
+        f"{square_spread(ext.center_lat, km):.2%} across it, within the {MERCATOR_SPREAD:.1%} Slocum's conics keep over Kansas "
+        f"(§9.4.4), and street tiles line up under it; at latitude {_d(ext.center_lat)} that holds up to {limit:,.0f} km",
+        [{"name": alt.name, "definition": alt.definition, "why": "equal-area, for a static map that compares areas and draws no tiles"}],
+    )
+
+
+def by_extent(ext: Extent, idiom: str, interactive: bool) -> Recommendation:
     if polar(ext):
         north = ext.south > 0
         lat0 = 90 if north else -90
@@ -170,8 +219,8 @@ def geo_commands(rec: Recommendation, script: str) -> list:
 
 def snippet(rec: Recommendation) -> str:
     """The registration that the maplibre-gl 6.18.0 prototype rendered with, before the map is made."""
-    if rec.type == "globe":
-        return "style.projection = {type: 'globe'};"
+    if rec.type in ("globe", "mercator"):
+        return f"style.projection = {{type: '{rec.type}'}};"
     return "\n".join([
         "const handler = new Blob([`import proj4 from 'https://esm.sh/proj4@2.22.0';",
         "  self.setProjectionHandler(definition => proj4(definition));`], {type: 'text/javascript'});",

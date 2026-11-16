@@ -20,7 +20,7 @@ Choose the extent first, then the property, then the aspect and the center, in t
 | along the Equator, wider east to west | cylindrical equal-area | `cea` |
 | around a pole | polar Lambert azimuthal equal-area | `laea` at latitude 90 or -90 |
 | a long north-south extent away from the poles | Lambert azimuthal equal-area, centered | `laea` |
-| a city | the stack's default; the property barely matters | Web Mercator |
+| a city or a small region, up to about 50 km across at 45° | Web Mercator, the stack's default; the property barely matters | none; `type: 'mercator'` |
 
 Slocum's chapter 9 also names Eckert IV and Goode's homolosine for the world and a transverse cylindrical equal-area projection for north-south extents. proj4 2.22.0, which maplibre-gl loads for a CRS, implements none of the three (`eck4`, `igh`, and `tcea` are missing), so the table uses the nearest projection it has. When `datamap.py crs` lists one of them as an alternative, pick another.
 
@@ -56,6 +56,8 @@ Check every parameter a tool suggests. An automatic tool gave a 0° central meri
 The property barely matters on a small area, since "small geographic areas are equally well represented by most projections." (Slocum §9.1). Over Kansas, the conformal and equidistant conics stay within about 1.6% of true area (Slocum §9.4.4).
 
 Web Mercator is the exception at state size. Its area scale is sec² of the latitude, which grows about 9% from 37° N to 40° N. A state-wide dot or density map takes Albers. A city map can stay on Web Mercator and keep its standard tiles.
+
+`crs` draws the line between them with the conics' 1.6%. It recommends Web Mercator, for every idiom, when the extent's longer side is no more than the side of a square over which Web Mercator's area scale changes by 1.6%, and it prints both. That square is about 1,600 km at the Equator, 88 km at 30°, 50 km at 45°, and 29 km at 60°, so a 10 km bike-share network passes anywhere and Kansas fails. Its alternative is the equal-area projection for the extent, for a static map that compares areas and draws no tiles.
 
 ## Generalization
 
@@ -96,9 +98,10 @@ A globe shows at most one hemisphere and foreshortens everything near its edge, 
 python3 <skill>/scripts/datamap.py crs --extent data/lakes.geojson --idiom area
 python3 <skill>/scripts/datamap.py crs --extent -125,24.5,-66.9,49.4 --idiom area --json
 python3 <skill>/scripts/datamap.py crs --extent world --idiom flows --interactive
+python3 <skill>/scripts/datamap.py crs --extent data/stations.csv --idiom flows --interactive
 ```
 
-`crs` prints the name (`custom:<slug>`), the proj4 definition, the property, the reason, the alternatives, and a JS snippet. With an areal idiom it repeats that Web Mercator tiles can't sit under the CRS. Copy the name and definition into `dm-spec.projection`.
+`crs` prints the name (`custom:<slug>`), the proj4 definition, the property, the reason, the alternatives, and a JS snippet. With an areal idiom it repeats that Web Mercator tiles can't sit under the CRS. Copy the name and definition into `dm-spec.projection`. For a city it prints `mercator` with no definition, the extent's size, and the size its latitude allows; take the `mercator` preset, whose `dm-spec.projection` is `{"type": "mercator"}`.
 
 ## proj4 definitions
 
