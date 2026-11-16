@@ -9,14 +9,14 @@ import re
 import sys
 import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / "skills" / "data-map" / "scripts"))
 
 import datamap  # noqa: E402
-from dm import classify, crs, data, flows, geo, symbols  # noqa: E402
+from dm import classify, commands, crs, data, flows, geo, symbols  # noqa: E402
 
 FIX = HERE / "fixtures"
 SLOCUM = [11, 12, 13, 14, 31, 32, 33, 99, 100]
@@ -39,8 +39,12 @@ def ssd(groups):
     return sum(sum((x - sum(g) / len(g)) ** 2 for x in g) for g in groups if g)
 
 
+def midpoint(coords):
+    return coords[len(coords) // 2]
+
+
 def midpoint_lat(placed):
-    return placed.coords[len(placed.coords) // 2][1]
+    return midpoint(placed.coords)[1]
 
 
 class Classing(unittest.TestCase):
@@ -156,6 +160,29 @@ class Counts(unittest.TestCase):
             self.assertRegex(text, r"(?m)^FAIL midpoint \[P7\]: ")
 
 
+class Margins(unittest.TestCase):
+    def test_inspect_finds_a_margin_of_error_and_the_ranks_it_ties(self):
+        code, text = cli("inspect", FIX / "survey-movers.csv", "--json")
+        self.assertEqual(code, 0)
+        out = json.loads(text)
+        # CV = (MOE / 1.645) / estimate x 100: 10, 22.2, 10, 5, and 31.6; the zero estimate has none.
+        # Neighbors in rank order tie where the gap is under sqrt(MOE1^2 + MOE2^2): 1000 and 900 (100 < 367.8),
+        # and 200 and 190 (10 < 100.1), but not 900 and 500 (400 > 339.1).
+        self.assertEqual(out["profiles"]["survey-movers.csv"]["margins"],
+                         [{"estimate": "movers", "moe": "moe", "cv": [5.0, 10.0, 31.6], "zeros": 1, "neighbors": 5, "ties": 2}])
+        warn = next(f for f in out["findings"] if (f["status"], f["check"]) == ("WARN", "moe"))
+        self.assertEqual(warn["pitfall"], 36)
+        self.assertIn("ranks 1 to 2 and 4 to 5 tie", warn["message"])
+        moe_profile = next(f for f in out["findings"] if f["check"] == "profile" and "column moe:" in f["message"])
+        self.assertIn("the margin of error of movers", moe_profile["message"])
+        self.assertIn("1 of them zero", next(f["message"] for f in out["findings"] if "column movers:" in f["message"]))
+
+    def test_margins_pair_by_name(self):
+        rows = [{"pop": "100", "pop_moe": "20", "moe_rent": "5", "rent": "900"}, {"pop": "80", "pop_moe": "30", "moe_rent": "9", "rent": "700"}]
+        lines, facts = commands.moe_lines("t", ["pop", "pop_moe", "moe_rent", "rent"], rows)
+        self.assertEqual([(f["estimate"], f["moe"]) for f in facts], [("pop", "pop_moe"), ("rent", "moe_rent")])
+
+
 class Sphere(unittest.TestCase):
     TOKYO, LOS_ANGELES = [139.6917, 35.6895], [-118.2437, 34.0522]
 
@@ -196,6 +223,28 @@ class Flows(unittest.TestCase):
         self.assertTrue(moved.clear)
         self.assertGreaterEqual(geo.point_line_km(mid, moved.coords), 0.04 * haversine_km(self.A.pos, self.B.pos))
 
+    def test_curves_clear_only_the_nodes_of_kept_flows(self):
+        # C sits on A to B's default curve, close enough that the curve flips when C is drawn.
+        ab = flows.Flow("A", "B", 100)
+        mid = midpoint(flows.place([ab], {"A": self.A, "B": self.B}, "curved")[0].coords)
+        c = flows.Node("C", mid[0], mid[1], "C")
+        self.assertGreater(midpoint_lat(flows.place([ab], {"A": self.A, "B": self.B, "C": c}, "curved")[0]), 0)
+        with tempfile.TemporaryDirectory() as tmp:
+            nodes = Path(tmp) / "nodes.csv"
+            nodes.write_text(f"id,lon,lat\nA,0,0\nB,40,0\nC,{mid[0]},{mid[1]}\nD,{mid[0]},{mid[1] - 30}\n")
+            od = Path(tmp) / "od.csv"
+            od.write_text("origin,dest,movers\nA,B,100\nC,D,1\n")
+            # --top 1 cuts C to D, so C is never drawn and A to B stays on its default side, south.
+            code, text = cli("flows", od, "--nodes", nodes, "--top", 1, "--layer", "f", "--out-dir", tmp)
+            self.assertEqual(code, 0, text)
+            line = json.loads((Path(tmp) / "f.geojson").read_text())["features"][0]
+            self.assertLess(midpoint(line["geometry"]["coordinates"])[1], 0)
+            self.assertNotRegex(text, r"(?m)^WARN clearance")
+            layer = json.loads((Path(tmp) / "legend.json").read_text())["layers"]["f"]
+            self.assertEqual((layer["total"], layer["omitted_note"]), (2, "The 1 largest of 2 flows, 99% of all movers"))
+            totals = {f["properties"]["dm_key"]: f["properties"]["dm_value"] for f in json.loads((Path(tmp) / "f-nodes.geojson").read_text())["features"]}
+            self.assertEqual(totals, {"A": 100, "B": 100})
+
     def test_widths_are_linear_in_value_with_a_floor(self):
         self.assertAlmostEqual(flows.width(3000, 3400, 12, 1), 12 * 3000 / 3400)
         self.assertAlmostEqual(flows.width(1000, 3400, 12, 1), 12 * 1000 / 3400)
@@ -214,6 +263,59 @@ class Flows(unittest.TestCase):
         kept, share = flows.keep_top(fs, top=3)
         self.assertAlmostEqual(share, 0.9)
         self.assertEqual(flows.omitted_note(2, 5, 0.8, "movers"), "The 2 largest of 5 flows, 80% of all movers")
+
+    def test_legend_text_separates_thousands_and_says_what_the_circles_count(self):
+        self.assertEqual(flows.omitted_note(50, 2097, 0.2281, "movers"), "The 50 largest of 2,097 flows, 23% of all movers")
+        self.assertEqual(flows.omitted_note(2097, 2097, 1.0, "movers"), "All 2,097 flows")
+        with tempfile.TemporaryDirectory() as out:
+            code, text = cli("flows", FIX / "pacific-movers.csv", "--nodes", FIX / "pacific-nodes.csv", "--top", 10, "--unit", "movers",
+                             "--layer", "m", "--out-dir", out)
+            self.assertEqual(code, 0, text)
+            nodes = json.loads((Path(out) / "legend.json").read_text())["layers"]["m"]["nodes"]
+            # The circles total every one of the fixture's 30 flows, not only the 10 drawn.
+            self.assertEqual(nodes["title"], "Circle area: movers in and out, across all 30 flows")
+
+    def flows_run(self, out, *args):
+        code, text = cli("flows", FIX / "pacific-movers.csv", "--nodes", FIX / "pacific-nodes.csv", "--top", 12,
+                         "--layer", "m", "--out-dir", out, *args)
+        self.assertEqual(code, 0, text)
+        lines = [f["properties"] for f in json.loads((Path(out) / "m.geojson").read_text())["features"]]
+        arrows = [f["properties"] for f in json.loads((Path(out) / "m-arrows.geojson").read_text())["features"]]
+        return lines, arrows, json.loads((Path(out) / "legend.json").read_text())["layers"]["m"]
+
+    def test_flows_fade_by_value_from_fade_min_to_one(self):
+        with tempfile.TemporaryDirectory() as out:
+            lines, arrows, layer = self.flows_run(out)
+            values = [p["dm_value"] for p in lines]
+            vmin, vmax = min(values), max(values)
+            for p in lines:
+                self.assertAlmostEqual(p["dm_opacity"], 0.45 + 0.55 * (p["dm_value"] - vmin) / (vmax - vmin), places=3)
+            by_value = sorted(lines, key=lambda p: p["dm_value"])
+            self.assertEqual((by_value[0]["dm_opacity"], by_value[-1]["dm_opacity"]), (0.45, 1.0))
+            self.assertEqual({(a["dm_o"], a["dm_d"]): a["dm_opacity"] for a in arrows}, {(p["dm_o"], p["dm_d"]): p["dm_opacity"] for p in lines})
+            # Each legend width carries its value's opacity, so the swatches match the lines.
+            self.assertEqual(len(layer["legend_opacities"]), len(layer["legend_widths"]))
+            for v, a in zip(layer["legend_values"], layer["legend_opacities"]):
+                self.assertAlmostEqual(a, min(1, max(0.45, 0.45 + 0.55 * (v - vmin) / (vmax - vmin))), places=3)
+            self.assertEqual(layer["legend_opacities"], sorted(layer["legend_opacities"], reverse=True))
+        with tempfile.TemporaryDirectory() as out:
+            lines, _, layer = self.flows_run(out, "--fade-min", 0.2)
+            self.assertEqual(min(p["dm_opacity"] for p in lines), 0.2)
+        with tempfile.TemporaryDirectory() as out:
+            lines, arrows, layer = self.flows_run(out, "--no-fade")
+            self.assertEqual({p["dm_opacity"] for p in lines + arrows} | set(layer["legend_opacities"]), {1.0})
+
+    def test_flows_draw_in_one_warm_color_unless_told(self):
+        with tempfile.TemporaryDirectory() as out:
+            lines, arrows, layer = self.flows_run(out)
+            self.assertEqual({p["dm_fill"] for p in lines + arrows} | {layer["color"]}, {"#a63603"})
+        with tempfile.TemporaryDirectory() as out:
+            lines, arrows, layer = self.flows_run(out, "--color", "#54278F")
+            self.assertEqual({p["dm_fill"] for p in lines + arrows} | {layer["color"]}, {"#54278f"})
+        with tempfile.TemporaryDirectory() as out, redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit) as stop:
+                cli("flows", FIX / "pacific-movers.csv", "--nodes", FIX / "pacific-nodes.csv", "--color", "orange", "--out-dir", out)
+            self.assertEqual(stop.exception.code, 2)
 
     def test_flows_command_orders_small_on_top_and_splits_at_180(self):
         with tempfile.TemporaryDirectory() as out:
@@ -291,6 +393,8 @@ class Projection(unittest.TestCase):
                     defs = [out["definition"]] + [a["definition"] for a in out["alternatives"]]
                     for d in filter(None, defs):
                         self.assertIn(re.search(r"\+proj=(\w+)", d).group(1), self.PROJ4JS, d)
+                        # Without a false origin, proj4 2.22.0 projects aea, laea, cea, stere, lcc, and tmerc to NaN.
+                        self.assertIn("+x_0=0 +y_0=0", d)
 
 
 class Legend(unittest.TestCase):

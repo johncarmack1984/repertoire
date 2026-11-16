@@ -19,6 +19,7 @@ from .page import DATA_FILE, DATA_REGION, LIB_REGION, SPEC, drift
 PINS = {"maplibre-gl": "6.18.0", "proj4": "2.22.0", "pmtiles": "4.5.0", "deck.gl": "9.4.1", "@protomaps/basemaps": "5.7.2"}
 AREAL = {"choropleth", "dots-and-density", "multivariate"}
 LARGE = {"world", "hemisphere", "continent"}
+LARGE_SPAN = (60, 40)
 BASE_STEMS = {"frame", "sphere", "graticule", "land", "basemap"}
 CONTROL_CLASSES = {"zoom-in": "navigation", "zoom-out": "navigation", "compass": "navigation", "scale": "scale",
                    "fullscreen": "fullscreen", "geolocate": "geolocate", "terrain": "terrain", "globe": "globe", "logo": "logo"}
@@ -38,6 +39,8 @@ class Page:
     legend: dict | None = None
     authored: str = ""
     inlined: dict = field(default_factory=dict)
+    blocks: dict = field(default_factory=dict)
+    standalone: bool = False
 
     @property
     def is_map(self) -> bool:
@@ -56,14 +59,19 @@ class Page:
                 page.spec = json.loads(m[2])
             except json.JSONDecodeError as err:
                 page.spec_error = str(err)
-        legend = folder / "data" / "legend.json"
-        if legend.is_file():
-            try:
-                page.legend = json.loads(legend.read_text(encoding="utf-8"))
-            except json.JSONDecodeError as err:
-                page.spec_error = page.spec_error or f"data/legend.json is not JSON: {err}"
         if region := DATA_REGION.search(text):
-            page.inlined = {m[3]: m[1] for m in DATA_FILE.finditer(region[1])}
+            found = list(DATA_FILE.finditer(region[1]))
+            page.inlined = {m[3]: m[1] for m in found}
+            page.blocks = {m[3]: m[4] for m in found}
+        # A page synced and moved away from its data/ folder still holds every file it draws.
+        page.standalone = not (folder / "data").is_dir()
+        legend = folder / "data" / "legend.json"
+        source = legend.read_text(encoding="utf-8") if legend.is_file() else page.blocks.get("legend") if page.standalone else None
+        if source is not None:
+            try:
+                page.legend = json.loads(source)
+            except json.JSONDecodeError as err:
+                page.spec_error = page.spec_error or f"legend.json is not JSON: {err}"
         page.authored = re.sub(r"<!--.*?-->", "", DATA_REGION.sub("", LIB_REGION.sub("", text)), flags=re.S)
         return page
 
@@ -127,9 +135,32 @@ def rule_library(page: Page) -> list:
         out.append(WARN("library", "; ".join(lib), "run datamap.py sync"))
     if data:
         out.append(FAIL("sync", "; ".join(data), f"run datamap.py sync {page.folder}", 9))
+    if page.standalone:
+        bad = []
+        for stem, body in page.blocks.items():
+            try:
+                json.loads(body)
+            except json.JSONDecodeError:
+                bad.append(stem)
+        if bad:
+            out.append(FAIL("sync", f"inlined data that is not JSON: {', '.join(bad)}", "restore data/ and run datamap.py sync", 9))
+        elif not out:
+            out.append(PASS("sync", f"library current; with no data/ folder, the page's {len(page.inlined)} inlined data files are its data"))
     if not out:
         out.append(PASS("sync", f"library current, {len(page.inlined)} data files inlined and unchanged"))
     return out
+
+
+def is_box(extent) -> bool:
+    return isinstance(extent, list) and len(extent) == 4 and all(isinstance(v, (int, float)) for v in extent)
+
+
+def large(extent) -> bool:
+    """A named large extent, or a [W, S, E, N] box spanning 60 degrees of longitude or 40 of latitude."""
+    if is_box(extent):
+        w, s, e, n = extent
+        return (e - w if e >= w else e - w + 360) >= LARGE_SPAN[0] or n - s >= LARGE_SPAN[1]
+    return isinstance(extent, str) and extent in LARGE
 
 
 def rule_projection(page: Page) -> list:
@@ -138,13 +169,14 @@ def rule_projection(page: Page) -> list:
     out = []
     if kind not in ("crs", "globe", "mercator"):
         return [FAIL("projection", f"dm-spec projection.type is {kind!r}", "use crs, globe, or mercator")]
+    if isinstance(extent, list) and not is_box(extent):
+        out.append(FAIL("extent", f"dm-spec extent {extent} is not [W, S, E, N]", "write four numbers in degrees, or a name such as region"))
     if kind == "crs" and not (proj.get("name", "").startswith("custom:") and proj.get("definition")):
         out.append(FAIL("projection", "a crs projection needs a custom:<name> and a proj4 definition", "copy them from datamap.py crs"))
     if not idioms:
         out.append(WARN("idiom", "dm-spec names no idiom, so the projection can't be judged against it", "name the idiom from the chooser", 10))
     areal = sorted(idioms & AREAL)
-    large = extent in LARGE
-    if areal and large and (kind != "crs" or proj.get("property") != "equal-area"):
+    if areal and large(extent) and (kind != "crs" or proj.get("property") != "equal-area"):
         what = {"mercator": "Web Mercator", "globe": "the globe"}.get(kind, f"{proj.get('name')}, which is not equal-area")
         out.append(FAIL("projection", f"{'/'.join(areal)} at {extent} extent drawn in {what}; areas compare falsely",
                         "use the equal-area crs preset (datamap.py new maplibre OUT --preset equal-earth) or datamap.py crs", 10))
@@ -336,6 +368,7 @@ def judge_report(rep: dict, page: Page) -> list:
         else:
             out.append(PASS("zoom", f"zoom {lo:.2f} to {hi:.2f}; fitted at {rep.get('zoom', 0):.2f}", 25))
         out += judge_layers(rep, page)
+        out += judge_labels(rep)
     fonts = rep.get("fonts") or []
     if len(fonts) > 2:
         out.append(WARN("fonts", f"{len(fonts)} font families in use: {', '.join(fonts)}", "use at most two families", 23))
@@ -385,6 +418,21 @@ def judge_layers(rep: dict, page: Page) -> list:
             if len(shown) != len(layer.get("colors") or []):
                 out.append(FAIL("legend", f"the legend shows {len(shown)} classes of {name!r}, legend.json has {len(layer.get('colors') or [])}", "redraw the legend from legend.json", 9))
     return out or [PASS("layers", f"{', '.join(f'{k}: {len(v)}' for k, v in drawn.items())} map layers, each explained by the legend", 9)]
+
+
+def judge_labels(rep: dict) -> list:
+    out = []
+    for lab in rep.get("labels") or []:
+        layer, hidden, covered = lab["layer"], lab.get("hidden") or [], lab.get("covered") or []
+        if hidden:
+            out.append(WARN("labels", f"{len(hidden)} of {lab['nodes']} names of {layer} didn't render: {', '.join(hidden)}",
+                            "MapLibre hid them in every corner the page tried; draw fewer flows or points, give the map more room, or shorten the names"))
+        if covered:
+            out.append(WARN("labels", f"arrowheads cover {len(covered)} names of {layer}: " + "; ".join(f"{c['name']} under the head of {c['arrow']}" for c in covered),
+                            "let the library place the names (drop any text-anchor or text-offset the page sets), or draw fewer flows"))
+        if not hidden and not covered and lab["nodes"]:
+            out.append(PASS("labels", f"all {lab['nodes']} names of {layer} rendered, and no arrowhead covers one"))
+    return out
 
 
 def judge_png(path: Path, rep: dict | None, run: dict | None, scale: float, legend: dict | None = None,
@@ -479,9 +527,13 @@ def check_page(args) -> int:
         folder = folder.parent
     if not (folder / "index.html").is_file():
         raise ValueError(f"{folder / 'index.html'} does not exist; mln-rs projects are judged with check --png")
-    w, h = size_arg(args.size)
-    scale = int(args.scale) if args.scale == int(args.scale) else args.scale
     page = Page.read(folder)
+    figure = (page.spec or {}).get("figure") or {}
+    w, h = size_arg(args.size or figure.get("size") or "1200x800")
+    scale = args.scale if args.scale is not None else figure.get("scale", 1)
+    if isinstance(scale, bool) or not isinstance(scale, (int, float)) or scale <= 0:
+        raise ValueError(f"dm-spec figure.scale {scale!r} is not a positive number")
+    scale = int(scale) if scale == int(scale) else scale
     findings = static_pass(page)
     shot = folder / (f"index.{w}x{h}.png" if scale == 1 else f"index.{w}x{h}@{scale:g}x.png")
     run = None
@@ -544,8 +596,8 @@ def register(sub) -> None:
                        description="Lints the page against its dm-spec, then renders it and judges the screenshot. "
                                    "With --png, judges a snapshot another renderer wrote, such as mln-rs.")
     p.add_argument("out", nargs="?", metavar="OUT", help="the project folder (or its index.html)")
-    p.add_argument("--size", default="1200x800", help="viewport in CSS px (default 1200x800)")
-    p.add_argument("--scale", type=float, default=1, help="device scale; 2 writes an @2x PNG")
+    p.add_argument("--size", help="viewport in CSS px (default: dm-spec figure.size, else 1200x800)")
+    p.add_argument("--scale", type=float, help="device scale; 2 writes an @2x PNG (default: dm-spec figure.scale, else 1)")
     p.add_argument("--timeout", type=float, default=60, help="seconds to wait for the map to be ready")
     p.add_argument("--gl", choices=sorted(cdp.GL_FLAGS), default="default", help="WebGL backend; swiftshader renders without a GPU")
     p.add_argument("--no-browser", action="store_true", help="static pass only")

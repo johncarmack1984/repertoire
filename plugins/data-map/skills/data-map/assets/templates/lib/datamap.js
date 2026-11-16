@@ -17,7 +17,11 @@ const ARC_APEX = 0.08;
 const METHOD = {quantile: k => `${k} quantile classes`, jenks: k => `${k} classes by natural breaks (Jenks)`,
   equal: k => `${k} equal-interval classes`, stddev: k => `${k} classes by standard deviation from the mean`,
   headtail: k => `${k} classes by head/tail breaks`, manual: k => `${k} classes set by hand`};
-const LABEL_ANCHORS = ['bottom-left', 'top-left', 'bottom-right', 'top-right', 'bottom', 'top', 'left', 'right'];
+// Slocum's order of label positions (§12.5.2): the corner of the name that touches the point, and the way the name runs from it.
+const CORNERS = [['bottom-left', 1, -1], ['top-left', 1, 1], ['bottom-right', -1, -1], ['top-right', -1, 1],
+  ['bottom', 0, -1], ['top', 0, 1], ['left', 1, 0], ['right', -1, 0]];
+const POLYGONS = ['match', ['geometry-type'], ['Polygon', 'MultiPolygon'], true, false];
+const LINES = ['match', ['geometry-type'], ['LineString', 'MultiLineString'], true, false];
 
 const $ = id => document.getElementById(id);
 const parse = id => { const e = $(id); return e ? JSON.parse(e.textContent) : null; };
@@ -104,17 +108,17 @@ const LEGENDS = {
     nested(sec, name, L.legend_values || [], L.legend_radii || [], L.color || firstFill(name) || tok('symbol'));
   },
   flows(sec, name, L) {
-    const values = L.legend_values || [], widths = L.legend_widths || [];
+    const values = L.legend_values || [], widths = L.legend_widths || [], alphas = L.legend_opacities || [];
     const color = L.color || firstFill(filesOf(name, L).main) || tok('flow');
     const head = w => Math.max((L.arrow?.ratio ?? 2.5) * w, L.arrow?.min_px ?? 6);
     const run = 44, longest = Math.max(0, ...widths.map(head));
-    const rows = widths.map((w, i) => ({w, v: values[i], len: head(w), h: Math.max(head(w) * ARROW.base / ARROW.len, 12)}));
+    const rows = widths.map((w, i) => ({w, v: values[i], a: alphas[i] ?? 1, len: head(w), h: Math.max(head(w) * ARROW.base / ARROW.len, 12)}));
     const s = svg('svg', {width: '100%', height: rows.reduce((a, r) => a + r.h + 6, 0)}, sec);
     let y = 0;
     for (const r of rows) {
       const cy = y + r.h / 2, half = r.len * ARROW.base / ARROW.len / 2;
-      mark(svg('line', {x1: 0, x2: run + 0.5, y1: cy, y2: cy, stroke: color, 'stroke-width': r.w}, s), name, 'flow', color, fmt(r.v), true);
-      svg('polygon', {points: `${run},${cy - half} ${run + r.len},${cy} ${run},${cy + half}`, fill: color}, s);
+      mark(svg('line', {x1: 0, x2: run + 0.5, y1: cy, y2: cy, stroke: color, 'stroke-width': r.w, 'stroke-opacity': r.a}, s), name, 'flow', color, fmt(r.v), true);
+      svg('polygon', {points: `${run},${cy - half} ${run + r.len},${cy} ${run},${cy + half}`, fill: color, 'fill-opacity': r.a}, s);
       label(s, run + longest + 10, cy, fmt(r.v));
       y += r.h + 6;
     }
@@ -319,9 +323,11 @@ function prepArrows(fc) {
 
 function labelLayer(id, source, t) {
   const size = parseFloat(tok('t4'));
+  (data[source]?.features || []).forEach((f, i) => { f.properties.dm_lid = i; });
+  // Slocum's first corner for every name until placeLabels gives each its own.
   return {id, type: 'symbol', source,
     layout: {'text-field': ['get', 'dm_label'], 'text-font': fontStack(), 'text-size': size,
-      'text-variable-anchor': LABEL_ANCHORS, 'text-radial-offset': ['+', 0.25, ['/', ['coalesce', ['get', 'dm_r'], 3], size]],
+      'text-anchor': 'bottom-left', 'text-radial-offset': ['+', 0.25, ['/', ['coalesce', ['get', 'dm_r'], 3], size]],
       'symbol-sort-key': ['get', 'dm_order']},
     paint: {'text-color': t.text, 'text-halo-color': t.page, 'text-halo-width': 1.25}};
 }
@@ -361,7 +367,7 @@ function buildKinds(t, crs, deck) {
         part.sources[f.main] = lines;
         part.line.push(
           {id: name, type: 'line', source: f.main, layout: {'line-sort-key': ['get', 'dm_order'], 'line-join': 'round'},
-            paint: {'line-color': color, 'line-width': ['get', 'dm_width']}},
+            paint: {'line-color': color, 'line-width': ['get', 'dm_width'], 'line-opacity': ['coalesce', ['get', 'dm_opacity'], 1]}},
           {id: name + '-hover', type: 'line', source: f.main, filter: NONE,
             paint: {'line-color': t.text, 'line-width': 1, 'line-gap-width': ['get', 'dm_width']}});
         part.hover.push([name, name + '-hover']);
@@ -387,7 +393,7 @@ function buildKinds(t, crs, deck) {
             'icon-offset': ['array', 'number', 2, ['get', 'dm_icon_offset']], 'icon-rotate': ['get', 'dm_screen'],
             'icon-rotation-alignment': 'viewport', 'icon-pitch-alignment': 'viewport',
             'icon-allow-overlap': true, 'icon-ignore-placement': true, 'symbol-sort-key': ['get', 'dm_order']},
-          paint: {'icon-color': color, 'icon-halo-color': t.page, 'icon-halo-width': 1}});
+          paint: {'icon-color': color, 'icon-halo-color': t.page, 'icon-halo-width': 1, 'icon-opacity': ['coalesce', ['get', 'dm_opacity'], 1]}});
       }
       return part;
     }
@@ -432,6 +438,13 @@ function buildStyle(libs, t) {
     groups.base.push({id: 'land', type: 'fill', source: 'land', paint: {'fill-color': t.land}},
       {id: 'land-edge', type: 'line', source: 'land', paint: {'line-color': t['land-edge'], 'line-width': 0.5}});
   }
+  // Any data/base-<name>.geojson is quiet base information under the data: polygons pale with white edges, lines thin gray.
+  for (const s of stems.filter(s => s.startsWith('base-'))) {
+    sources[s] = {type: 'geojson', data: data[s]};
+    groups.base.push({id: s + '-fill', type: 'fill', source: s, filter: POLYGONS, paint: {'fill-color': t.land}},
+      {id: s + '-outline', type: 'line', source: s, filter: POLYGONS, paint: {'line-color': t['land-edge'], 'line-width': 0.5}},
+      {id: s + '-line', type: 'line', source: s, filter: LINES, paint: {'line-color': t['base-line'], 'line-width': 0.6}});
+  }
   const kinds = buildKinds(t, crs, !!libs.deck);
   for (const [name, L] of layersOf()) {
     const part = kinds[L.kind]?.(name, L) || {};
@@ -441,13 +454,22 @@ function buildStyle(libs, t) {
   }
   const style = {version: 8, projection: crs ? {type: proj.name} : {type: proj.type}, sources,
     layers: Object.values(groups).flat()};
-  return {style, hover};
+  return {style, hover, labels: groups.label.map(l => ({id: l.id, source: l.source}))};
 }
 
 async function registerCrs(maplibregl, proj4, url, p) {
+  const projection = proj4('EPSG:4326', p.definition);
+  // proj4 2.22.0 projects aea, laea, cea, stere, lcc, and tmerc to NaN everywhere when +x_0 and +y_0 are left out.
+  const param = k => Number(p.definition.match(new RegExp(`\\+${k}=(-?[\\d.]+)`))?.[1] ?? 0);
+  const center = [param('lon_0'), param('lat_0')];
+  let at;
+  try { at = projection.forward(center); } catch { at = [NaN, NaN]; }
+  if (!at.every(Number.isFinite)) {
+    throw new Error(`the CRS ${p.name} projects its own center (${center.join(', ')}) to ${at.join(', ')}, so nothing can draw: ` +
+      `"${p.definition}"; add +x_0=0 +y_0=0 to the definition, as datamap.py crs prints it`);
+  }
   const handler = new Blob([`import proj4 from '${url}';\nself.setProjectionHandler(definition => proj4(definition));\n`], {type: 'text/javascript'});
   await maplibregl.importScriptInWorkers(URL.createObjectURL(handler));
-  const projection = proj4('EPSG:4326', p.definition);
   let half = 0;
   for (let lon = -180; lon <= 180; lon += 2) for (let lat = -90; lat <= 90; lat += 2) {
     try {
@@ -589,11 +611,210 @@ function arcLayers(deck, t, show) {
       beforeId: data[f.arrows] ? name + '-arrows' : undefined,
       getSourcePosition: a => a.from, getTargetPosition: a => a.to, getHeight: height,
       getWidth: a => a.dm_width, widthUnits: 'pixels',
-      getSourceColor: a => rgb(a.dm_fill || L.color || t.flow), getTargetColor: a => rgb(a.dm_fill || L.color || t.flow),
+      getSourceColor: a => [...rgb(a.dm_fill || L.color || t.flow), 255 * (a.dm_opacity ?? 1)],
+      getTargetColor: a => [...rgb(a.dm_fill || L.color || t.flow), 255 * (a.dm_opacity ?? 1)],
       pickable: true, onHover: info => show(info.object?.dm_tip, info.x, info.y)
     })});
   }
   return out;
+}
+
+// ---------- point labels: each name in the corner its flows, arrowheads, and neighbors leave clearest ----------
+
+// Every name of every label layer, and what it must stay clear of, in screen px at the current view. Flows are
+// segments with their half-widths, each arrowhead is its triangle and a short wide segment along its line, and
+// nodes and symbols are circles. Raised deck.gl arcs leave the ground, so their segments are left out.
+function labelScene(map, labels, deck) {
+  const xy = c => { const p = map.project(c); return [p.x, p.y]; };
+  const center = map.getCenter().toArray(), horizon = spec.projection.type === 'globe' ? horizonDeg(map) : Infinity;
+  const front = c => angularKm(c, center) / EARTH_KM / RAD < horizon;
+  const {clientWidth: W, clientHeight: H} = map.getCanvas();
+  const size = parseFloat(tok('t4'));
+  const segs = [], heads = [], circles = [];
+  for (const [name, L] of layersOf()) {
+    const f = filesOf(name, L);
+    const points = data[L.kind === 'flows' ? f.nodes : name]?.features || [];
+    for (const n of L.kind === 'classes' ? [] : points) {
+      if (front(n.geometry.coordinates)) circles.push({key: `${L.kind === 'flows' ? f.nodes : name}:${n.properties.dm_lid}`,
+        c: xy(n.geometry.coordinates), r: n.properties.dm_r || 3});
+    }
+    if (L.kind !== 'flows') continue;
+    const names = Object.fromEntries(points.map(n => [n.properties.dm_key ?? n.id, n.properties.dm_label ?? n.id]));
+    for (const line of deck ? [] : data[f.main]?.features || []) {
+      const g = line.geometry, hw = (line.properties.dm_width || 1) / 2;
+      for (const part of g.type === 'MultiLineString' ? g.coordinates : [g.coordinates]) {
+        for (let i = 1; i < part.length; i++) {
+          if (front(part[i - 1]) && front(part[i])) segs.push({a: xy(part[i - 1]), b: xy(part[i]), hw, weight: 1});
+        }
+      }
+    }
+    for (const a of data[f.arrows]?.features || []) {
+      const at = a.geometry.coordinates, q = a.properties;
+      if (!front(at)) continue;
+      // The head draws turned to dm_screen with its tip dm_setback + 1 px back from the node (prepArrows).
+      const p = xy(at), turn = (q.dm_screen ?? q.dm_bearing ?? 0) * RAD, u = [-Math.sin(turn), Math.cos(turn)];
+      const len = q.dm_arrow || 8, half = len * ARROW.base / ARROW.len / 2, back = (q.dm_setback || 0) + 1;
+      const tip = [p[0] + u[0] * back, p[1] + u[1] * back], base = [tip[0] + u[0] * len, tip[1] + u[1] * len];
+      heads.push({flow: `${names[q.dm_o] ?? q.dm_o} to ${names[q.dm_d] ?? q.dm_d}`,
+        tri: [tip, [base[0] - u[1] * half, base[1] + u[0] * half], [base[0] + u[1] * half, base[1] - u[0] * half]]});
+      segs.push({a: tip, b: base, hw: len * 0.3, weight: 3});
+    }
+  }
+  const items = labels.flatMap(({id, source}, layer) => (data[source]?.features || []).filter(f => f.properties.dm_label != null)
+    .map(f => {
+      const c = f.geometry.coordinates, p = xy(c);
+      return {layer: id, rank: layer, lid: f.properties.dm_lid, key: `${source}:${f.properties.dm_lid}`, text: String(f.properties.dm_label),
+        order: f.properties.dm_order ?? 0, p, r: f.properties.dm_r || 3, w: measure(f.properties.dm_label),
+        seen: front(c) && p[0] >= 0 && p[1] >= 0 && p[0] <= W && p[1] <= H};
+    }))
+    // Larger names first, as symbol-sort-key places them (Slocum §12.5.1).
+    .sort((a, b) => a.rank - b.rank || a.order - b.order);
+  return {items, segs, heads, circles, W, H, size};
+}
+
+// How far from the view's center the globe's horizon lies, in degrees. Past it a projected point turns back toward
+// the center, so the farthest one marks it; MapLibre draws nothing past it.
+function horizonDeg(map) {
+  const c = map.getCenter().toArray(), o = map.project(c);
+  let at = 90, far = -1;
+  for (let d = 30; d <= 120; d += 0.5) {
+    const p = map.project(destination(c, 90, d)), r = Math.hypot(p.x - o.x, p.y - o.y);
+    if (r > far) { far = r; at = d; }
+  }
+  return at;
+}
+
+// Each corner in Slocum's order at the node's edge, then again about twice as far out for a name its flows crowd.
+function labelOptions(item, size) {
+  const off = 0.25 + item.r / size;
+  return [1, 1.9].flatMap((reach, ring) => CORNERS.map(([anchor, sx, sy], corner) => {
+    const d = (sx && sy ? off / Math.SQRT2 : off) * reach;
+    return {id: ring * CORNERS.length + corner, ring, anchor, sx, sy, offset: [sx * d, sy * d].map(v => Math.round(v * 1000) / 1000)};
+  }));
+}
+// The name's box for an anchor's direction (sx, sy) and an offset in ems.
+function labelBox(item, {sx, sy, offset}, size, inset = 0) {
+  const h = size * 1.2;
+  const cx = item.p[0] + offset[0] * size + sx * item.w / 2, cy = item.p[1] + offset[1] * size + sy * h / 2;
+  return [cx - item.w / 2, cy - h / 2 + inset, cx + item.w / 2, cy + h / 2 - inset];
+}
+// How a label layer draws each name, read back from its style: a constant, or a match on dm_lid with literal
+// outputs, as placeLabels writes them. A variable anchor counts as its first choice.
+function drawnLayout(map, id, size) {
+  const get = k => map.getLayoutProperty(id, k);
+  const plain = v => Array.isArray(v) && v[0] === 'literal' ? v[1] : v;
+  const byLid = v => {
+    if (!(Array.isArray(v) && v[0] === 'match')) return () => plain(v);
+    const out = new Map();
+    for (let i = 2; i < v.length - 1; i += 2) out.set(v[i], plain(v[i + 1]));
+    return lid => out.has(lid) ? out.get(lid) : plain(v.at(-1));
+  };
+  const anchor = get('text-variable-anchor') ? () => get('text-variable-anchor')[0] : byLid(get('text-anchor') ?? 'center');
+  const offset = byLid(get('text-offset') ?? [0, 0]), radial = get('text-radial-offset');
+  return item => {
+    const [, sx, sy] = CORNERS.find(c => c[0] === anchor(item.lid)) ?? ['center', 0, 0];
+    if (radial == null) return {sx, sy, offset: offset(item.lid)};
+    const d = (typeof radial === 'number' ? radial : 0.25 + item.r / size) / (sx && sy ? Math.SQRT2 : 1);
+    return {sx, sy, offset: [sx * d, sy * d]};
+  };
+}
+// The length of a segment inside a box grown by the segment's half-width (Liang-Barsky).
+function clippedLength({a, b, hw}, [x0, y0, x1, y1]) {
+  const dx = b[0] - a[0], dy = b[1] - a[1];
+  let t0 = 0, t1 = 1;
+  for (const [p, q] of [[-dx, a[0] - x0 + hw], [dx, x1 + hw - a[0]], [-dy, a[1] - y0 + hw], [dy, y1 + hw - a[1]]]) {
+    if (p === 0) { if (q < 0) return 0; continue; }
+    const r = q / p;
+    if (p < 0) { if (r > t1) return 0; t0 = Math.max(t0, r); } else { if (r < t0) return 0; t1 = Math.min(t1, r); }
+  }
+  return (t1 - t0) * Math.hypot(dx, dy);
+}
+const boxesMeet = (p, q, pad) => p[0] < q[2] + pad && q[0] < p[2] + pad && p[1] < q[3] + pad && q[1] < p[3] + pad;
+function circleMeetsBox({c, r}, [x0, y0, x1, y1], pad) {
+  return Math.hypot(c[0] - Math.min(Math.max(c[0], x0), x1), c[1] - Math.min(Math.max(c[1], y0), y1)) < r + pad;
+}
+// Separating axes: the box's two and the triangle's three edge normals.
+function triangleMeetsBox(tri, [x0, y0, x1, y1]) {
+  const corners = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
+  const axes = [[1, 0], [0, 1], ...tri.map((a, i) => { const b = tri[(i + 1) % 3]; return [a[1] - b[1], b[0] - a[0]]; })];
+  return axes.every(n => {
+    const t = tri.map(p => p[0] * n[0] + p[1] * n[1]), r = corners.map(p => p[0] * n[0] + p[1] * n[1]);
+    return Math.max(...t) > Math.min(...r) && Math.max(...r) > Math.min(...t);
+  });
+}
+function labelCost(item, o, scene) {
+  const box = labelBox(item, o, scene.size);
+  // A name farther from its point costs a little, so the outer ring wins only where it clears a line.
+  let cost = o.ring * 4;
+  for (const s of scene.segs) cost += s.weight * clippedLength(s, box) / 1.5;
+  for (const hd of scene.heads) if (triangleMeetsBox(hd.tri, box)) cost += 150;
+  for (const k of scene.circles) if (k.key !== item.key && circleMeetsBox(k, box, 1)) cost += 200;
+  if (box[0] < 0 || box[1] < 0 || box[2] > scene.W || box[3] > scene.H) cost += 1000;
+  return cost;
+}
+function shownLabels(map, labels) {
+  const out = new Set();
+  for (const {id, source} of labels) for (const f of map.queryRenderedFeatures({layers: [id]})) out.add(`${source}:${f.properties.dm_lid}`);
+  return out;
+}
+
+let labelPlan = null;
+
+// One corner per name, through per-feature text-anchor and a text-offset match on dm_lid with literal outputs;
+// maplibre-gl 6.18 accepts a per-feature text-variable-anchor-offset and silently ignores it. No fixed margin
+// between name boxes matches MapLibre's collision test, so MapLibre has the last word: a name it hides loses that
+// corner, and the pass runs again.
+async function placeLabels(map, labels, deck) {
+  if (!labels.length) return;
+  labelPlan = {labels, deck};
+  const scene = labelScene(map, labels, deck);
+  for (const item of scene.items) item.options = labelOptions(item, scene.size).map(o => ({...o, cost: labelCost(item, o, scene)}));
+  const refused = new Map();
+  for (let pass = 0; pass < 8; pass++) {
+    const taken = [];
+    for (const item of scene.items) {
+      const no = refused.get(item.key);
+      let best = null, low = Infinity;
+      for (const o of item.options) {
+        const box = labelBox(item, o, scene.size);
+        const score = o.cost + (no?.has(o.id) ? 1e6 : 0) + 500 * taken.filter(b => boxesMeet(box, b, 3)).length;
+        if (score < low) { best = o; low = score; }
+      }
+      item.chosen = best;
+      if (item.seen) taken.push(labelBox(item, best, scene.size));
+    }
+    for (const {id} of labels) {
+      const mine = scene.items.filter(i => i.layer === id);
+      if (!mine.length) continue;
+      map.setLayoutProperty(id, 'text-radial-offset', undefined);
+      map.setLayoutProperty(id, 'text-anchor', ['match', ['get', 'dm_lid'], ...mine.flatMap(i => [i.lid, i.chosen.anchor]), 'bottom-left']);
+      map.setLayoutProperty(id, 'text-offset', ['match', ['get', 'dm_lid'], ...mine.flatMap(i => [i.lid, ['literal', i.chosen.offset]]),
+        ['literal', [0, 0]]]);
+    }
+    map.triggerRepaint();
+    await once(map, 'idle');
+    const shown = shownLabels(map, labels);
+    const hidden = scene.items.filter(i => i.seen && !shown.has(i.key));
+    if (!hidden.length) return;
+    for (const i of hidden) refused.set(i.key, new Set([...(refused.get(i.key) || []), i.chosen.id]));
+  }
+}
+
+// Per label layer: the names in view, the ones MapLibre drew, and each arrowhead over a drawn name's letters.
+function labelReport(map) {
+  if (!map || !labelPlan) return [];
+  const {labels, deck} = labelPlan;
+  const scene = labelScene(map, labels, deck), shown = shownLabels(map, labels);
+  return labels.map(({id}) => {
+    const mine = scene.items.filter(i => i.layer === id && i.seen), drawn = mine.filter(i => shown.has(i.key));
+    const layout = drawnLayout(map, id, scene.size);
+    const covered = drawn.flatMap(i => {
+      // The letters and their halo fill about the middle 1 em of the 1.2 em line box.
+      const box = labelBox(i, layout(i), scene.size, scene.size * 0.1);
+      return scene.heads.filter(hd => triangleMeetsBox(hd.tri, box)).map(hd => ({name: i.text, arrow: hd.flow}));
+    });
+    return {layer: id, nodes: mine.length, rendered: drawn.map(i => i.text), hidden: mine.filter(i => !shown.has(i.key)).map(i => i.text), covered};
+  });
 }
 
 // ---------- the report `datamap.py check` judges ----------
@@ -637,6 +858,8 @@ function report(map, arcs) {
     baseColors: baseColors(style),
     arcs: (arcs || []).map(a => ({layer: a.name, apex: a.apex, longestKm: a.longest, height: a.height})),
     arrows: arrowAgreement(map),
+    labels: labelReport(map),
+    tooltips: !!document.querySelector('.dm-tip'),
     rendered: renderedCounts(map),
     viewport: {w: innerWidth, h: innerHeight, dpr: devicePixelRatio}
   };
@@ -686,6 +909,9 @@ function renderedCounts(map) {
     }
     if (L.kind === 'flows' && !ids.has(name)) out[name] = (data[filesOf(name, L).main]?.features || []).length;
   }
+  for (const s of stems.filter(s => s.startsWith('base-'))) {
+    out[s] = map.queryRenderedFeatures({layers: [s + '-fill', s + '-line'].filter(id => ids.has(id))}).length;
+  }
   return out;
 }
 function angularKm([a, b], [c, d]) {
@@ -697,7 +923,8 @@ function baseColors(style) {
   const ids = new Set((style?.layers || []).map(l => l.id));
   const has = re => [...ids].some(id => re.test(id));
   return [['page', true], ['ocean', !!style], ['graticule', has(/-lines$/)], ['sphere-edge', has(/-edge$/)],
-    ['land', ids.has('land')], ['land-edge', ids.has('land-edge')]].filter(([, on]) => on).map(([k]) => tok(k));
+    ['land', ids.has('land') || has(/^base-.*-fill$/)], ['land-edge', ids.has('land-edge') || has(/^base-.*-outline$/)],
+    ['base-line', has(/^base-.*-line$/)]].filter(([, on]) => on).map(([k]) => tok(k));
 }
 
 // A wide projection in a tall cell leaves bands above and below the map; give the map row the map's own
@@ -743,8 +970,9 @@ async function start(libs, extend) {
   const proj = spec.projection, crs = proj.type === 'crs';
   if (crs) await registerCrs(maplibregl, libs.proj4, libs.proj4Url, proj);
   if (libs.pmtiles) maplibregl.addProtocol('pmtiles', new libs.pmtiles.Protocol().tile);
-  const t = Object.fromEntries(['page', 'ocean', 'graticule', 'sphere-edge', 'land', 'land-edge', 'flow', 'node', 'symbol', 'text'].map(k => [k, tok(k)]));
-  const {style, hover} = buildStyle(libs, t);
+  const t = Object.fromEntries(['page', 'ocean', 'graticule', 'sphere-edge', 'land', 'land-edge', 'base-line', 'flow', 'node', 'symbol', 'text']
+    .map(k => [k, tok(k)]));
+  const {style, hover, labels} = buildStyle(libs, t);
   const map = new maplibregl.Map({container: 'map', style, attributionControl: {compact: true},
     pitch: spec.pitch || 0, maxPitch: spec.pitch || 0, dragRotate: false, pitchWithRotate: false, touchPitch: false,
     renderWorldCopies: false, fadeDuration: 0});
@@ -761,7 +989,7 @@ async function start(libs, extend) {
   screenArrows(map);
   // Panning a globe turns every place's north on screen; Mercator and a CRS keep their angles under pan and zoom.
   if (proj.type === 'globe') map.on('move', () => screenArrows(map));
-  const show = interact(map, hover);
+  const show = spec.tooltips === false ? () => {} : interact(map, hover);
   let arcs = null, drawn = Promise.resolve(), overlay = null;
   if (deck) {
     let frame;
@@ -771,6 +999,7 @@ async function start(libs, extend) {
       onAfterRender: () => frame(), onError: err => rejectReady(err)});
     map.addControl(overlay);
   }
+  await placeLabels(map, labels, !!deck);
   if (extend) await extend({map, overlay, data, spec, legend, libs});
   map.triggerRepaint();
   await Promise.all([once(map, 'idle'), drawn]);

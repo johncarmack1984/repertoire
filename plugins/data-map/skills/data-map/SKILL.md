@@ -24,22 +24,22 @@ With no data and no map to work from, ask what the reader needs to see and where
 
 ### 2. Brief
 
-Write the brief before touching the data or the design. It is working notes, never part of the map, and every later step and every subagent reads it:
+Write the brief before touching the data or the design. It is working notes, never part of the map, and every later step and every subagent reads it. Keep it in your notes until step 4 creates the project, then paste it into the project's `brief.md`:
 
 ```
 Reader:      who reads it, and what they decide with it
 Task:        one action and one target, such as "compare rates between regions" or "find the largest flows"
 Question:    the one sentence the map answers; it becomes the title
-Data:        geometry (areas, points, OD pairs, field samples, network); kind (count, rate, ratio, ordinal, category); unit; denominator; n; period; source
+Data:        geometry (areas, points, OD pairs, field samples, network); kind (count, rate, ratio, ordinal, category); unit; denominator; n; period; source; margins of error, if the figures are estimates
 Supports:    the claims this data can carry, and the ones it can't
 Location:    why where matters; if you can't say, the first chooser row applies
 Candidates:  up to three idioms, each with its default lie
-Idiom:       the chosen row, and why not the row above it
+Idiom:       the chosen row, and why it beat the other candidates
 Companions:  the views beside the map
 Visual plan: what dominates, what recedes, what is left out; the tone
-Interface:   static or interactive; device; time spent on it; guided or exploratory; controls refused
-Projection:  name, and why
-Stack:       maplibre, deck-gl, mln-rs, or the project's own, and why
+Interface:   static or interactive; where it will be shown and at what width; device; time spent on it; guided or exploratory; controls refused
+Projection:  name, and why (settled at step 4)
+Stack:       maplibre, deck-gl, mln-rs, or the project's own, and why (settled at step 4)
 Sensitive:   locations or small counts to mask before they reach the page
 Answer key:  three questions a reader should answer from the map, with the answers computed by code
 Departures:  where this map breaks a rule from the sources, and why
@@ -51,7 +51,7 @@ Profile the data first, with code:
 python3 <skill>/scripts/datamap.py inspect visits.csv counties.geojson --join visits.csv:fips=counties.geojson:GEOID
 ```
 
-`inspect` reports each column's range and skew, guesses which columns are counts and which are rates, checks the coordinates, and lists join keys that match nothing. Take the rest from the request and its files. Ask only when a wrong guess would change the map, and state the guesses in the report.
+`inspect` reports each column's range and skew, guesses which columns are counts and which are rates, finds margins of error, checks the coordinates, and lists join keys that match nothing. Compute the answer key with code too, from the data or from `inspect`'s output. Take the rest from the request and its files. Ask only when a wrong guess would change the map, and state the guesses in the report.
 
 Done when every line is filled, the task is one action and one target, and the answer key comes from code.
 
@@ -72,7 +72,7 @@ Find the row that fits the data and the task. Write its candidates into the brie
 | two measures per area | find where both are high | a 3×3 bivariate map, or small multiples | `idioms/multivariate.md` |
 | any of these, over time | see what changed | change maps or small multiples | `idioms/time.md` |
 
-Done when the brief names the idiom, why not the row above it, its companions, and its default lie with the guardrail against it.
+Done when the brief names the idiom, why it beat the other candidates, its companions, and its default lie with the guardrail against it.
 
 ### 4. Encode
 
@@ -124,7 +124,7 @@ Done when the page's `dm-spec` matches the brief's projection, interface, and re
 python3 <skill>/scripts/datamap.py check map
 ```
 
-The check renders the page in headless Chrome at its design size, saves a screenshot beside it, and prints a line per finding: the pitfall, the measured fact, and the fix. It fails a Mercator world map of an areal idiom, Web Mercator tiles under a registered CRS, a layer with no legend, a legend color missing from the render, a blank frame, controls or fonts the brief didn't ask for, and motion that starts by itself. For the mln-rs stack, run the app's `cargo run --release -- --snapshot map.png`, then `datamap.py check --png map.png --legend map/data/legend.json`.
+The check renders the page in headless Chrome, saves a screenshot beside it, and prints a line per finding: the pitfall, the measured fact, and the fix. It fails a Mercator world map of an areal idiom, Web Mercator tiles under a registered CRS, a layer with no legend, a legend color missing from the render, a blank frame, controls or fonts the brief didn't ask for, and motion that starts by itself. It warns on a node name that didn't render or that an arrowhead covers. Check a static figure at the size it will be shown and at device scale 2: set `figure` in `dm-spec`, or pass `--size` and `--scale`. Type that reads at the design size shrinks below legibility in a narrower column. For the mln-rs stack, run the app's `cargo run --release -- --snapshot map.png`, then `datamap.py check --png map.png --legend map/data/legend.json`.
 
 - Fix every FAIL and read every WARN.
 - Open the screenshot with Read and look at it as the reader would.

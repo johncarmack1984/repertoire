@@ -213,3 +213,9 @@ Each entry says what the pitfall looks like, why it fails, with its source, and 
 - **Why it fails.** The map identifies people or exposes what needs protecting, and a smooth surface over raw points still ships the points (Muehlenhaus ch. 5; Slocum §26.3).
 - **Fix.** Aggregate or mask in the data before it reaches the page, and strip names, as `design.md` sets out.
 - **Held by.** Prose and the lever. The brief's Sensitive line records the masking, and `dm_low_n` flags small counts.
+
+## Survey estimates read as exact (P36)
+- **Looks like.** A ranked list, a title, or a top-N cut that treats each estimate as a count, when its margin of error ties it with its neighbors.
+- **Why it fails.** A sample's estimate carries sampling error, so two estimates whose difference sits inside its margin can't be ranked, and a cut at the 50th flow is arbitrary when the flows around it overlap (Slocum §26.6.1).
+- **Fix.** Compute each estimate's coefficient of variation, (MOE / 1.645) / estimate × 100, claim a rank only where the difference beats its margin, print the margins beside exact values, and say in the source line what they mean for the reader.
+- **Held by.** The lever and prose. `inspect` finds a margin column beside an estimate and warns with the range of its CV, and the brief's Supports line names the claims the margins rule out.

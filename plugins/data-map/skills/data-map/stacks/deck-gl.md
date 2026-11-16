@@ -40,7 +40,7 @@ Near the globe's edge an arc's height shows in profile, so arcs that land there 
 
 ## Direction
 
-Each flow ends in an arrowhead, because arrowheads beat tapered lines for direction in Jenny et al.'s user study. The heads are the maplibre page's own symbol layer, set back from each node and turned to their line on screen, and the arcs draw under them. Source and target share one color. A color gradient along the arc is the weaker cue, and a red-to-green one fails readers with color-vision deficiency (Slocum, ch. 20).
+Each flow ends in an arrowhead, because arrowheads beat tapered lines for direction in Jenny et al.'s user study. The heads are the maplibre page's own symbol layer, set back from each node and turned to their line on screen, and the arcs draw under them. Source and target share one color and the flow's `dm_opacity`, so the arcs fade by value as the maplibre page's lines do. A color gradient along the arc is the weaker cue, and a red-to-green one fails readers with color-vision deficiency (Slocum, ch. 20).
 
 The arc lands on the surface almost vertically, so the head sits at the landing point and points along the ground track, which is the arc's direction as the reader sees it from above.
 

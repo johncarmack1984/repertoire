@@ -44,14 +44,18 @@ python3 <skill>/scripts/datamap.py check map --scale 2
 | `companions` | the small charts beside the map |
 | `decisions` | each departure, with the pitfall it touches and why |
 | `center` | the globe's center as `[lon, lat]`, when the data's mean position is the wrong one |
+| `tooltips` | `false` to take the hover tooltips off; the page shows them unless told |
+| `figure` | a static figure's destination size, such as `{"size": "1200x700", "scale": 2}`; `check` renders there unless `--size` or `--scale` says otherwise |
 
 ## What the page draws from data
 
-The page reads the legend's layers and draws each by its kind. A `classes` layer becomes fills with white boundaries, hatching for `dm_low_n`, and an outline on hover. A `sizes` layer becomes circles in `dm_order`, largest first, with labels. A `flows` layer becomes lines in `dm_order`, nodes sized by `dm_r`, labels, and an arrowhead at each destination.
+The page reads the legend's layers and draws each by its kind. A `classes` layer becomes fills with white boundaries, hatching for `dm_low_n`, and an outline on hover. A `sizes` layer becomes circles in `dm_order`, largest first, with labels. A `flows` layer becomes lines in `dm_order`, each as opaque as its `dm_opacity`, nodes sized by `dm_r`, labels, and an arrowhead at each destination.
 
-Base layers come from file names. `frame.geojson` from `geo --sphere --graticule` gives the ocean, the graticule, and the world's outline under a CRS, and only the graticule elsewhere. `land.geojson` from `geo --countries` is the base under flows and symbols. Any file named `base-<name>.geojson` is base information that needs no legend entry.
+The `flows` lever draws every flow in one color, `#a63603` unless `--color` names another, and fades them by value, from `--fade-min` (0.45) at the smallest kept flow to fully opaque at the largest; `--no-fade` keeps them all opaque. Larger flows darker is Jenny et al.'s suggestion, and the fade follows magnitude, never length (Slocum, ch. 20), so long thin arcs don't out-ink short heavy ones.
 
-The side panel draws each legend layer. Classes get their limits, a separate no-data box, and the method. Sizes get nested circles with leaders. Flows get three or four reference widths with their arrowheads, the omitted note, and the node sizes.
+Base layers come from file names. `frame.geojson` from `geo --sphere --graticule` gives the ocean, the graticule, and the world's outline under a CRS, and only the graticule elsewhere. `land.geojson` from `geo --countries` is the base under flows and symbols. Any file named `base-<name>.geojson` draws quietly under the data with no legend entry. Its polygons get a pale fill with white edges, and its lines are thin and gray.
+
+The side panel draws each legend layer. Classes get their limits, a separate no-data box, and the method. Sizes get nested circles with leaders. Flows get three or four reference widths with their arrowheads at the opacities of those values, the omitted note, and the node sizes under a heading that says which flows they total.
 
 ## Companions
 
@@ -74,6 +78,7 @@ maplibre-gl 6.15 added CRS support, which is still experimental, so the version 
 
 - It loads proj4 2.22.0 in the page and in MapLibre's workers, where GeoJSON is reprojected, through `importScriptInWorkers` and `setProjectionHandler`.
 - It registers the projection with `addProjection`, with a tile matrix sized to the projected world.
+- It first projects the definition's own center. proj4 2.22.0 projects Albers, Lambert azimuthal, cylindrical equal-area, stereographic, Lambert conformal conic, and transverse Mercator definitions to NaN without `+x_0=0 +y_0=0`, so the page throws with the definition and that fix, and `check` reports it. `datamap.py crs` prints both.
 - It fits the view in the map's `load` event. Bounds passed to the constructor are fitted in Web Mercator before the style selects the CRS, which draws the world at half its size.
 
 Under a CRS, Web Mercator tiles draw in the wrong place, so draw GeoJSON, or tiles cut in the CRS's own grid and listed in `tiles` with that grid (P11). Densify long edges with `geo --densify`, or a straight edge cuts a corner off a curved meridian (P12).
@@ -86,7 +91,11 @@ Direction is shown with arrowheads, which beat tapered lines in Jenny et al.'s u
 - MapLibre's map-aligned icons on the globe drift from local north away from the view's center. A pixel test measured 11 to 88 degrees of error at places 55 to 72 degrees from the center.
 - On the globe, the page measures again whenever the view moves.
 
-Each head is set back from its node by the node's radius and draws above the labels, so a label never hides a head and no node loses its name to one. `check` measures every head in view against the screen direction of its own line's last segment, and fails one more than 15 degrees off (P17).
+Each head is set back from its node by the node's radius and draws above the labels. `check` measures every head in view against the screen direction of its own line's last segment, and fails one more than 15 degrees off (P17).
+
+## Labels
+
+The page places every point label itself, for flow nodes and for symbols. It tries each name's corners in Slocum's order, at the node's edge and again about twice as far out, and scores each against the flows, the arrowheads, the other nodes, the map's frame, and the names already placed, largest node first. It sets `text-anchor` and `text-offset` per name, then asks MapLibre which names it drew and moves each hidden one to its next corner. `check` warns on a name that didn't render and on an arrowhead over a name, and names each.
 
 ## The view
 
@@ -110,9 +119,9 @@ A globe or Mercator map can sit on a local Protomaps archive instead of `land.ge
 
 ## The readiness hook and the report
 
-A classic script defines `window.dataMap` before the page's module runs, so a failed import rejects `dataMap.ready` at once. `ready` resolves after the map's first `idle` once the view is fitted, the arrowheads are turned, the legend and companions are drawn, and the fonts have loaded. `dataMap.report()` returns the facts `check` judges, namely the projection in use, pitch and zoom, the controls, the fonts and type sizes, the legend's swatches, whether the map moves, the layers and sources, the text boxes, the rendered features per layer, and the arrowheads' agreement with their lines.
+A classic script defines `window.dataMap` before the page's module runs, so a failed import rejects `dataMap.ready` at once. `ready` resolves after the map's first `idle` once the view is fitted, the arrowheads are turned, the labels are placed, the legend and companions are drawn, and the fonts have loaded. `dataMap.report()` returns the facts `check` judges, namely the projection in use, pitch and zoom, the controls, the fonts and type sizes, the legend's swatches, whether the map moves, the layers and sources, the text boxes, the rendered features per layer, the arrowheads' agreement with their lines, each label layer's node count with the names that rendered and any arrowhead over a name, and whether the tooltips are on.
 
-To add a layer by hand, pass a function as the second argument of `DataMap.start` in the page's module. It gets `{map, overlay, data, spec, legend, libs}` and runs before the final idle, so the screenshot waits for it.
+To add a layer by hand, pass a function as the second argument of `DataMap.start` in the page's module. It gets `{map, overlay, data, spec, legend, libs}` and runs after the labels are placed and before the final idle, so the screenshot waits for it.
 
 ## Traps
 
@@ -121,6 +130,7 @@ To add a layer by hand, pass a function as the second argument of `DataMap.start
 - The levers write string ids for areas, so hover outlines match the feature's id with a filter rather than feature-state.
 - Class fills stay opaque. A `fill-opacity` below 1 blends each class with what lies under it, so the map no longer shows the legend's colors (P9), and `check` can't find them.
 - `check` writes `index.<W>x<H>.png` and `check.json` beside the page; keep them out of version control.
+- A synced page holds every data file it draws, so it can travel without `data/`, and `check` then judges it from its inlined blocks. `sync` refuses such a page, since it would drop them.
 
 ## Updating the pins
 

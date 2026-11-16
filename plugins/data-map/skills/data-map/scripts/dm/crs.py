@@ -5,7 +5,8 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 
-TAIL = "+datum=WGS84 +units=m +no_defs"
+# proj4 2.22.0 projects aea, laea, cea, stere, lcc, and tmerc to NaN when the false origin is left out.
+TAIL = "+x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"
 WORLD_SPAN = 270
 GLOBE_SPAN = 180
 

@@ -18,7 +18,9 @@ CLEARANCE_SHARE = 0.04
 DENSIFY_DEG = 1.0
 ARROW_RATIO, ARROW_MIN_PX = 2.5, 6.0
 NODE_RMAX = 10.0
-FLOW_COLOR = "#08519c"
+# A dark warm orange-brown: warm hues are for the data, blue sinks on thin lines, and red reads as alarm.
+FLOW_COLOR = "#a63603"
+FADE_MIN = 0.45
 NODE_COLOR = "#525252"
 HAIRBALL = {"curved": 100, "great-circle": 300}
 CANDIDATES = [(1, 1.0), (-1, 1.0), (1, 1.5), (-1, 1.5), (1, 2.0), (-1, 2.0)]
@@ -113,8 +115,13 @@ def keep_top(flows: list, top: int | None = None, share: float | None = None) ->
 
 def omitted_note(kept: int, total: int, share: float, unit: str) -> str:
     if kept == total:
-        return f"All {total} flows"
-    return f"The {kept} largest of {total} flows, {share:.0%} of all {unit}"
+        return f"All {total:,} flows"
+    return f"The {kept:,} largest of {total:,} flows, {share:.0%} of all {unit}"
+
+
+def nodes_title(unit: str, flows: int) -> str:
+    """The circles count every flow, before any cut, so the heading says so."""
+    return f"Circle area: {unit} in and out, across all {flows:,} flows"
 
 
 def curvature_for(d: float, dmin: float, dmax: float) -> float:
@@ -204,6 +211,14 @@ def place(flows: list, nodes: dict, geometry: str) -> list:
 def width(v: float, vmax: float, max_px: float, min_px: float) -> float:
     """Width linear in value (Jenny §4.2), floored so thin flows stay visible."""
     return max(min_px, max_px * v / vmax) if vmax > 0 else min_px
+
+
+def opacity(v: float, vmin: float, vmax: float, fade_min: float) -> float:
+    """Opacity linear in value, from fade_min at the smallest kept flow to 1 at the largest: larger flows
+    darker (Jenny §4.2), faded by magnitude and never by length (Slocum §20.7.2.1)."""
+    if fade_min >= 1 or vmax <= vmin:
+        return 1.0
+    return round(min(1.0, max(fade_min, fade_min + (1 - fade_min) * (v - vmin) / (vmax - vmin))), 3)
 
 
 def arrow_size(w: float) -> float:

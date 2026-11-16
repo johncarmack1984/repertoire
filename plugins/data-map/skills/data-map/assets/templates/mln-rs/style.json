@@ -31,8 +31,9 @@
    "id": "flows", "type": "line", "source": "flows",
    "layout": {"line-cap": "round", "line-join": "round", "line-sort-key": ["get", "dm_order"]},
    "paint": {
-    "line-color": ["coalesce", ["get", "dm_fill"], "#08519c"],
-    "line-width": ["coalesce", ["feature-state", "dm_width"], ["get", "dm_width"]]
+    "line-color": ["coalesce", ["get", "dm_fill"], "#a63603"],
+    "line-width": ["coalesce", ["feature-state", "dm_width"], ["get", "dm_width"]],
+    "line-opacity": ["coalesce", ["get", "dm_opacity"], 1]
    }
   },
   {
@@ -53,7 +54,7 @@
     "icon-offset": ["interpolate", ["linear"], ["/", ["*", 16, ["+", ["get", "dm_setback"], 1]], ["get", "dm_arrow"]], 0, ["literal", [0, -4]], 64, ["literal", [0, 60]]],
     "icon-allow-overlap": true, "icon-ignore-placement": true, "symbol-sort-key": ["get", "dm_order"]
    },
-   "paint": {"icon-color": ["coalesce", ["get", "dm_fill"], "#08519c"]}
+   "paint": {"icon-color": ["coalesce", ["get", "dm_fill"], "#a63603"], "icon-opacity": ["coalesce", ["get", "dm_opacity"], 1]}
   }
  ]
 }

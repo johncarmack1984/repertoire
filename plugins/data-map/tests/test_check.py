@@ -107,6 +107,14 @@ def module(code: str):
     return page("await DataMap.start(libs);", "await DataMap.start(libs);\n" + code)
 
 
+def extend(code: str):
+    """A page that changes the map in the hook DataMap.start awaits before the map reports ready."""
+    return page("await DataMap.start(libs);", f"await DataMap.start(libs, async ({{map}}) => {{ {code}; await map.once('idle'); }});")
+
+
+ALBERS_NO_ORIGIN = "+proj=aea +lat_1=28.65 +lat_2=45.25 +lat_0=36.95 +lon_0=-95.95 +datum=WGS84 +units=m +no_defs"
+
+
 def data(stem: str, fn, resync: bool = True):
     def edit(folder: Path):
         f = folder / "data" / f"{stem}.json" if (folder / "data" / f"{stem}.json").exists() else folder / "data" / f"{stem}.geojson"
@@ -157,6 +165,8 @@ STATIC_BAD = [
     ("world choropleth on the globe", "maplibre-crs", spec(projection={"type": "globe"}), ("FAIL", "projection", 10)),
     ("world choropleth in a CRS that isn't equal-area", "maplibre-crs",
      spec(projection={"type": "crs", "name": "custom:robinson", "definition": "+proj=robin", "property": "compromise"}), ("FAIL", "projection", 10)),
+    ("a world-wide [W, S, E, N] extent in Web Mercator", "maplibre-crs", spec(extent=[-180, -60, 180, 85], projection={"type": "mercator"}),
+     ("FAIL", "projection", 10)),
     ("Web Mercator tiles under a CRS", "maplibre-crs", spec(tiles=[{"source": "basemap", "grid": "web-mercator", "url": "data/basemap.pmtiles"}]),
      ("FAIL", "tiles", 11)),
     ("zoom buttons nobody listed", "maplibre-globe", module("dataMap.map.addControl(new libs.maplibregl.NavigationControl());"), ("WARN", "controls", 23)),
@@ -185,6 +195,8 @@ BROWSER_BAD = [
     ("class colors that disagree with the legend", "maplibre-crs", data("density", recolor), ("FAIL", "legend-colors", 9)),
     ("arrowheads turned off their lines", "maplibre-globe", data("movers-arrows", turn_arrows), ("FAIL", "arrows", 17)),
     ("a map still moving at ready", "maplibre-globe", module("dataMap.map.panBy([300, 0], {duration: 20000});"), ("FAIL", "motion", 26)),
+    ("an Albers definition with no false origin", "maplibre-crs",
+     spec(projection={"type": "crs", "name": "custom:albers", "definition": ALBERS_NO_ORIGIN, "property": "equal-area"}), ("FAIL", "ready", 33)),
     ("a page that throws", "maplibre-mercator", page("const spec = DataMap.spec;", "throw new Error('the page broke');\nconst spec = DataMap.spec;"),
      ("FAIL", "ready", 33)),
 ]
@@ -212,6 +224,55 @@ class Static(unittest.TestCase):
                 code, result = cli("check", folder, "--no-browser", "--json")
                 self.assertIn(want, findings(result), f"{what}: {findings(result)}")
                 self.assertEqual(code, 1 if want[0] == "FAIL" else 0)
+
+    def test_a_box_extent_is_large_from_60_degrees_of_longitude_or_40_of_latitude(self):
+        for box, status in (([-10, 35, 49, 74], "PASS"), ([-10, 35, 50, 60], "FAIL"), ([-10, 20, 30, 60], "FAIL"), ([170, 0, -131, 10], "PASS"),
+                            ([170, 0, -129, 10], "FAIL")):
+            with self.subTest(box):
+                folder = copy("maplibre-crs", self.tmp / "-".join(map(str, box)))
+                spec(extent=box, projection={"type": "mercator"})(folder)
+                code, result = cli("check", folder, "--no-browser", "--json")
+                self.assertIn((status, "projection", 10), findings(result))
+                self.assertEqual(code, 1 if status == "FAIL" else 0)
+
+    def test_dm_spec_figure_sets_the_size_and_scale_unless_flags_do(self):
+        folder = copy("maplibre-mercator", self.tmp)
+        spec(figure={"size": "1000x600", "scale": 2})(folder)
+        code, result = cli("check", folder, "--no-browser", "--json")
+        self.assertEqual((code, result["size"], result["scale"]), (0, [1000, 600], 2))
+        code, result = cli("check", folder, "--no-browser", "--json", "--size", "800x500")
+        self.assertEqual((result["size"], result["scale"]), ([800, 500], 2))
+        code, result = cli("check", folder, "--no-browser", "--json", "--scale", "1")
+        self.assertEqual((result["size"], result["scale"]), ([1000, 600], 1))
+        spec(figure=None)(folder)
+        code, result = cli("check", folder, "--no-browser", "--json")
+        self.assertEqual((result["size"], result["scale"]), ([1200, 800], 1))
+        spec(figure={"size": "wide"})(folder)
+        self.assertEqual(cli("check", folder, "--no-browser")[0], 2)
+
+    def test_a_synced_page_without_data_is_checked_from_its_inlined_blocks(self):
+        folder = copy("maplibre-globe", self.tmp)
+        shutil.rmtree(folder / "data")
+        code, result = cli("check", folder, "--no-browser", "--json")
+        self.assertEqual(code, 0, findings(result, "FAIL"))
+        self.assertIn(("PASS", "legend", 9), findings(result))
+        self.assertIn("inlined data files are its data", next(f["message"] for f in result["findings"] if f["check"] == "sync"))
+        # sync would drop every inlined file, so it refuses and leaves the page alone.
+        before = (folder / "index.html").read_text()
+        self.assertEqual(cli("sync", folder)[0], 2)
+        self.assertEqual((folder / "index.html").read_text(), before)
+        page('"layers":{"movers"', '"layers":{"movers"}{')(folder)
+        code, result = cli("check", folder, "--no-browser", "--json")
+        self.assertEqual(code, 1)
+
+    def test_the_worked_example_passes_the_static_pass(self):
+        example = HERE.parent / "skills" / "data-map" / "assets" / "example" / "movers"
+        folder = self.tmp / "movers"
+        shutil.copytree(example, folder)
+        self.assertFalse((folder / "data").exists())
+        code, result = cli("check", folder, "--no-browser", "--json")
+        self.assertEqual(code, 0, findings(result, "FAIL"))
+        self.assertEqual((result["size"], result["scale"]), ([1200, 700], 2))
 
     def test_a_page_without_dm_spec_is_judged_on_its_render_only(self):
         code, result = cli("check", copy("bare-maplibre", self.tmp), "--no-browser", "--json")
@@ -265,6 +326,17 @@ class New(unittest.TestCase):
                 self.assertEqual(self.spec_of(out)["projection"]["type"], want)
                 self.assertTrue((out / "brief.md").is_file() and (out / "data").is_dir())
                 self.assertEqual(cli("sync", out, "--check")[0], 0)
+
+    def test_every_template_brief_holds_the_brief_lines_in_one_block(self):
+        want = ["Reader:", "Task:", "Question:", "Data:", "Supports:", "Location:", "Candidates:", "Idiom:", "Companions:",
+                "Visual plan:", "Interface:", "Projection:", "Stack:", "Sensitive:", "Answer key:", "Departures:"]
+        for stack in ("maplibre", "deck-gl", "mln-rs"):
+            with self.subTest(stack):
+                out = self.tmp / stack
+                self.assertEqual(cli("new", stack, out)[0], 0)
+                head, intro, blocks = re.fullmatch(r"(# Brief)\n\n([^\n]+)\n\n((?:```[a-z]*\n.*?```\n)+)", (out / "brief.md").read_text(), re.S).groups()
+                self.assertEqual(blocks.count("```"), 2)
+                self.assertEqual(blocks.splitlines()[1:-1], want)
 
     def test_the_chart_preset_has_no_map(self):
         out = self.tmp / "chart"
@@ -413,6 +485,54 @@ class Render(unittest.TestCase):
                     self.assertTrue(Path(result["png"]).is_file())
                     if name != "bare-maplibre":
                         self.assertEqual(findings(result, "WARN"), [], name)
+
+    def test_a_crs_with_no_false_origin_fails_with_the_fix(self):
+        folder = copy("maplibre-crs", self.tmp)
+        spec(projection={"type": "crs", "name": "custom:albers", "definition": ALBERS_NO_ORIGIN, "property": "equal-area"})(folder)
+        code, result = self.render(folder)
+        ready = next(f for f in result["findings"] if f["check"] == "ready")
+        self.assertEqual((code, ready["status"]), (1, "FAIL"))
+        self.assertIn(ALBERS_NO_ORIGIN, ready["message"])
+        self.assertIn("add +x_0=0 +y_0=0 to the definition", ready["message"])
+
+    def test_base_files_draw_under_the_data_with_no_legend(self):
+        folder = copy("maplibre-mercator", self.tmp)
+        code, result = self.render(folder)
+        self.assertEqual(code, 0, findings(result, "FAIL"))
+        rep = result["report"]
+        ids = [layer["id"] for layer in rep["layers"]]
+        self.assertLess(ids.index("base-rivers-line"), ids.index("capacity"))
+        self.assertGreater(rep["rendered"]["base-rivers"], 0)
+        self.assertNotIn("base-rivers", {e["layer"] for e in rep["legendEntries"]})
+
+    def test_tooltips_false_takes_the_tooltips_off(self):
+        for value, want in ((None, True), (False, False)):
+            with self.subTest(tooltips=value):
+                folder = copy("maplibre-globe", self.tmp / str(value))
+                spec(tooltips=value)(folder)
+                code, result = self.render(folder)
+                self.assertEqual((code, result["report"]["tooltips"]), (0, want))
+
+    def test_labels_warn_on_a_name_that_did_not_render_or_sits_under_a_head(self):
+        cases = [("a name under an arrowhead", "map.setLayoutProperty('movers-labels', 'text-radial-offset', undefined); "
+                  "map.setLayoutProperty('movers-labels', 'text-anchor', 'center'); map.setLayoutProperty('movers-labels', 'text-offset', [0, 0])",
+                  "arrowheads cover", "Tokyo under the head of"),
+                 ("names too big to fit", "map.setLayoutProperty('movers-labels', 'text-size', 40)", "didn't render", "of 7 names")]
+        for what, code, says, names in cases:
+            with self.subTest(what):
+                folder = copy("maplibre-globe", self.tmp / what.replace(" ", "-"))
+                extend(code)(folder)
+                status, result = self.render(folder)
+                warns = [f["message"] for f in result["findings"] if (f["status"], f["check"]) == ("WARN", "labels")]
+                self.assertEqual(status, 0, findings(result, "FAIL"))
+                self.assertTrue(any(says in m and names in m for m in warns), warns)
+
+    def test_a_synced_page_without_data_renders_and_passes(self):
+        folder = copy("maplibre-globe", self.tmp)
+        shutil.rmtree(folder / "data")
+        code, result = self.render(folder)
+        self.assertEqual(code, 0, findings(result, "FAIL"))
+        self.assertEqual(findings(result, "WARN"), [])
 
     def test_without_a_network_the_render_is_reported_not_measured(self):
         folder = copy("maplibre-globe", self.tmp)

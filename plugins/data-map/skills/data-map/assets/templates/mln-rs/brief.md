@@ -1,8 +1,8 @@
 # Brief
 
-Working notes for this map, never part of it. Fill every line before building; step 2 of `SKILL.md` says what each line holds. The answer key comes from code, such as the `answers` in `data/legend.json`.
+Working notes for this map, never part of it; step 2 of `SKILL.md` says what each line holds, and every line is filled before anything is drawn.
 
-```
+```text
 Reader:
 Task:
 Question:
@@ -15,7 +15,7 @@ Companions:
 Visual plan:
 Interface:
 Projection:
-Stack:       mln-rs, because
+Stack:
 Sensitive:
 Answer key:
 Departures:

@@ -97,20 +97,20 @@ custom:equal-earth    +proj=eqearth +lon_0=0 +datum=WGS84 +units=m +no_defs     
 custom:mollweide      +proj=moll +lon_0=0 +datum=WGS84 +units=m +no_defs           (ESRI:54009)
 
 # Lambert azimuthal equal-area, centered on a hemisphere or a compact continent.
-custom:laea           +proj=laea +lat_0=<lat> +lon_0=<lon> +datum=WGS84 +units=m +no_defs
+custom:laea           +proj=laea +lat_0=<lat> +lon_0=<lon> +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs
 custom:laea-europe    +proj=laea +lat_0=52 +lon_0=10 +x_0=4321000 +y_0=3210000 +ellps=GRS80 +units=m +no_defs   (EPSG:3035)
 
 # Albers equal-area conic, mid-latitudes.
-custom:albers-us      +proj=aea +lat_0=23 +lon_0=-96 +lat_1=29.5 +lat_2=45.5 +datum=WGS84 +units=m +no_defs   (EPSG:5070 parameters)
-custom:albers-europe  +proj=aea +lat_0=30 +lon_0=10 +lat_1=43 +lat_2=62 +datum=WGS84 +units=m +no_defs      (ESRI:102013 parameters)
+custom:albers-us      +proj=aea +lat_0=23 +lon_0=-96 +lat_1=29.5 +lat_2=45.5 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs   (EPSG:5070 parameters)
+custom:albers-europe  +proj=aea +lat_0=30 +lon_0=10 +lat_1=43 +lat_2=62 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs      (ESRI:102013 parameters)
 
 # Polar Lambert azimuthal equal-area.
-custom:laea-north-polar  +proj=laea +lat_0=90 +lon_0=0 +datum=WGS84 +units=m +no_defs    (EPSG:6931)
-custom:laea-south-polar  +proj=laea +lat_0=-90 +lon_0=0 +datum=WGS84 +units=m +no_defs   (EPSG:6932)
+custom:laea-north-polar  +proj=laea +lat_0=90 +lon_0=0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs    (EPSG:6931)
+custom:laea-south-polar  +proj=laea +lat_0=-90 +lon_0=0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs   (EPSG:6932)
 
 # Equatorial band; lat_ts near half the band's highest latitude.
-custom:cylindrical-equal-area  +proj=cea +lat_ts=<lat> +lon_0=<lon> +datum=WGS84 +units=m +no_defs
+custom:cylindrical-equal-area  +proj=cea +lat_ts=<lat> +lon_0=<lon> +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs
 
 # Flows into one place, centered on it.
-custom:aeqd           +proj=aeqd +lat_0=<lat> +lon_0=<lon> +datum=WGS84 +units=m +no_defs
+custom:aeqd           +proj=aeqd +lat_0=<lat> +lon_0=<lon> +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs
 ```

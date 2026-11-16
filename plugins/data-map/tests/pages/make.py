@@ -181,6 +181,12 @@ def build_maplibre_mercator(out: Path, tmp: Path) -> None:
     near = {**world, "features": [f for f in world["features"] if f["id"] in ("USA", "CAN", "MEX")]}
     (tmp / "near.geojson").write_text(json.dumps(near))
     dm("geo", tmp / "near.geojson", "--out", out / "data" / "land.geojson")
+    rivers = [[(-123.9, 46.2), (-121.5, 45.6), (-119.3, 46.1), (-116.9, 46.4), (-114.9, 47.6)],
+              [(-119.3, 46.1), (-117.0, 44.0), (-115.0, 42.6)]]
+    (tmp / "rivers.geojson").write_text(json.dumps({"type": "FeatureCollection", "features": [
+        {"type": "Feature", "id": f"river-{i}", "properties": {}, "geometry": {"type": "LineString", "coordinates": line}}
+        for i, line in enumerate(rivers)]}))
+    dm("geo", tmp / "rivers.geojson", "--densify", 50, "--out", out / "data" / "base-rivers.geojson")
     dm("sizes", src, "--field", "capacity", "--lon", "lon", "--lat", "lat", "--label-field", "name", "--rmax", 26,
        "--layer", "capacity", "--out-dir", out / "data", "--title", "Reservoir capacity", "--unit", "million m³")
     fill(out, title="Rim Lake alone holds more than a quarter of the region's storage",

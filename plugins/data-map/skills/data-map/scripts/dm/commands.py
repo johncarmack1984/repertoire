@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import math
+import re
 from pathlib import Path
 
 from . import FAIL, PASS, WARN, classify, color, crs, data, flows, geo, legend, symbols
@@ -97,19 +98,83 @@ def auto_scale(rates: list) -> int:
 def profile_lines(name: str, columns: list, rows: list) -> list:
     out = []
     numeric = data.numeric_columns(columns, rows)
+    margins = {m: e for e, m in moe_pairs(columns, numeric)}
     for c, vals in numeric.items():
         nums = sorted(v for v in vals if v is not None)
         if not nums:
             continue
-        kind, why = data.guess_kind(c, vals, numeric)
+        zeros = sum(1 for v in nums if v == 0)
         skew = classify.skewness(nums)
-        msg = (f"{name} column {c}: {len(nums)} values, {len(vals) - len(nums)} missing, min {num(nums[0])}, max {num(nums[-1])}, "
-               f"mean {num(classify.mean(nums))}, median {num(classify.median(nums))}, skewness {skew:.2f}; {kind}: {why}")
+        msg = (f"{name} column {c}: {len(nums):,} values, {len(vals) - len(nums):,} missing" + (f", {zeros:,} of them zero" if zeros else "")
+               + f", min {num(nums[0])}, max {num(nums[-1])}, mean {num(classify.mean(nums))}, median {num(classify.median(nums))}, skewness {skew:.2f}")
+        if c in margins:
+            out.append(PASS("profile", f"{msg}; the margin of error of {margins[c]}", 36))
+            continue
+        kind, why = data.guess_kind(c, vals, numeric)
+        msg += f"; {kind}: {why}"
         if kind == "count":
             out.append(PASS("profile", msg + "; on an area idiom, divide it with classes --per, or draw it as sizes", 1))
         else:
             out.append(PASS("profile", msg))
     return out
+
+
+MOE_BARE = re.compile(r"(?i)moe|margin|margin_of_error")
+MOE_AFFIXED = re.compile(r"(?i)(?:moe|margin)_(?P<a>.+)|(?P<b>.+?)_(?:moe|margin|margin_of_error)")
+Z90 = 1.645
+
+
+def moe_pairs(columns: list, numeric: dict) -> list:
+    """(estimate, margin) column pairs: x_moe or moe_x beside x, or a bare moe or margin beside the estimate on its left."""
+    pairs = []
+    for i, c in enumerate(columns):
+        if c not in numeric:
+            continue
+        m = MOE_AFFIXED.fullmatch(c)
+        if m and (m["a"] or m["b"]) in numeric:
+            pairs.append((m["a"] or m["b"], c))
+        elif MOE_BARE.fullmatch(c):
+            left = [x for x in columns[:i] if x in numeric and not (MOE_BARE.fullmatch(x) or MOE_AFFIXED.fullmatch(x))]
+            if left:
+                pairs.append((left[-1], c))
+    return pairs
+
+
+def runs(indices: list) -> list:
+    """Consecutive tied neighbors as 1-based rank runs: ties at 0 and 1 become (1, 3)."""
+    out = []
+    for i in indices:
+        if out and out[-1][1] == i + 1:
+            out[-1] = (out[-1][0], i + 2)
+        else:
+            out.append((i + 1, i + 2))
+    return out
+
+
+def moe_lines(name: str, columns: list, rows: list) -> tuple:
+    """For each estimate with a margin of error: the range of its coefficient of variation, and the neighboring
+    ranks its margins tie (Slocum §26.6.1). The margins are taken as 90%, as the ACS publishes them."""
+    out, facts = [], []
+    numeric = data.numeric_columns(columns, rows)
+    for est, moe in moe_pairs(columns, numeric):
+        pairs = [(e, m) for e, m in zip(numeric[est], numeric[moe]) if e is not None and m is not None]
+        cv = sorted((m / Z90) / e * 100 for e, m in pairs if e > 0)
+        zeros = sum(1 for e, _ in pairs if e == 0)
+        if not cv:
+            continue
+        ranked = sorted(pairs, key=lambda p: -p[0])
+        ties = [i for i, (a, b) in enumerate(zip(ranked, ranked[1:])) if a[0] - b[0] < math.hypot(a[1], b[1])]
+        facts.append({"estimate": est, "moe": moe, "cv": [round(cv[0], 1), round(classify.median(cv), 1), round(cv[-1], 1)],
+                      "zeros": zeros, "neighbors": len(ranked) - 1, "ties": len(ties)})
+        out.append(PASS("moe", f"{name} column {moe} is the margin of error of {est}: coefficient of variation {cv[0]:.0f}% to {cv[-1]:.0f}% "
+                               f"(median {classify.median(cv):.0f}%) over {len(cv):,} nonzero estimates, as (MOE / {Z90}) / estimate x 100"
+                               + (f"; {zeros:,} zero {'estimate has' if zeros == 1 else 'estimates have'} no CV" if zeros else ""), 36))
+        if ties:
+            top = [f"{a} to {b}" for a, b in runs([i for i in ties if i < 9])]
+            out.append(WARN("moe", f"{len(ties):,} of the {len(ranked) - 1:,} pairs of neighboring ranks of {est} differ by less than the margin of their difference, so they tie"
+                                   + (f"; among the 10 largest, ranks {' and '.join(top)} tie" if top else ""),
+                            "claim a rank only where the difference beats sqrt(MOE1^2 + MOE2^2), print the margins beside exact values, and say what they mean in the source line", 36))
+    return out, facts
 
 
 def extent_lines(name: str, positions: list) -> list:
@@ -136,6 +201,8 @@ def run_inspect(args) -> int:
             t = data.read_table(p)
             findings.append(PASS("rows", f"{p.name}: {len(t.rows)} rows, columns {', '.join(t.columns)}"))
             findings += profile_lines(p.name, t.columns, t.rows)
+            lines, margins = moe_lines(p.name, t.columns, t.rows)
+            findings += lines
             lon = data.find_column(t.columns, data.LON_NAMES)
             lat = data.find_column(t.columns, data.LAT_NAMES)
             if lon and lat:
@@ -145,7 +212,7 @@ def run_inspect(args) -> int:
             d = data.find_column(t.columns, data.DEST_NAMES)
             if o and d:
                 findings.append(PASS("od", f"{p.name} reads as origin-destination pairs: {o} to {d}; draw it with flows"))
-            profiles[p.name] = {"rows": len(t.rows), "columns": t.columns}
+            profiles[p.name] = {"rows": len(t.rows), "columns": t.columns, "margins": margins}
         else:
             feats = data.read_features(p)
             types = sorted({(f.get("geometry") or {}).get("type", "None") for f in feats})
@@ -153,8 +220,10 @@ def run_inspect(args) -> int:
             props = [f.get("properties") or {} for f in feats]
             columns = sorted({k for q in props for k in q})
             findings += profile_lines(p.name, columns, props)
+            lines, margins = moe_lines(p.name, columns, props)
+            findings += lines
             findings += extent_lines(p.name, [q for f in feats if f.get("geometry") for q in geo.all_positions(f["geometry"])])
-            profiles[p.name] = {"features": len(feats), "geometry": types, "properties": columns}
+            profiles[p.name] = {"features": len(feats), "geometry": types, "properties": columns, "margins": margins}
     for spec in args.join or []:
         findings += join_lines(spec)
     return emit(findings, args.json, {"profiles": profiles})
@@ -709,9 +778,13 @@ def run_flows(args) -> int:
         findings.append(WARN("top-n", f"{len(drawn)} flows drawn at once tangle into a hairball", f"pass --top or --share; past {limit} flows the lines stop reading", 18))
     else:
         findings.append(PASS("top-n", note, 18))
-    placed = flows.place(kept, nodes, args.geometry)
+    # Curves clear only the nodes the map draws, which are the ends of the kept flows.
+    drawn_nodes = {x for f in kept for x in (f.o, f.d)}
+    placed = flows.place(kept, {k: n for k, n in nodes.items() if k in drawn_nodes}, args.geometry)
     vmax = max(f.value for f in kept)
     vmin = min(f.value for f in kept)
+    fade_min = 1.0 if args.no_fade else args.fade_min
+    color = args.color
     order = {p.flow: rank for rank, p in enumerate(sorted(placed, key=lambda p: (-p.flow.value, p.flow.o, p.flow.d)))}
     pair_set = {(p.flow.o, p.flow.d) for p in placed}
     reciprocal = sum(1 for p in placed if (p.flow.d, p.flow.o) in pair_set) // 2
@@ -729,16 +802,17 @@ def run_flows(args) -> int:
         text = f"{label}: {num(f.value)} {unit}"
         if f.forward is not None and f.reverse:
             text += f" net ({num(f.forward)} out, {num(f.reverse)} back)"
-        props = {"dm_o": f.o, "dm_d": f.d, "dm_value": f.value, "dm_width": w, "dm_order": order[f],
-                 "dm_km": round(p.km, 1), "dm_fill": flows.FLOW_COLOR,
+        alpha = flows.opacity(f.value, vmin, vmax, fade_min)
+        props = {"dm_o": f.o, "dm_d": f.d, "dm_value": f.value, "dm_width": w, "dm_opacity": alpha, "dm_order": order[f],
+                 "dm_km": round(p.km, 1), "dm_fill": color,
                  "dm_label": label, "dm_tip": text}
         lines.append(data.feature(fid, props, g))
         arrows.append(data.feature(fid, {"dm_o": f.o, "dm_d": f.d, "dm_value": f.value, "dm_bearing": round(geo.end_bearing(p.coords), 2),
-                                         "dm_arrow": round(flows.arrow_size(w), 2), "dm_width": w, "dm_order": order[f],
-                                         "dm_setback": round(node_r[f.d], 2), "dm_fill": flows.FLOW_COLOR},
+                                         "dm_arrow": round(flows.arrow_size(w), 2), "dm_width": w, "dm_opacity": alpha, "dm_order": order[f],
+                                         "dm_setback": round(node_r[f.d], 2), "dm_fill": color},
                                    {"type": "Point", "coordinates": nodes[f.d].pos}))
         arcs.append({"source": data.round_coords(nodes[f.o].pos), "target": data.round_coords(nodes[f.d].pos), "value": f.value,
-                     "width": w, "color": flows.FLOW_COLOR, "km": round(p.km, 1)})
+                     "width": w, "color": color, "opacity": alpha, "km": round(p.km, 1)})
     node_order = symbols.order_largest_first([totals[k]["gross"] for k in node_ids])
     node_feats = []
     for (key, nid), rank in zip(node_ids.items(), node_order):
@@ -764,19 +838,26 @@ def run_flows(args) -> int:
     findings.append(PASS("antimeridian", f"{split} flows split into two parts at 180, with a vertex on the meridian", 20))
     findings.append(PASS("arrows", f"one arrowhead per flow at its destination, {flows.ARROW_RATIO:g} times the width and at least {flows.ARROW_MIN_PX:g} px", 17))
     findings.append(PASS("order", "small flows draw on top of large ones", 19))
+    if fade_min < 1:
+        findings.append(PASS("fade", f"opacity runs from {fade_min:g} at the smallest kept flow ({num(vmin)}) to 1 at the largest ({num(vmax)}), linear in value"))
     lvals = flows.legend_values(vmin, vmax, args.max_width, args.min_width)
     lwidths = [round(flows.width(v, vmax, args.max_width, args.min_width), 2) for v in lvals]
+    lopacities = [flows.opacity(v, vmin, vmax, fade_min) for v in lvals]
     name = args.layer or "flows"
-    layer = {"kind": "flows", "title": args.title or unit, "unit": unit, "geometry": args.geometry,
+    layer = {"kind": "flows", "title": args.title or unit, "unit": unit, "geometry": args.geometry, "color": color,
              "kept": len(kept), "total": len(drawn), "kept_share": round(share, 4), "omitted_note": note, "net": bool(args.net),
              "width": {"min_px": args.min_width, "max_px": args.max_width, "vmax": vmax, "scale": "linear"},
-             "legend_values": lvals, "legend_widths": lwidths,
+             "fade": {"min": fade_min, "vmin": vmin, "vmax": vmax, "scale": "linear"},
+             "legend_values": lvals, "legend_widths": lwidths, "legend_opacities": lopacities,
              "arrow": {"ratio": flows.ARROW_RATIO, "min_px": flows.ARROW_MIN_PX},
-             "nodes": {"rmax": flows.NODE_RMAX, "scaling": "area", "value": "gross"},
+             "nodes": {"rmax": flows.NODE_RMAX, "scaling": "area", "value": "gross", "title": flows.nodes_title(unit, len(all_flows))},
              "files": {"lines": f"{name}.geojson", "nodes": f"{name}-nodes.geojson", "arrows": f"{name}-arrows.geojson", "arcs": f"{name}-arcs.json"}}
     decisions = [
         legend.decision("geometry", args.geometry, "curves separate reciprocal and overlapping flows" if args.geometry == "curved" else "great circles on a globe", "Jenny et al. 2018 §4.1"),
         legend.decision("width", "linear in value", "the accepted quantity encoding for flows", "Jenny et al. 2018 §4.2"),
+        legend.decision("fade", f"opacity {fade_min:g} to 1, linear in value" if fade_min < 1 else "none",
+                        "larger flows darker, faded by magnitude and never by length" if fade_min < 1 else "--no-fade",
+                        "Jenny et al. 2018 §4.2", "Slocum §20.7.2.1"),
         legend.decision("top-n", note, "fewer flows read; the cut is stated", "Jenny et al. 2018", "Yang et al. 2019"),
     ]
     files = {f"{name}-nodes.geojson": node_feats, f"{name}-arrows.geojson": arrows, f"{name}-arcs.json": arcs}
@@ -823,6 +904,12 @@ def share(text: str) -> float:
     if not 0 < v <= 1:
         raise argparse.ArgumentTypeError("a share between 0 and 1")
     return v
+
+
+def hex_color(text: str) -> str:
+    if not re.fullmatch(r"#[0-9a-fA-F]{6}", text):
+        raise argparse.ArgumentTypeError("a color as #rrggbb")
+    return text.lower()
 
 
 def register(sub) -> None:
@@ -900,6 +987,11 @@ def register(sub) -> None:
     p.add_argument("--geometry", choices=["curved", "great-circle"], default="curved")
     p.add_argument("--max-width", type=positive, default=12.0, metavar="PX")
     p.add_argument("--min-width", type=positive, default=1.0, metavar="PX")
+    p.add_argument("--color", type=hex_color, default=flows.FLOW_COLOR, metavar="HEX",
+                   help=f"one color for every flow and arrowhead (default {flows.FLOW_COLOR}, a dark warm orange-brown)")
+    p.add_argument("--fade-min", type=share, default=flows.FADE_MIN, metavar="A",
+                   help=f"opacity of the smallest kept flow; the largest is 1 (default {flows.FADE_MIN:g})")
+    p.add_argument("--no-fade", action="store_true", help="draw every flow fully opaque")
     add_layer_output(p)
     add_common(p)
     p.set_defaults(run=run_flows)

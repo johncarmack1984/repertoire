@@ -8,7 +8,7 @@ import re
 import shutil
 from pathlib import Path
 
-from . import FAIL, PASS, VERSION, WARN, report
+from . import FAIL, PASS, VERSION, WARN, crs, report
 
 TEMPLATES = Path(__file__).resolve().parents[2] / "assets" / "templates"
 LIB = {"css": ("style", "datamap.css"), "js": ("script", "datamap.js")}
@@ -17,8 +17,7 @@ DATA_REGION = re.compile(r"<!-- data-map:data -->\n(.*?)<!-- /data-map:data -->"
 DATA_FILE = re.compile(r'<!-- data-map:file (\S+) sha256:([0-9a-f]{64}) -->\n<script type="application/json" id="dm-data-([^"]+)">(.*?)</script>\n', re.S)
 SPEC = re.compile(r'(<script type="application/json" id="dm-spec">\n?)(.*?)(\n?</script>)', re.S)
 
-EQUAL_EARTH = {"type": "crs", "name": "custom:equal-earth", "definition": "+proj=eqearth +lon_0=0 +datum=WGS84 +units=m +no_defs",
-               "property": "equal-area"}
+EQUAL_EARTH = {"type": "crs", "name": "custom:equal-earth", "definition": crs.equal_earth(), "property": "equal-area"}
 PRESETS = {
     "equal-earth": {"projection": EQUAL_EARTH},
     "globe": {"projection": {"type": "globe"}},
@@ -93,6 +92,8 @@ def drift(text: str, out: Path) -> list[str]:
             said.append(f"the {m[1]} library region was edited by hand")
         elif m[3] != sha(body.encode()) or m[2] != VERSION:
             said.append(f"the {m[1]} library region is {m[2]}, older than assets/templates/lib")
+    if not (out / "data").is_dir():
+        return said
     region = DATA_REGION.search(text)
     inlined = {m[1]: m[2] for m in DATA_FILE.finditer(region[1])} if region else {}
     on_disk = {f"data/{p.name}": sha(p.read_bytes()) for p in data_files(out)}
@@ -179,6 +180,8 @@ def run_sync(args) -> int:
     if not page.is_file():
         raise UsageError(f"{page} does not exist; sync is for the maplibre and deck-gl stacks")
     old = page.read_text(encoding="utf-8")
+    if not (out / "data").is_dir() and (region := DATA_REGION.search(old)) and DATA_FILE.search(region[1]):
+        raise UsageError(f"{out / 'data'} does not exist, so sync would drop every data file {page} inlines; restore data/ first")
     new = synced(old, out, page)
     files = [f"data/{p.name}" for p in data_files(out)]
     findings = []

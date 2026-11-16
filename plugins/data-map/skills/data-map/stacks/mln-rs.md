@@ -53,9 +53,9 @@ The flags are `--snapshot PNG`, `--size WxH` in logical pixels (1200x800 by defa
 | `land`, `borders` | `countries.geojson` | nothing; land is `#d3d0c9` and borders take the ocean's color |
 | `classes` | `classes.geojson` | `dm_fill` |
 | `sizes` | `sizes.geojson` | `dm_r`, `dm_fill`, `dm_order` |
-| `flows` | `flows.geojson` | `dm_width`, `dm_fill`, `dm_order` |
+| `flows` | `flows.geojson` | `dm_width`, `dm_fill`, `dm_opacity`, `dm_order` |
 | `nodes` | `flows-nodes.geojson` | `dm_r`, `dm_fill`, `dm_order` |
-| `arrows` | `flows-arrows.geojson` | `dm_arrow`, `dm_bearing`, `dm_setback`, `dm_value`, `dm_fill` |
+| `arrows` | `flows-arrows.geojson` | `dm_arrow`, `dm_bearing`, `dm_setback`, `dm_value`, `dm_fill`, `dm_opacity` |
 
 The file names are the levers' defaults. A lever run with `--layer` writes another name, so rename the source's file to match. The sort keys draw small flows over large ones (P19) and small circles over large ones (P14). The arrows align to the map in rotation and pitch, so they lie on the sphere and point along the flow at its destination, as Jenny et al. advise (§4.2).
 
@@ -110,4 +110,4 @@ Put that commit in `Cargo.toml`'s `rev`, with its date and pull request in the c
 
 ## Companion views
 
-The style draws only the map, with no title, legend, source line, or companion. The host app draws them in its own UI from `data/legend.json`. That covers the title that states the point, the width legend from `legend_values` and `legend_widths`, the nested node legend, the `omitted_note`, and the source and date (P24). Ranked flows, an origin-destination matrix, or a second globe for the far side sit beside the map, as the brief's Companions line says. A snapshot for a report goes on a page that holds them around the PNG.
+The style draws only the map, with no title, legend, source line, or companion. The host app draws them in its own UI from `data/legend.json`. That covers the title that states the point, the width legend from `legend_values`, `legend_widths`, and `legend_opacities`, the nested node legend, the `omitted_note`, and the source and date (P24). Ranked flows, an origin-destination matrix, or a second globe for the far side sit beside the map, as the brief's Companions line says. A snapshot for a report goes on a page that holds them around the PNG.

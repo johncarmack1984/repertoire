@@ -11,8 +11,8 @@ Slocum reports that GPT-4o, shown rendered maps with planted flaws and asked whe
 ## Before the critic runs
 
 1. Open the PNG yourself. A blank or half-drawn frame isn't the map (P33), so fix the readiness wait before going on.
-2. Write three questions that the brief's reader must be able to answer from the map, in that reader's words.
-3. Take each answer from the `answers` block of `legend.json`, which the levers computed. It holds the highest and lowest units, the low-n and no-data units, the largest flows, the top origins and destinations, and the asymmetric pairs. For a map of homes heated with wood, one question could be *Which county heats the largest share of its homes with wood?*
+2. Take the three questions from the brief's answer key, which step 2 computed with code. They are in the reader's words, and the map must answer them.
+3. Check each answer against the `answers` block of `legend.json`, which the levers wrote at step 4. It holds the highest and lowest units, the low-n and no-data units, the largest flows, the top origins and destinations, and the asymmetric pairs. Where the block and the key disagree, find out why before the critic runs. For a map of homes heated with wood, one question could be *Which county heats the largest share of its homes with wood?*
 4. Keep the answers, the brief's Question and Supports lines, and every file path except the PNG out of the critic's prompt.
 
 ## The critic's prompt
