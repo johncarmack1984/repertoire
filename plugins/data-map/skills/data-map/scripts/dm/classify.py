@@ -7,9 +7,9 @@ Values are compared at the legend's display precision, so a value always lands i
 from __future__ import annotations
 
 import math
-from bisect import bisect_right
+from bisect import bisect_left, bisect_right
 from dataclasses import dataclass, field
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import ROUND_CEILING, ROUND_FLOOR, ROUND_HALF_UP, Decimal
 
 SAMPLE_CAP = 3000
 GADF_TARGET = 0.80
@@ -258,10 +258,14 @@ def precision_floor(xs: list) -> int | None:
 
 
 def nice(inner: list, xs: list, pinned: frozenset = frozenset()) -> tuple:
-    """Rounds inner breaks to the fewest significant figures (two at least) that keep them increasing and empty no class."""
+    """Rounds inner breaks to the fewest significant figures (two at least) that keep every value in its class.
+
+    A break rounds to the nearest value at that precision, or else down or up, whichever stays in the gap
+    between the classes it separates, so a class's lowest member never drops a class.
+    """
     e_min = precision_floor(xs)
     lo, hi = xs[0], xs[-1]
-    populated = [len(g) > 0 for g in groups(xs, inner)]
+    members = [assign(x, inner) for x in xs]
     span_e = _exp(hi - lo, 2) if hi > lo else _exp(hi, 2)
     for sig in range(2, 8):
         rounded, es = [], []
@@ -272,14 +276,15 @@ def nice(inner: list, xs: list, pinned: frozenset = frozenset()) -> tuple:
             e = _exp(b, sig) if b else span_e
             if e_min is not None:
                 e = max(e, e_min)
-            rounded.append(round_to(b, e))
+            i = bisect_left(xs, b)
+            below, above = xs[i - 1] if i else -math.inf, xs[i] if i < len(xs) else math.inf
+            options = [round_to(b, e, mode) for mode in (ROUND_HALF_UP, ROUND_FLOOR, ROUND_CEILING)]
+            rounded.append(next((r for r in options if below < r <= above), options[0]))
             es.append(e)
         e = min(es) if es else (max(span_e, e_min) if e_min is not None else span_e)
         e = min([e] + [Decimal(repr(b)).normalize().as_tuple().exponent for b in pinned if b in rounded])
-        ok = all(a < b for a, b in zip(rounded, rounded[1:]))
-        counts = Classing("", rounded, e, lo, hi, [], 0).counts(xs)
-        ok = ok and all(c > 0 for c, was in zip(counts, populated) if was)
-        if ok:
+        c = Classing("", rounded, e, lo, hi, [], 0)
+        if all(a < b for a, b in zip(rounded, rounded[1:])) and all(c.index(x) == m for x, m in zip(xs, members)):
             return rounded, e
     return list(inner), min([_exp(b, 7) for b in inner if b] or [span_e])
 
@@ -292,7 +297,7 @@ def finish(method: str, raw_inner: list, xs: list, slots: list | None = None, pa
     if round_breaks:
         inner, e = nice(inner, xs, pinned)
     else:
-        e = min([_exp(b, 3) for b in inner if b] or [0])
+        e = min([0] + [Decimal(repr(b)).normalize().as_tuple().exponent for b in inner])
         if precision_floor(xs) is not None:
             e = max(e, 0)
     k = len(inner) + 1

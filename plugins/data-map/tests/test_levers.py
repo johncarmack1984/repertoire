@@ -117,6 +117,18 @@ class Classing(unittest.TestCase):
                 limits = [float(s.replace(",", "")) for s in labels[c.index(v)].split(" to ")]
                 self.assertTrue(limits[0] <= shown <= limits[-1], f"{method}: {v} shows as {shown}, filed under {labels[c.index(v)]}")
 
+    def test_rounding_a_break_never_drops_a_class_s_lowest_member(self):
+        # Jenks puts each break on its class's lowest value; rounding 429.47 up to 430 dropped Kenya a class.
+        xs = [5, 20, 42.71, 90, 139.97, 300, 429.47, 610, 964]
+        inner = [42.71, 139.97, 429.47]
+        c = classify.finish("jenks", inner, xs)
+        self.assertEqual(c.inner, [42, 130, 420])
+        self.assertEqual([c.index(x) for x in xs], [classify.assign(x, inner) for x in xs])
+
+    def test_manual_breaks_label_at_their_own_precision(self):
+        c = classify.finish("manual", [30, 100, 200, 400], [2.5, 31.2, 150.4, 250, 964.3], round_breaks=False)
+        self.assertEqual(c.labels(), ["3 to 29", "30 to 99", "100 to 199", "200 to 399", "400 to 964"])
+
 
 class Counts(unittest.TestCase):
     def test_classes_refuses_a_count_without_a_denominator(self):
