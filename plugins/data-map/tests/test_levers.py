@@ -66,16 +66,39 @@ def turns(line):
 
 
 
-def screen_gaps(out, layer, view, top=None):
-    """Fits a flows layer the way the maplibre template does (every vertex and node, padded 14 px past the largest
-    circle) and returns, per line, its smallest gap in px from its edge to the circle of a node it doesn't connect.
-    Each line is sampled every quarter pixel, shifted by its dm_offset, and left out under its two end circles."""
+def parts(g):
+    return g["coordinates"] if g["type"] == "MultiLineString" else [g["coordinates"]]
+
+
+def fit(out, layer, view):
+    """A flows layer's lines and nodes, and the scale at which the maplibre template fits them: every vertex and node,
+    padded 14 px past the largest circle."""
     lines = json.loads((Path(out) / f"{layer}.geojson").read_text())["features"]
     nodes = json.loads((Path(out) / f"{layer}-nodes.geojson").read_text())["features"]
-    parts = lambda g: g["coordinates"] if g["type"] == "MultiLineString" else [g["coordinates"]]
     xy = [mercator(c) for f in lines for part in parts(f["geometry"]) for c in part] + [mercator(n["geometry"]["coordinates"]) for n in nodes]
     pad = 14 + max(n["properties"]["dm_r"] for n in nodes)
     k = min((view[0] - 2 * pad) / (max(x for x, _ in xy) - min(x for x, _ in xy)), (view[1] - 2 * pad) / (max(y for _, y in xy) - min(y for _, y in xy)))
+    return lines, nodes, k
+
+
+def screen_bends(out, layer, view):
+    """Per line at the fitted view: its chord and its bend, the farthest its curve runs from that chord, in px."""
+    lines, _, k = fit(out, layer, view)
+    bends = {}
+    for f in lines:
+        q = [(x * k, y * k) for x, y in map(mercator, [c for part in parts(f["geometry"]) for c in part])]
+        (ax, ay), (bx, by) = q[0], q[-1]
+        chord = math.hypot(bx - ax, by - ay)
+        bend = max(abs((bx - ax) * (ay - y) - (ax - x) * (by - ay)) / chord for x, y in q)
+        bends[(f["properties"]["dm_o"], f["properties"]["dm_d"])] = (chord, bend)
+    return bends
+
+
+def screen_gaps(out, layer, view, top=None):
+    """Fits a flows layer the way the maplibre template does and returns, per line, its smallest gap in px from its
+    edge to the circle of a node it doesn't connect. Each line is sampled every quarter pixel, shifted by its
+    dm_offset, and left out under its two end circles."""
+    lines, nodes, k = fit(out, layer, view)
     at = {n["properties"]["dm_key"]: (tuple(v * k for v in mercator(n["geometry"]["coordinates"])), n["properties"]["dm_r"]) for n in nodes}
     gaps = {}
     for f in lines:
@@ -109,6 +132,11 @@ class BikeCase:
             cls.tmp = tempfile.TemporaryDirectory()
             subprocess.run(["bash", str(EVALS / "bike-share-od-flows" / "scaffold.sh")], cwd=cls.tmp.name, check=True)
         return Path(cls.tmp.name) / "bike-data"
+
+    @classmethod
+    def station(cls, sid):
+        row = next(r for r in data.read_table(cls.folder() / "stations.csv").rows if r["station_id"] == sid)
+        return [float(row["lon"]), float(row["lat"])]
 
     @classmethod
     def flows(cls, out, *args):
@@ -574,6 +602,49 @@ class ScreenClearance(unittest.TestCase):
             code, text = BikeCase.flows(out, "--top", 40, "--max-width", 10, "--view", "600x450")
             self.assertEqual(code, 0, text)
             assert_named_as_measured(self, text, screen_gaps(out, "bike", (600, 450)))
+
+    def test_long_flows_bend_no_deeper_than_six_percent_of_the_view_and_every_flow_stays_clear(self):
+        # The longest flow takes curvature 0.30, an apex 0.15 of its chord off it: Sellwood (S20) and Lloyd Center
+        # (S10), 7.5 km apart, bowed 73 px, and the reverse, bent 1.5 times further to clear Brooklyn, 109 px. South
+        # Waterfront (S05) to Union Station (S01) bent twice its own bend, 61 px. The cap is 0.06 x 634 = 38.0 px.
+        cap = 0.06 * 634
+        with tempfile.TemporaryDirectory() as out:
+            code, text = BikeCase.flows(out, "--top", 40, "--max-width", 10)
+            self.assertEqual(code, 0, text)
+            bends, gaps = screen_bends(out, "bike", (844, 634)), screen_gaps(out, "bike", (844, 634))
+        kms = {pair: haversine_km(*(BikeCase.station(s) for s in pair)) for pair in bends}
+        lo, hi = min(kms.values()), max(kms.values())
+        own = {pair: (0.12 + 0.18 * (kms[pair] - lo) / (hi - lo)) / 2 * chord for pair, (chord, _) in bends.items()}
+        for pair in (("S20", "S10"), ("S10", "S20")):
+            self.assertGreater(own[pair], 1.9 * cap)
+            self.assertAlmostEqual(bends[pair][1], cap, delta=0.2)
+        self.assertLessEqual(max(b for _, b in bends.values()), cap + 0.2)
+        self.assertLess(bends[("S05", "S01")][1], own[("S05", "S01")])
+        self.assertGreaterEqual(min(gaps.values()), 2 - 0.05, sorted(gaps.items(), key=lambda kv: kv[1])[:3])
+        self.assertRegex(text, r"(?m)^PASS curves \[P15\]: .*no bend runs deeper than 6% of the view's shorter side \(38 px\), which held 2 long flows shallower")
+
+    def test_a_flow_no_bend_within_the_cap_clears_keeps_its_own_bend_or_a_shallower_one(self):
+        # A to B runs 700 px along the Equator, alone, so its own curvature is the middle of 0.12 to 0.30, 0.21, an
+        # apex 73.5 px off the chord. Circles sit on the chord and at every candidate's apex up to the 200 px cap
+        # (0.5, 0.75, 1, 1.5, 2, and 2.5 times 73.5 px) on both sides, so no bend within the cap clears, while 3 times,
+        # 220.5 px, would. The deeper bends' circles are smaller, so a deeper bend comes nearest to clearing (-3 px
+        # against -6), and the flow still keeps a bend no deeper than its own.
+        scale = 700 / (512 / 360)
+        lat = lambda px: -math.degrees(math.atan(math.sinh(px / (scale * 512) * 2 * math.pi)))
+        nodes = {"A": flows.Node("A", 0, 0, "A"), "B": flows.Node("B", 1, 0, "B")}
+        apexes = [0] + [s * m * 73.5 for m in (0.5, 0.75, 1, 1.5, 2, 2.5) for s in (1, -1)]
+        for i, px in enumerate(apexes):
+            nodes[f"N{i}"] = flows.Node(f"N{i}", 0.5, lat(px), f"N{i}")
+        ab = flows.Flow("A", "B", 100)
+        radius = {k: 1.0 if k.startswith("N") and abs(px) > 74 else 4.0 for k, px in zip(nodes, [0, 0] + apexes)}
+        screen = flows.OnScreen(nodes, scale, radius, {ab: 4.0}, {}, 200.0)
+        deeper = flows.curve(nodes["A"].pos, nodes["B"].pos, 1, 1.5 * 0.21)
+        self.assertAlmostEqual(min(screen.gaps(deeper, ab).values()), -3, delta=0.1)
+        self.assertAlmostEqual(math.dist(screen.px(nodes["N5"].pos), screen.px([0.5, 0])), 73.5, places=6)
+        placed = flows.place([ab], nodes, "curved", screen)[0]
+        self.assertFalse(placed.clear)
+        self.assertLessEqual(placed.curvature, 0.21 + 1e-9)
+        self.assertEqual(screen.gaps(flows.curve(nodes["A"].pos, nodes["B"].pos, 1, 3 * 0.21), ab), {})
 
 
 

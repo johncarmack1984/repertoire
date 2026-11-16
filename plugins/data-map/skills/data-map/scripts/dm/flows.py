@@ -36,7 +36,14 @@ NODE_COLOR = "#525252"
 # nor a loss outweighs the other.
 GAIN_COLOR, LOSS_COLOR = "#018571", "#6a51a3"
 HAIRBALL = {"curved": 100, "great-circle": 300}
-CANDIDATES = [(1, 1.0), (-1, 1.0), (1, 1.5), (-1, 1.5), (1, 2.0), (-1, 2.0), (1, 2.5), (-1, 2.5), (1, 3.0), (-1, 3.0)]
+# A flow that comes too near a node tries, after its own bend, the same bend on the other side, then shallower bends,
+# then deeper ones, as multiples of its own; a flow drawn with its reverse keeps the side opposite it.
+BENDS = (1.0, 0.5, 0.75, 1.5, 2.0, 2.5, 3.0)
+# On a flat map no bend runs deeper than the gentlest curvature bows a flow as long as the view's shorter side: its
+# apex sits CURVE_MIN / 2 of its length off the chord. Bends grow with length squared, so uncapped, a pair across
+# three quarters of a city map bowed 73 and 109 px at the default view, 11% and 17% of its height, ink their volume
+# didn't earn (Jenny et al. kept curvature low, §3.2.4.1).
+BEND_SHARE = CURVE_MIN / 2
 
 
 @dataclass(frozen=True)
@@ -68,6 +75,8 @@ class Placed:
     side: int
     curvature: float
     near: dict = field(default_factory=dict)
+    moved: bool = False
+    capped: bool = False
 
     @property
     def clear(self) -> bool:
@@ -225,6 +234,9 @@ class ShareOfLength:
     nodes: dict
     share: float = CLEARANCE_SHARE
 
+    def max_curvature(self, f: Flow) -> float:
+        return math.inf
+
     def gaps(self, coords: list, f: Flow) -> dict:
         """Each unconnected node nearer than the share asks, with its distance in km less that share."""
         threshold = self.share * geo.distance_km(self.nodes[f.o].pos, self.nodes[f.d].pos)
@@ -255,10 +267,17 @@ class OnScreen:
     radius: dict
     width: dict
     offset: dict
+    cap: float = math.inf
 
     def px(self, p: list) -> tuple:
         x, y = mercator(p)
         return x * self.scale, y * self.scale
+
+    def max_curvature(self, f: Flow) -> float:
+        """The curvature whose bend reaches the cap in px: a curve's apex sits half its control point's offset, c times
+        its length, off the chord."""
+        chord = math.dist(self.px(self.nodes[f.o].pos), self.px(self.nodes[f.d].pos))
+        return 2 * self.cap / chord if chord else math.inf
 
     def gaps(self, coords: list, f: Flow) -> dict:
         """Each unconnected node whose circle comes within CLEAR_PX of the line, with the pixels between their edges."""
@@ -326,8 +345,9 @@ def point_segment(q: tuple, a: tuple, b: tuple) -> float:
 
 
 def place(flows: list, nodes: dict, geometry: str, clearance=None) -> list:
-    """Geometry for every flow, largest first; reciprocal flows always bow to opposite sides. A curve tries each
-    candidate side and bend until one keeps its clearance, else keeps the one nearest to it."""
+    """Geometry for every flow, largest first; reciprocal flows always bow to opposite sides. A curve tries its own
+    bend, held to the clearance's cap, then the BENDS within the cap until one keeps its clearance. When none does,
+    it keeps the one nearest to clearing that bends no deeper than its own."""
     clearance = clearance or ShareOfLength(nodes)
     kms = {f: geo.distance_km(nodes[f.o].pos, nodes[f.d].pos) for f in flows}
     dmin, dmax = min(kms.values(), default=0), max(kms.values(), default=0)
@@ -340,17 +360,20 @@ def place(flows: list, nodes: dict, geometry: str, clearance=None) -> list:
         if geometry == "great-circle":
             options = [(1, GC_OFFSET)] if reciprocal else [(1, 0.0)]
         else:
-            base = curvature_for(kms[f], dmin, dmax)
+            own, top = curvature_for(kms[f], dmin, dmax), clearance.max_curvature(f)
+            base = min(own, top)
             partner = chosen.get((f.d, f.o))
-            options = [(s, base * m) for s, m in CANDIDATES if partner is None or s == partner]
+            sides = (1, -1) if partner is None else (partner,)
+            options = [(s, base * m) for m in BENDS for s in sides if base * m <= top]
         best = None
         for s, c in options:
             coords = curve(a, b, s, c) if c else geo.densify_gc([a, b], DENSIFY_DEG)
-            p = Placed(f, coords, kms[f], s, c, clearance.gaps(coords, f))
-            if best is None or (len(p.near), -p.worst) < (len(best.near), -best.worst):
-                best = p
+            p = Placed(f, coords, kms[f], s, c, clearance.gaps(coords, f), (s, c) != options[0], geometry == "curved" and base < own)
             if p.clear:
+                best = p
                 break
+            if c <= options[0][1] and (best is None or (len(p.near), -p.worst) < (len(best.near), -best.worst)):
+                best = p
         chosen[(f.o, f.d)] = best.side
         out.append(best)
     return out
@@ -366,7 +389,7 @@ def place_in_view(flows: list, nodes: dict, view: tuple, radius: dict, width: di
     points = [n.pos for n in nodes.values()]
     scale = fit_scale(points, view, pad)
     for _ in range(4):
-        placed = place(flows, nodes, "curved", OnScreen(nodes, scale, radius, width, offset))
+        placed = place(flows, nodes, "curved", OnScreen(nodes, scale, radius, width, offset, BEND_SHARE * min(view)))
         fitted = fit_scale(points + [c for p in placed for c in p.coords], view, pad)
         if fitted >= scale * 0.999:
             break

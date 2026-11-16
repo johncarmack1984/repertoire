@@ -881,10 +881,12 @@ def run_flows(args) -> int:
             props["dm_net"] = tt["net"]
         node_feats.append(data.feature(nid, props, {"type": "Point", "coordinates": nodes[key].pos}))
     if args.geometry == "curved":
-        findings.append(PASS("curves", f"each flow bows to the right of travel, more for longer flows (curvature {flows.CURVE_MIN} to {flows.CURVE_MAX}); {reciprocal} reciprocal {'pair sits' if reciprocal == 1 else 'pairs sit'} on opposite sides", 15))
+        capped = sum(p.capped for p in placed)
+        held = f"; no bend runs deeper than {flows.BEND_SHARE:.0%} of the view's shorter side ({flows.BEND_SHARE * min(args.view):.0f} px), which held {capped} long {'flow' if capped == 1 else 'flows'} shallower" if scale else ""
+        findings.append(PASS("curves", f"each flow bows to the right of travel, more for longer flows (curvature {flows.CURVE_MIN} to {flows.CURVE_MAX}){held}; {reciprocal} reciprocal {'pair sits' if reciprocal == 1 else 'pairs sit'} on opposite sides", 15))
     else:
         findings.append(PASS("great-circles", f"great circles densified every {flows.DENSIFY_DEG:g} degree; {reciprocal} reciprocal {'pair' if reciprocal == 1 else 'pairs'} offset to either side", 15))
-    moved = [p for p in placed if p.clear and (p.side, p.curvature) != (1, flows.curvature_for(p.km, *km_range(placed)))]
+    moved = [p for p in placed if p.clear and p.moved]
     findings += clearance_lines(placed, moved, args, scale, len(kept), order)
     findings.append(PASS("antimeridian", f"{split} flows split into two parts at 180, with a vertex on the meridian", 20))
     findings.append(PASS("arrows", f"one arrowhead per flow at its destination, {flows.ARROW_RATIO:g} times the width and at least {flows.ARROW_MIN_PX:g} px", 17))
@@ -966,11 +968,6 @@ def node_color_pair(args, findings: list) -> tuple | None:
         findings.append(WARN("node colors", f"gains ({pair[0]}) and losses ({pair[1]}) differ by {worst:.1f} CIE76 under {vision} vision",
                              "pick two colors that colorblind readers can tell apart, such as the defaults", 8))
     return pair
-
-
-def km_range(placed: list) -> tuple:
-    kms = [p.km for p in placed]
-    return min(kms), max(kms)
 
 
 # registration
