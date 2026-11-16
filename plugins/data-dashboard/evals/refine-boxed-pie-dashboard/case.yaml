@@ -1,0 +1,57 @@
+schema_version: "1.1"
+name: refine-boxed-pie-dashboard
+plugins:
+  - ../..
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?data-dashboard"'
+  - name: self-contained
+    type: regex
+    target: { source: file, path: dashboard/index.html }
+    pattern: '<script[^>]*\ssrc\s*=|<link[^>]*\shref\s*=\s*["'']?(?:https?:)?//|url\(\s*["'']?(?:https?:)?//|@import'
+    flags: i
+    match: not_contains
+    weight: 2
+  - name: no-forbidden-media
+    type: regex
+    target: { source: file, path: dashboard/index.html }
+    pattern: '<canvas\b|(?:linear|radial|conic)-gradient\s*\(|<(?:linear|radial)Gradient\b|box-shadow\s*:\s*(?!none\b)[^;}"''\s]|type\s*:\s*["''](?:pie|doughnut|gauge|radar|polarArea)["'']'
+    flags: i
+    match: not_contains
+    weight: 2
+  - name: no-hand-drawn-shapes
+    type: regex
+    target: { source: file, path: dashboard/index.html }
+    pattern: '<(?:rect|circle|path)\b'
+    match: not_contains
+    weight: 2
+  - name: no-green-status-fill
+    type: regex
+    target: { source: file, path: dashboard/index.html }
+    pattern: '#2ecc71|#27ae60'
+    flags: i
+    match: not_contains
+  - name: no-cents
+    type: regex
+    target: { source: file, path: dashboard/index.html }
+    pattern: '\$4,182,377\.45|\$2,946,105\.18|\$1,873,662\.90|\$812,419\.37|\$455,231\.64|\$10,269,796\.54|\$3,104,882\.12|\$1,488,320\.05|\$3,019,690\.60|\$2,215,903\.77'
+    match: not_contains
+  - name: library-inlined
+    type: regex
+    target: { source: file, path: dashboard/index.html }
+    pattern: 'data-dashboard:lib \d+\.\d+\.\d+'
+  - name: keeps-every-region
+    type: regex
+    target: { source: file, path: dashboard/index.html }
+    pattern: '^(?=[\s\S]*North America)(?=[\s\S]*Europe)(?=[\s\S]*Asia Pacific)(?=[\s\S]*Latin America)(?=[\s\S]*Middle East)'
+    weight: 2
+  - name: keeps-every-measure
+    type: regex
+    target: { source: file, path: dashboard/index.html }
+    pattern: '^(?=[\s\S]*on[- ]time delivery)(?=[\s\S]*customer satisfaction)(?=[\s\S]*gross margin)(?=[\s\S]*fill rate)(?=[\s\S]*hardware)(?=[\s\S]*software)(?=[\s\S]*services)(?=[\s\S]*support)(?=[\s\S]*training)'
+    flags: i
+    weight: 2
