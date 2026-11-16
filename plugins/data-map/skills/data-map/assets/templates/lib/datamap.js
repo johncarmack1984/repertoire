@@ -36,6 +36,20 @@ const layersOf = () => Object.entries(legend.layers || {});
 const ranks = Object.fromEntries(layersOf().filter(([, L]) => L.kind === 'flows' && L.reveal?.count > 0).map(([name, L]) => [name, L.reveal.default]));
 const drawnFlow = (name, p) => !(p.dm_rank > (ranks[name] ?? Infinity));
 const rankFilter = name => ['<=', ['coalesce', ['get', 'dm_rank'], 0], ranks[name]];
+// With a reveal, the nodes file holds the ends of every written flow, and the page draws only the ends of the flows
+// it draws: per flows layer, the keys of those nodes.
+const shownKeys = {};
+function updateShownKeys(name) {
+  const keys = shownKeys[name] = new Set();
+  for (const {properties: p} of data[filesOf(name, legend.layers[name]).main]?.features || []) {
+    if (drawnFlow(name, p)) { keys.add(p.dm_o); keys.add(p.dm_d); }
+  }
+}
+const nodeFilter = name => ['in', ['get', 'dm_key'], ['literal', [...shownKeys[name]]]];
+function nodeHidden(source, f) {
+  const name = Object.keys(shownKeys).find(n => filesOf(n, legend.layers[n]).nodes === source);
+  return name != null && !shownKeys[name].has(f.properties.dm_key ?? f.id);
+}
 // What the page holds once the map exists, for controls that change it.
 const live = {};
 const tok = name => getComputedStyle(document.documentElement).getPropertyValue('--dm-' + name).trim();
@@ -221,7 +235,9 @@ function setRank(name, n) {
   ranks[name] = n;
   const map = live.map;
   if (!map) return;
+  updateShownKeys(name);
   for (const id of [name, name + '-arrows']) if (map.getLayer(id)) map.setFilter(id, rankFilter(name));
+  for (const id of [name + '-nodes', name + '-labels']) if (map.getLayer(id)) map.setFilter(id, nodeFilter(name));
   if (live.overlay) {
     live.arcs = arcLayers(pageLibs.deck, live.t, live.show);
     live.overlay.setProps({layers: live.arcs.map(a => a.layer)});
@@ -482,11 +498,11 @@ function buildKinds(t, crs, deck) {
       if (nodes) {
         part.sources[f.nodes] = nodes;
         part.point.push(
-          {id: name + '-nodes', type: 'circle', source: f.nodes, layout: {'circle-sort-key': ['get', 'dm_order']},
+          {id: name + '-nodes', type: 'circle', source: f.nodes, ...(ranks[name] != null && {filter: nodeFilter(name)}), layout: {'circle-sort-key': ['get', 'dm_order']},
             paint: {'circle-radius': ['coalesce', ['get', 'dm_r'], 3], 'circle-pitch-scale': 'viewport', 'circle-color': ink(t.node), 'circle-stroke-color': t.page, 'circle-stroke-width': 1}},
           {id: name + '-nodes-hover', type: 'circle', source: f.nodes, filter: NONE,
             paint: {'circle-radius': ['coalesce', ['get', 'dm_r'], 3], 'circle-pitch-scale': 'viewport', 'circle-opacity': 0, 'circle-stroke-color': t.text, 'circle-stroke-width': 1.5}});
-        part.label.push(labelLayer(name + '-labels', f.nodes, t));
+        part.label.push({...labelLayer(name + '-labels', f.nodes, t), ...(ranks[name] != null && {filter: nodeFilter(name)})});
         part.hover.push([name + '-nodes', name + '-nodes-hover']);
       }
       if (arrows) {
@@ -849,7 +865,7 @@ function labelScene(map, labels, deck) {
     const f = filesOf(name, L);
     const points = data[L.kind === 'flows' ? f.nodes : name]?.features || [];
     for (const n of L.kind === 'classes' ? [] : points) {
-      if (front(n.geometry.coordinates)) circles.push({key: `${L.kind === 'flows' ? f.nodes : name}:${n.properties.dm_lid}`,
+      if (front(n.geometry.coordinates) && !nodeHidden(f.nodes, n)) circles.push({key: `${L.kind === 'flows' ? f.nodes : name}:${n.properties.dm_lid}`,
         c: xy(n.geometry.coordinates), r: n.properties.dm_r || 3});
     }
     if (L.kind !== 'flows') continue;
@@ -876,7 +892,7 @@ function labelScene(map, labels, deck) {
       segs.push({a: tip, b: base, hw: len * 0.3, weight: 3});
     }
   }
-  const items = labels.flatMap(({id, source}, layer) => (data[source]?.features || []).filter(f => f.properties.dm_label != null)
+  const items = labels.flatMap(({id, source}, layer) => (data[source]?.features || []).filter(f => f.properties.dm_label != null && !nodeHidden(source, f))
     .map(f => {
       const c = f.geometry.coordinates, p = xy(c);
       return {layer: id, rank: layer, lid: f.properties.dm_lid, key: `${source}:${f.properties.dm_lid}`, text: String(f.properties.dm_label),
@@ -1209,7 +1225,7 @@ function crossings(map) {
     if (L.kind !== 'flows' || !map.getLayer(name)) continue;
     const f = filesOf(name, L), all = data[f.nodes]?.features || [];
     const names = Object.fromEntries(all.map(n => [n.properties.dm_key ?? n.id, n.properties.dm_label ?? n.id]));
-    const nodes = all.filter(n => front(n.geometry.coordinates))
+    const nodes = all.filter(n => front(n.geometry.coordinates) && !nodeHidden(f.nodes, n))
       .map(n => ({key: n.properties.dm_key ?? n.id, c: xy(n.geometry.coordinates), r: n.properties.dm_r || 3}));
     for (const line of data[f.main]?.features || []) {
       const p = line.properties, hw = (p.dm_width || 1) / 2, off = p.dm_offset || 0, worst = new Map();
@@ -1408,6 +1424,7 @@ const once = (target, event) => new Promise(r => target.once(event, r));
 
 async function start(libs, extend) {
   pageLibs = libs;
+  Object.keys(ranks).forEach(updateShownKeys);
   document.body.classList.toggle('dm-chart', !spec.projection);
   layOutFigure();
   drawLegend();

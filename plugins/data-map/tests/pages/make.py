@@ -213,17 +213,11 @@ STATIONS = {
     "S11": ("Goose Hollow", -122.6930, 45.5180, 0), "S12": ("Northwest 23rd", -122.6985, 45.5300, 0),
     "S13": ("Eliot", -122.6650, 45.5440, 0), "S14": ("Kerns", -122.6440, 45.5235, 0),
 }
-# Both apart from the flows' orange-brown, so a circle never reads as the end of a line.
-GAIN, LOSS = "#2166ac", "#762a83"
 
 
 def build_maplibre_flows(out: Path, tmp: Path) -> None:
-    """Trips between bike stations: curved flows with the flows lever's --reveal and net-node contract added by hand.
-
-    Until the lever writes them, this adds what the page reads: dm_rank on every line and arrow, a reveal block for
-    the 25 largest of 100 written flows, and nodes in net mode (signed dm_net, a gain or loss dm_fill, sizes by the
-    size of the net, and the legend's value, legend_values, legend_radii, and colors). Synthetic.
-    """
+    """Trips between bike stations: the 25 largest of 182 flows drawn, the next 75 written for the page's reveal
+    control, and stations colored by the bikes they gain or lose. Synthetic."""
     rng = random.Random(20261116)
     nodes = write_csv(tmp / "stations.csv", ["id", "name", "lon", "lat"], [[k, v[0], v[1], v[2]] for k, v in STATIONS.items()])
     rows = []
@@ -237,39 +231,12 @@ def build_maplibre_flows(out: Path, tmp: Path) -> None:
     od = write_csv(tmp / "trips.csv", ["origin", "dest", "trips"], rows)
     dm("new", "maplibre", out, "--preset", "mercator", "--force")
     dm("flows", od, "--nodes", nodes, "--origin", "origin", "--dest", "dest", "--value", "trips", "--label-field", "name",
-       "--geometry", "curved", "--top", 100, "--max-width", 7, "--layer", "trips", "--out-dir", out / "data",
-       "--title", "Trips in October", "--unit", "trips")
-    folder = out / "data"
-    shown = 25
-    lines, arrows, node_fc = (json.loads((folder / f).read_text()) for f in ("trips.geojson", "trips-arrows.geojson", "trips-nodes.geojson"))
-    legend = json.loads((folder / "legend.json").read_text())
-    L = legend["layers"]["trips"]
-    for fc in (lines, arrows):
-        for f in fc["features"]:
-            f["properties"]["dm_rank"] = f["properties"]["dm_order"] + 1
-    written = sorted(f["properties"]["dm_value"] for f in lines["features"])[::-1]
-    whole = sum(written) / L["kept_share"]
-    share = sum(written[:shown]) / whole
-    L.update(kept=shown, kept_share=round(share, 4), omitted_note=f"The {shown} largest of {L['total']:,} flows, {share:.0%} of all trips",
-             reveal={"default": shown, "count": len(written)})
+       "--geometry", "curved", "--top", 25, "--reveal", "--reveal-max", 100, "--node-value", "net", "--max-width", 7,
+       "--layer", "trips", "--out-dir", out / "data", "--title", "Trips in October", "--unit", "trips")
     net = {k: 0 for k in STATIONS}
     for o, d, v in rows:
         net[d] += v
         net[o] -= v
-    top = max(abs(v) for v in net.values())
-    radius = {k: round(max(2.0, 10 * math.sqrt(abs(v) / top)), 2) for k, v in net.items()}
-    for f in node_fc["features"]:
-        p = f["properties"]
-        v = net[p["dm_key"]]
-        p.update(dm_net=v, dm_value=abs(v), dm_r=radius[p["dm_key"]], dm_fill=GAIN if v > 0 else LOSS,
-                 dm_tip=f"{p['dm_label']}: {v:+,} trips, more {'in than out' if v > 0 else 'out than in'}")
-    for f in arrows["features"]:
-        f["properties"]["dm_setback"] = radius[f["properties"]["dm_d"]]
-    values = [v for v in (1000, 500, 100) if v <= top]
-    L["nodes"] = {"rmax": 10, "scaling": "area", "value": "net", "title": "Circle area: trips gained or lost in October",
-                  "legend_values": values, "legend_radii": [round(10 * math.sqrt(v / top), 2) for v in values], "colors": {"gain": GAIN, "loss": LOSS}}
-    for name, doc in (("trips.geojson", lines), ("trips-arrows.geojson", arrows), ("trips-nodes.geojson", node_fc), ("legend.json", legend)):
-        (folder / name).write_text(json.dumps(doc))
     gainer = max(net, key=net.get)
     fill(out, title="Riders coast downtown and leave the east side short of bikes",
          subtitle="Trips between 14 bike-share stations in October, the largest of every route",

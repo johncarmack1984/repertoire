@@ -745,7 +745,8 @@ class Render(unittest.TestCase):
     def test_the_reveal_slider_draws_the_n_largest_flows_and_keeps_the_kept_line_true(self):
         folder = copy("maplibre-flows", self.tmp / "default")
         layer = json.loads((folder / "data" / "legend.json").read_text())["layers"]["trips"]
-        values = sorted((f["properties"]["dm_value"] for f in json.loads((folder / "data" / "trips.geojson").read_text())["features"]), reverse=True)
+        lines = [f["properties"] for f in json.loads((folder / "data" / "trips.geojson").read_text())["features"]]
+        values = sorted((p["dm_value"] for p in lines), reverse=True)
         whole = sum(values[:layer["reveal"]["default"]]) / layer["kept_share"]
 
         def kept(n):
@@ -760,6 +761,10 @@ class Render(unittest.TestCase):
                 self.assertEqual(code, 0, findings(result, "FAIL"))
                 (reveal,) = result["report"]["reveal"]
                 self.assertEqual((reveal["shown"], reveal["of"], reveal["drawn"], reveal["note"]), (n, 100, n, kept(n)))
+                # A station shows only while a drawn flow starts or ends there.
+                ends = {k for p in lines if p["dm_rank"] <= n for k in (p["dm_o"], p["dm_d"])}
+                self.assertEqual(result["report"]["labels"][0]["nodes"], len(ends))
+                self.assertEqual(result["report"]["rendered"]["trips-nodes"], len(ends))
                 self.assertTrue(reveal["label"])
                 self.assertIn("reveal", result["report"]["dmControls"])
                 self.assertNotIn("controls", {f["check"] for f in result["findings"] if f["status"] == "WARN"})
