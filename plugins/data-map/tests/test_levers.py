@@ -199,6 +199,94 @@ class Classing(unittest.TestCase):
         c = classify.finish("manual", [30, 100, 200, 400], [2.5, 31.2, 150.4, 250, 964.3], round_breaks=False)
         self.assertEqual(c.labels(), ["3 to 29", "30 to 99", "100 to 199", "200 to 399", "400 to 964"])
 
+    def test_geometric_breaks_climb_by_ten_centered_and_label_a_first_break_of_one_finer(self):
+        # 0.2 to 90 spans log10(450) = 2.65 decades; three classes take a ratio of 10. Of the progressions by ten,
+        # 1 and 10 leave end classes of log10(1/0.2) = 0.70 and log10(90/10) = 0.95 decades; 2 and 20 leave 1.0 at the
+        # bottom, and 0.5 and 5 leave 1.26 at the top. A first break of 1 labels at tenths, so the lowest class isn't "0".
+        xs = [0.2, 0.5, 0.8, 1.5, 3, 6, 12, 30, 60, 90]
+        c = classify.geometric_classing(xs, 3)
+        self.assertEqual(c.inner, [1, 10])
+        self.assertEqual(c.labels(), ["0.2 to 0.9", "1 to 9.9", "10 to 90"])
+        self.assertEqual(c.counts(xs), [3, 3, 4])
+        self.assertEqual([classify.rung((1, 2, 5), j) for j in (-4, -1, 0, 4)], [0.05, 0.5, 1, 20])
+        self.assertEqual(classify.rung((1, 2.5, 5), 4), 25)
+
+
+class MeaslesCase:
+    """The world measles eval's own data, scaffolded once: cases and population for 175 countries, 172 reporting."""
+
+    tmp = None
+
+    @classmethod
+    def folder(cls) -> Path:
+        if cls.tmp is None:
+            cls.tmp = tempfile.TemporaryDirectory()
+            subprocess.run(["bash", str(EVALS / "world-rates-not-counts" / "scaffold.sh")], cwd=cls.tmp.name, check=True)
+        return Path(cls.tmp.name) / "data"
+
+    @classmethod
+    def rates(cls) -> list:
+        """Cases per 100,000, from the CSV; a blank means the country didn't report."""
+        rows = data.read_table(cls.folder() / "measles_2025.csv").rows
+        return sorted(float(r["cases"]) / float(r["population"]) * 1e5 for r in rows if r["cases"].strip())
+
+    @classmethod
+    def classes(cls, out, *args):
+        d = cls.folder()
+        code, text = cli("classes", d / "measles_2025.csv", "--field", "cases", "--per", "population", "--geo", d / "countries.geojson",
+                         "--key", "iso3=id", "--layer", "measles", "--out-dir", out, *args)
+        return code, text, json.loads((Path(out) / "legend.json").read_text())["layers"]["measles"]
+
+
+class OneClassSwallows(unittest.TestCase):
+    """Three rounds of world measles maps put 89 to 95 of 172 countries in one pale class, read as measles-free."""
+
+    def test_jenks_puts_most_countries_in_its_lowest_class_and_warns_with_the_share_and_the_fix(self):
+        rates = MeaslesCase.rates()
+        with tempfile.TemporaryDirectory() as out:
+            code, text, layer = MeaslesCase.classes(out, "--method", "jenks")
+        self.assertEqual(code, 0, text)
+        lowest = layer["counts"][0]
+        self.assertEqual(sum(layer["counts"]), len(rates))
+        self.assertEqual(lowest, sum(1 for v in rates if round(v, 1) < layer["breaks"][1]))
+        self.assertGreater(lowest / len(rates), 0.4)
+        self.assertRegex(text, rf"(?m)^WARN classes \[P5\]: the lowest class, {re.escape(layer['labels'][0])}, holds {lowest} of {len(rates)} places "
+                               rf"\({lowest / len(rates):.0%}\), more than 40%; readers take its pale color for none\. Fix: the positive values span "
+                               rf"{math.log10(rates[-1] / next(v for v in rates if v > 0)):.1f} orders of magnitude; --method geometric holds at most 56 \(33%\)")
+
+    def test_geometric_breaks_spread_the_countries_and_auto_takes_them_over_jenks(self):
+        rates = MeaslesCase.rates()
+        positive = [v for v in rates if v > 0]
+        span = math.log10(positive[-1] / positive[0])
+        # 0.0441 to 117.7 per 100,000: 3.43 decades. A ratio of 2 would take round(3 x 3.43) = 10 classes, past 7, so the
+        # ratio is 4 to 5 (two rungs of 1, 2, 5) in round(3 x 3.43 / 2) = 5 classes. Of those progressions, 0.2, 1, 5, 20
+        # leaves end classes of log10(0.2 / 0.0441) = 0.66 and log10(117.7 / 20) = 0.77 decades; 0.1, 0.5, 2, 10 leaves
+        # 1.07 at the top, and 0.5, 2, 10, 50 leaves 1.06 at the bottom.
+        self.assertAlmostEqual(span, 3.43, places=2)
+        breaks = [0.2, 1, 5, 20]
+        self.assertAlmostEqual(max(math.log10(breaks[0] / positive[0]), math.log10(positive[-1] / breaks[-1])), 0.77, places=2)
+        shown = [round(v, 1) for v in rates]
+        want = [sum(1 for v in shown if lo <= v < hi) for lo, hi in zip([0] + breaks, breaks + [math.inf])]
+        self.assertEqual(want, [18, 48, 56, 37, 13])
+        for method in ("geometric", "auto"):
+            with tempfile.TemporaryDirectory() as out:
+                code, text, layer = MeaslesCase.classes(out, "--method", method)
+            self.assertEqual(code, 0, text)
+            self.assertEqual((layer["method"], layer["breaks"][1:-1], layer["counts"]), ("geometric", breaks, want))
+            self.assertEqual(layer["labels"], ["0 to 0.1", "0.2 to 0.9", "1 to 4.9", "5 to 19.9", "20 to 117.7"])
+            self.assertNotRegex(text, r"(?m)^WARN classes")
+            self.assertIn("a ratio of 4 to 5 per class cover them in 5 classes", layer["k_reason"])
+            self.assertIn(("geometric", round(56 / 172, 3)), [(c["method"], c["largest"]) for c in layer["candidates"]])
+        self.assertEqual(layer["method_reason"], "skewness 4.74, with positive values spanning 3.4 orders of magnitude; Jenks would put "
+                                                 "95 of 172 places (55%) in one class, geometric breaks at most 56 (33%), so breaks in a constant ratio (Slocum §5.12)")
+
+    def test_geometric_breaks_need_a_sequential_scheme(self):
+        with tempfile.TemporaryDirectory() as out, redirect_stderr(io.StringIO()) as err:
+            code = cli("classes", MeaslesCase.folder() / "measles_2025.csv", "--field", "cases", "--per", "population", "--geo",
+                       MeaslesCase.folder() / "countries.geojson", "--key", "iso3=id", "--method", "geometric", "--scheme", "div:mean", "--out-dir", out)[0]
+        self.assertEqual(code, 2)
+        self.assertIn("--method geometric needs --scheme seq", err.getvalue())
+
 
 class Counts(unittest.TestCase):
     def test_classes_refuses_a_count_without_a_denominator(self):

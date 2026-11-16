@@ -15,6 +15,16 @@ SAMPLE_CAP = 3000
 GADF_TARGET = 0.80
 MIN_K = 3
 HEAD_SHARE = 0.40
+# One class holding more than this share of the units spreads one color over much of the map, and a pale lowest class
+# that size reads as none. A third is the even share at the fewest classes (3), so only a class well past it trips this.
+SWALLOW_SHARE = 0.40
+# Positive values spanning this many orders of magnitude make geometric breaks a candidate (Slocum §5.12).
+SPAN_DECADES = 2.0
+# Readable break values: a mantissa times a power of ten. A geometric progression climbs a whole number of rungs per
+# class, so its ratio is about 2 (one rung), 4 to 5 (two), or 10 (three). 2.5 adds a decimal to every label, so its
+# ladder serves only when the first can't fill every class.
+LADDERS = ((1, 2, 5), (1, 2.5, 5))
+RATIO_WORDS = {1: "2 to 2.5", 2: "4 to 5", 3: "10"}
 
 
 def mean(xs: list) -> float:
@@ -321,11 +331,89 @@ def stddev_classing(xs: list, k: int, center: float | None) -> Classing:
     return finish("stddev", raw, xs, slots, k, pinned)
 
 
+def decades(xs: list) -> float | None:
+    """Orders of magnitude the positive values span; None when a value is negative or fewer than two positive values differ."""
+    pos = [x for x in xs if x > 0]
+    if min(xs) < 0 or len(set(pos)) < 2:
+        return None
+    return math.log10(max(pos) / min(pos))
+
+
+def rung(ladder: tuple, j: int) -> float:
+    """The ladder's j-th readable value, with 1 at j = 0: 0.5, 1, 2, 5, 10 on the first ladder for j = -1 to 3."""
+    return float(Decimal(repr(ladder[j % 3])).scaleb(j // 3))
+
+
+def geometric_steps(d: float, k: int) -> int:
+    """Rungs per class that spread d decades over k classes, from one to three."""
+    return max(1, min(3, int(3 * d / k + 0.5)))
+
+
+def geometric_breaks(xs: list, k: int) -> list:
+    """Breaks that climb the same number of rungs per class, centered on the positive values: of the placements that leave
+    every class a value, the one whose wider end class spans the fewest decades, so neither the lowest class nor the
+    highest swallows its end of the range. Empty when no placement fills k classes."""
+    pos = [x for x in xs if x > 0]
+    lo, hi = pos[0], pos[-1]
+    s = geometric_steps(math.log10(hi / lo), k)
+    first, last = math.floor(3 * math.log10(lo)) - 3, math.ceil(3 * math.log10(hi)) + 3
+    for ladder in LADDERS:
+        best = None
+        for j in range(first, last):
+            inner = [rung(ladder, j + i * s) for i in range(k - 1)]
+            sizes = [len(g) for g in groups(xs, inner)]
+            if 0 in sizes:
+                continue
+            key = (max(math.log10(inner[0] / lo), math.log10(hi / inner[-1])), sum(n * n for n in sizes))
+            if best is None or key < best[0]:
+                best = (key, inner)
+        if best:
+            return best[1]
+    return []
+
+
+def geometric_classing(xs: list, k: int) -> Classing:
+    """Geometric breaks for k classes, or the most under k that leave every class a value. Labels go one place finer
+    than a first break of 1, 10, or 0.1, so the lowest class never reads as 0."""
+    xs = sorted(xs)
+    m, inner = k, []
+    while m > 1 and not inner:
+        inner = geometric_breaks(xs, m)
+        m -= 0 if inner else 1
+    e = min([0] + [Decimal(repr(b)).normalize().as_tuple().exponent for b in inner])
+    if inner and Decimal(repr(inner[0])) == Decimal(1).scaleb(e):
+        e -= 1
+    if precision_floor(xs) is not None:
+        e = max(e, 0)
+    c = Classing("geometric", inner, e, round_to(xs[0], e), round_to(xs[-1], e), list(range(m)), m)
+    if m < k:
+        c.notes.append(f"no geometric placement of {k} classes leaves every class a value, so {m} classes")
+    return c
+
+
+def geometric_auto(xs: list, max_k: int) -> tuple:
+    """The finest ratio whose classes cover the positive values' span in at most max_k classes."""
+    d = decades(xs)
+    k = next((m for m in (max(MIN_K, int(3 * d / s + 0.5)) for s in (1, 2, 3)) if m <= max_k), max_k)
+    c = geometric_classing(xs, k)
+    return c, (f"k = {c.k}: the positive values span {d:.1f} orders of magnitude, and breaks rising by a ratio of "
+               f"{RATIO_WORDS[geometric_steps(d, c.k)]} per class cover them in {c.k} classes")
+
+
 def method_classing(method: str, xs: list, k: int, center: float | None = None) -> Classing:
     xs = sorted(xs)
     if method == "stddev":
         return stddev_classing(xs, k, center)
+    if method == "geometric":
+        return geometric_classing(xs, k)
     return finish(method, METHODS[method](xs, k), xs)
+
+
+def largest(c: Classing, xs: list) -> tuple:
+    """The class holding the most values, as (index, count, share)."""
+    counts = c.counts(xs)
+    i = max(range(len(counts)), key=counts.__getitem__)
+    return i, counts[i], counts[i] / len(xs)
 
 
 def diverging_classing(method: str, xs: list, k_side: int, mid: float) -> Classing:
@@ -341,26 +429,44 @@ def diverging_classing(method: str, xs: list, k_side: int, mid: float) -> Classi
 
 
 def candidates(xs: list, k: int) -> list:
-    """GVF and GADF for each method at k, for the legend's record."""
+    """GVF, GADF, and the largest class's share for each method at k, for the legend's record."""
     out = []
-    for name in ("quantile", "equal", "jenks", "stddev", "headtail"):
+    names = ("quantile", "equal", "jenks", "stddev", "headtail") + (("geometric",) if decades(xs) is not None else ())
+    for name in names:
         c = method_classing(name, xs, k)
         g, a = c.fit(xs)
-        out.append({"method": name, "k": c.k, "gvf": round(g, 3), "gadf": round(a, 3)})
+        out.append({"method": name, "k": c.k, "gvf": round(g, 3), "gadf": round(a, 3), "largest": round(largest(c, xs)[2], 3)})
     return out
 
 
-def auto_method(xs: list, *, ordinal: bool, compared: bool, center_is_mean: bool) -> tuple:
+def auto_method(xs: list, *, ordinal: bool, compared: bool, center_is_mean: bool, max_k: int = 7, sequential: bool = True) -> tuple:
     if ordinal:
         return "quantile", "ordinal data; quantiles is the only method fit for ranks (Slocum §5.13)"
     if compared:
         return "quantile", "a compared or bivariate map; quantiles keep the maps comparable, Jenks hides correlation (Slocum ch. 21)"
     g1 = skewness(xs)
+    d = decades(xs) if sequential and g1 > 1 else None
+    if d is not None and d >= SPAN_DECADES:
+        return jenks_or_geometric(xs, g1, d, max_k)
     if abs(g1) > 1:
         return "jenks", f"skewness {g1:.2f}; Jenks optimal groups like values on a skewed distribution (Slocum §5.8)"
     if center_is_mean:
         return "stddev", f"skewness {g1:.2f}, near normal, with the mean as the midpoint (Slocum §5.6)"
     return "equal", f"skewness {g1:.2f}, near normal; equal intervals give round, readable limits (Slocum §5.4)"
+
+
+def jenks_or_geometric(xs: list, g1: float, d: float, max_k: int) -> tuple:
+    """Skewed data spanning orders of magnitude: Jenks unless its largest class swallows the map and geometric breaks
+    hold fewer in theirs."""
+    jn, js = largest(auto_k(lambda k: method_classing("jenks", xs, k), xs, max_k)[0], xs)[1:]
+    gn, gs = largest(geometric_auto(xs, max_k)[0], xs)[1:]
+    span = f"skewness {g1:.2f}, with positive values spanning {d:.1f} orders of magnitude"
+    held = f"Jenks would put {jn} of {len(xs)} places ({js:.0%}) in one class, geometric breaks at most {gn} ({gs:.0%})"
+    if js > SWALLOW_SHARE and gs < js:
+        return "geometric", f"{span}; {held}, so breaks in a constant ratio (Slocum §5.12)"
+    if js > SWALLOW_SHARE:
+        return "jenks", f"{span}; {held}, so Jenks optimal stands (Slocum §5.8)"
+    return "jenks", f"{span}; Jenks optimal groups like values and holds at most {jn} of {len(xs)} ({js:.0%}) in a class (Slocum §5.8)"
 
 
 def auto_k(build, xs: list, max_k: int, lo_k: int = MIN_K) -> tuple:

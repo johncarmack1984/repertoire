@@ -59,15 +59,39 @@ Slocum holds that "there is no single best method of classification" (§5.10). P
 | `jenks` | skewed data, skewness above 1, where like values should group; exact Fisher-Jenks | maps to be compared, because each map's breaks follow its own distribution |
 | `stddev` | near-normal data whose mean is a meaningful divider, with a diverging scheme and an even class count | non-normal data, where classes fall outside the data or sit empty |
 | `headtail` | heavy-tailed data where the rare high values matter; Jiang's split at the mean while the head holds under 40% | readers who take its limits, which are means, for data values |
+| `geometric` | values of 0 or more whose positive values span two or more orders of magnitude, such as rates of a disease by country | negative values, or a range narrower than about one order of magnitude, where it has too few readable values to choose from |
 | `manual` | breaks the domain fixes, such as a legal threshold | breaks chosen with no reason given (P5) |
 
-Slocum notes that "quantiles is the only method that can be used for ordinal data" (§5.13). With `--method auto`, `classes` takes quantiles for ordinal data and for maps to be compared, Jenks when skewness exceeds 1, and equal intervals or standard deviations near normal (Slocum §5.10, ch. 21). It writes its reason to `method_reason`.
+Slocum notes that "quantiles is the only method that can be used for ordinal data" (§5.13). With `--method auto`, `classes` takes quantiles for ordinal data and for maps to be compared, Jenks when skewness exceeds 1, and equal intervals or standard deviations near normal (Slocum §5.10, ch. 21). When skewed positive values span two or more orders of magnitude, it builds Jenks and geometric breaks both, and takes geometric when Jenks's largest class holds more than 40% of the units and geometric's holds fewer. It writes its reason, with both shares, to `method_reason`.
+
+## Geometric breaks
+
+Slocum lists geometric breaks among the interval methods (§5.12), and Jiang names arithmetic and geometric series as the older answer to a heavy tail (Slocum ch. 5, note 6). Each break is a fixed ratio above the last, so each class covers the same span on a log scale. `classes` keeps every break readable. It climbs the ladder 1, 2, 5, 10, 20, 50 by one, two, or three rungs per class, a ratio of 2 to 2.5, 4 to 5, or 10, and uses 1, 2.5, 5 only when that ladder can't fill every class, because 2.5 adds a decimal to every label.
+
+The ratio is the finest that covers the positive values' span in at most 7 classes (6 on one hue), and the class count follows from it. The first break centers the progression on the positive values. Of the placements that leave every class a unit, `classes` takes the one whose wider end class spans the fewest orders of magnitude, so neither the lowest class nor the highest swallows its end of the range. A first break of 1, 10, or 0.1 labels one decimal finer, so the lowest class reads `0 to 0.9`, never `0`.
+
+## One class swallows the map
+
+A class that holds most of the units spreads one color over most of the map. When that class is the lowest, its pale color reads as none. `classes` warns when one class holds more than 40% of the units, a share past the even third of the fewest classes, and names the class, its share, and the fix (P5). Where the positive values span two orders of magnitude, the fix is `--method geometric`, with the share its largest class would hold.
+
+Rates per 100,000 for 172 countries, with skewness 4.7 and positive values from 0.044 to 117.7, show what each method does:
+
+| `--method` | k | Countries per class, low to high | Largest |
+| :-- | :-- | :-- | :-- |
+| `jenks` | 7 | 95, 43, 21, 6, 5, 1, 1 | 55% |
+| `geometric`, and `auto` | 5 | 18, 48, 56, 37, 13, at 0.2, 1, 5, 20 | 33% |
+| `quantile` | 7 | 25, 25, 25, 25, 24, 24, 24, at limits like 0.215 to 0.523 | 15% |
+| `headtail` | 4 | 130, 33, 6, 3 | 76% |
+| `equal` | 7 | 154, 11, 3, 2, 0, 1, 1 | 90% |
+| `manual` at 0.5, 2.5, 10, 40 | 5 | 47, 42, 50, 26, 7 | 29% |
+
+Jenks fits the raw values best and still leaves 55% of the countries in its palest class. Geometric breaks and the round hand breaks in the last row keep every class under a third.
 
 ## The class count
 
-Take the smallest k whose goodness of absolute deviation fit reaches 0.80 (Slocum §5.8.3). It is `GADF = 1 - ADCM / ADAM`, where ADCM sums the absolute deviations about each class's median and ADAM those about the median of all the values. The book prints the ratio without the `1 -`, which contradicts its own definition, so `classes` uses the corrected form.
+Take the smallest k whose goodness of absolute deviation fit reaches 0.80 (Slocum §5.8.3). It is `GADF = 1 - ADCM / ADAM`, where ADCM sums the absolute deviations about each class's median and ADAM those about the median of all the values. The book prints the ratio without the `1 -`, which contradicts its own definition, so `classes` uses the corrected form. Geometric breaks are the exception. Their count follows from the span and the ratio, since GADF measures fit on the raw values and would ask for finer classes at the top.
 
-Keep k between 3 and 7, and at most 6 for a single hue, whose lightness steps blur past six (Slocum §5.8.3). Too many classes also make a simple trend look complex (Slocum §14.6.3.2). `classes` reports GVF and GADF for each candidate, clamps k, and warns outside 3 to 7 or on an empty class (P6).
+Keep k between 3 and 7, and at most 6 for a single hue, whose lightness steps blur past six (Slocum §5.8.3). Too many classes also make a simple trend look complex (Slocum §14.6.3.2). `classes` reports GVF, GADF, and the largest class's share for each candidate, clamps k, and warns outside 3 to 7 or on an empty class (P6).
 
 ## Maps that will be compared
 

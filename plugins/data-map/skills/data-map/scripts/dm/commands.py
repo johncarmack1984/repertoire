@@ -468,6 +468,7 @@ def run_classes(args) -> int:
         why_k = f"k = {c.k}" + (f"; empty: {', '.join(empty)}" if empty else "")
         findings.append(WARN("classes", why_k, "use 3 to 7 classes, each holding places", 6))
     findings.append(PASS("classes", f"{k_reason}; {', '.join(f'{l} ({n})' for l, n in zip(labels, counts))}; GVF {g:.2f}, GADF {a:.2f}", 6))
+    findings += swallow_lines(c, labels, present, max_k)
     for note in c.notes:
         findings.append(PASS("breaks", note))
     findings += palette_check(pal, scheme, scheme, args.allow_unsafe_palette)
@@ -542,9 +543,17 @@ def choose_classes(args, xs: list, scheme: str, center: float | None, max_k: int
         c = classify.finish("manual", inner, xs, round_breaks=False)
         return c, "breaks given by hand", f"k = {c.k}, from the breaks given"
     if args.method == "auto":
-        method, method_reason = classify.auto_method(xs, ordinal=args.ordinal, compared=args.compared, center_is_mean=center_is_mean and scheme == "div")
+        method, method_reason = classify.auto_method(xs, ordinal=args.ordinal, compared=args.compared, center_is_mean=center_is_mean and scheme == "div",
+                                                     max_k=max_k, sequential=scheme == "seq")
     else:
         method, method_reason = args.method, "chosen by hand"
+    if method == "geometric":
+        if scheme != "seq" or classify.decades(xs) is None:
+            raise InputError("--method geometric needs --scheme seq and values of 0 or more, at least two of them positive and different")
+        if args.k:
+            return classify.geometric_classing(xs, args.k), method_reason, f"k = {args.k}, given"
+        c, why = classify.geometric_auto(xs, max_k)
+        return c, method_reason, why
     if scheme == "div" and method != "stddev":
         def build(k):
             return classify.diverging_classing(method, xs, max(1, k // 2), center)
@@ -561,6 +570,25 @@ def choose_classes(args, xs: list, scheme: str, center: float | None, max_k: int
         return c, method_reason, f"k = {c.k}, where the head stopped holding under 40% of the values"
     c, why = classify.auto_k(build, xs, max_k)
     return c, method_reason, why
+
+
+def swallow_lines(c: classify.Classing, labels: list, xs: list, max_k: int) -> list:
+    """A WARN when one class holds more than SWALLOW_SHARE of the places, with its share and the fix that splits it."""
+    i, n, share = classify.largest(c, xs)
+    if share <= classify.SWALLOW_SHARE:
+        return []
+    where = "the lowest class" if i == 0 else "the highest class" if i == c.k - 1 else "one class"
+    looks = "readers take its pale color for none" if i == 0 else "one color covers that much of the map"
+    members = [x for x in xs if c.index(x) == i]
+    d = classify.decades(xs)
+    if members[0] == members[-1]:
+        fix = f"no break can split {n} places that share one value; say in the legend what {classify.fmt(members[0], c.e)} means"
+    elif c.method != "geometric" and d is not None and d >= classify.SPAN_DECADES:
+        gn, gs = classify.largest(classify.geometric_auto(xs, max_k)[0], xs)[1:]
+        fix = f"the positive values span {d:.1f} orders of magnitude; --method geometric holds at most {gn} ({gs:.0%}) in a class"
+    else:
+        fix = "pass --method quantile, or more classes with --k"
+    return [WARN("classes", f"{where}, {labels[i]}, holds {n} of {len(xs)} places ({share:.0%}), more than {classify.SWALLOW_SHARE:.0%}; {looks}", fix, 5)]
 
 
 def scheme_why(scheme: str, center: float | None) -> str:
@@ -1043,7 +1071,8 @@ def register(sub) -> None:
     add_input(p)
     p.add_argument("--per", help="denominator column; the map shows field / per * scale")
     p.add_argument("--scale", type=positive, help="multiplier for the rate, such as 100000; chosen from the data when left out")
-    p.add_argument("--method", choices=["auto", "quantile", "equal", "jenks", "stddev", "headtail", "manual"], default="auto")
+    p.add_argument("--method", choices=["auto", "quantile", "equal", "jenks", "stddev", "headtail", "geometric", "manual"], default="auto",
+                   help="geometric: breaks in a constant ratio of readable values (1, 2, 5, 10, ...), for values spanning orders of magnitude")
     p.add_argument("--breaks", help="inner breaks for --method manual, as B1,B2,...")
     p.add_argument("--k", type=int, help="number of classes; chosen by GADF when left out")
     p.add_argument("--scheme", default="seq", help="seq, div:MID (a number or mean), or qual")
