@@ -17,8 +17,8 @@ A choropleth, dots, or a bivariate map at world or continental extent in Web Mer
 
 ```sh
 python3 <skill>/scripts/datamap.py new maplibre map --preset equal-earth
-python3 <skill>/scripts/datamap.py geo --sphere --graticule 30 --out map/data/frame.geojson
-python3 <skill>/scripts/datamap.py classes rates.csv --field visits --per population --geo countries --key iso=id --out-dir map/data
+python3 <skill>/scripts/datamap.py geo --countries --lon0 11.6 --out countries.geojson
+python3 <skill>/scripts/datamap.py classes rates.csv --field visits --per population --geo countries.geojson --key iso=id --out-dir map/data
 python3 <skill>/scripts/datamap.py sync map
 python3 <skill>/scripts/datamap.py check map --scale 2
 ```
@@ -39,11 +39,13 @@ python3 <skill>/scripts/datamap.py check map --scale 2
 | `extent` | `world`, `hemisphere`, `continent`, `region`, or `[W, S, E, N]` |
 | `projection` | the preset's, or a CRS's `name`, `definition`, and `property` |
 | `zoom` | `{"min": "fit", "max": "fit+3"}`, where fit is the zoom that fits the data |
-| `controls` | each control the brief asked for; an empty list means compact attribution only |
+| `controls` | each control the brief asked for; an empty list means compact attribution only, and `reveal` draws the flows slider |
 | `tiles` | each tile source with the grid it was cut in |
 | `companions` | the small charts beside the map |
 | `decisions` | each departure, with the pitfall it touches and why |
-| `center` | the globe's center as `[lon, lat]`, when the data's mean position is the wrong one |
+| `center` | the globe's center as `[lon, lat]`, when the default is the wrong one |
+| `annotations` | notes that put the finding on the map, each `{"text": "...", "at": [lon, lat]}` or `"at": "node:<key>"` |
+| `frame` | under a CRS, `"none"` (the default) or `"sphere"`, which draws the ocean, the graticule, and the world's outline |
 | `tooltips` | `false` to take the hover tooltips off; the page shows them unless told |
 | `figure` | a static figure's destination size, such as `{"size": "640x700", "scale": 2}`. The page lays itself out at that size in any window, in one column with the classes running across when it is 720 px wide or less, and the map keeps at least 55% of the height. `check` renders there unless `--size` or `--scale` says otherwise, and fails any text cut off or run off the figure |
 
@@ -53,7 +55,9 @@ The page reads the legend's layers and draws each by its kind. A `classes` layer
 
 The `flows` lever draws every flow in one color, `#a63603` unless `--color` names another, and fades them by value, from `--fade-min` (0.45) at the smallest kept flow to fully opaque at the largest; `--no-fade` keeps them all opaque. Larger flows darker is Jenny et al.'s suggestion, and the fade follows magnitude, never length (Slocum, ch. 20), so long thin arcs don't out-ink short heavy ones.
 
-Base layers come from file names. `frame.geojson` from `geo --sphere --graticule` gives the ocean, the graticule, and the world's outline under a CRS, and only the graticule elsewhere. `land.geojson` from `geo --countries` is the base under flows and symbols. Any file named `base-<name>.geojson` draws quietly under the data with no legend entry. Its polygons get a pale fill with white edges, and its lines are thin and gray.
+Flow nodes take the fill the lever wrote. With `--node-value net`, the side panel keys the gain and loss colors under the node sizes, which it then draws as outlines. With `--reveal`, the page draws the flows up to `reveal.default` by `dm_rank`, and only the nodes those flows touch. When `controls` lists `reveal`, a slider under the flow widths draws the N largest flows, and the kept line under it says how many of how many and what share of the total as it moves. It moves nothing on its own, and the arrow keys move it. The arrowheads, the names, and the deck.gl arcs follow, and the names and notes find new places when it stops.
+
+Base layers come from file names. `frame.geojson` from `geo --sphere --graticule` gives the ocean, the graticule, and the world's outline under a CRS when `frame` is `"sphere"`, and only the graticule elsewhere. `land.geojson` from `geo --countries` is the base under flows and symbols. Any file named `base-<name>.geojson` draws quietly under the data with no legend entry. Its polygons get a pale fill with white edges, and its lines are thin and gray.
 
 The side panel draws each legend layer. Classes get their limits, a separate no-data box, and the method. Sizes get nested circles with leaders. Flows get three or four reference widths with their arrowheads at the opacities of those values, the omitted note, and the node sizes under a heading that says which flows they total.
 
@@ -74,34 +78,35 @@ Each entry in `dm-spec.companions` draws a small SVG chart in the side panel, fr
 
 ## A registered CRS
 
-maplibre-gl 6.15 added CRS support, which is still experimental, so the version is pinned. The page does three things for a `crs` projection.
-
-- It loads proj4 2.22.0 in the page and in MapLibre's workers, where GeoJSON is reprojected, through `importScriptInWorkers` and `setProjectionHandler`.
-- It registers the projection with `addProjection`, with a tile matrix sized to the projected world.
-- It first projects the definition's own center. proj4 2.22.0 projects Albers, Lambert azimuthal, cylindrical equal-area, stereographic, Lambert conformal conic, and transverse Mercator definitions to NaN without `+x_0=0 +y_0=0`, so the page throws with the definition and that fix, and `check` reports it. `datamap.py crs` prints both.
-- It fits the view in the map's `load` event. Bounds passed to the constructor are fitted in Web Mercator before the style selects the CRS, which draws the world at half its size.
+maplibre-gl 6.15 added CRS support, which is still experimental, so the version is pinned. For a `crs` projection the page loads proj4 2.22.0 in the page and in MapLibre's workers, where GeoJSON is reprojected, through `importScriptInWorkers` and `setProjectionHandler`. It registers the projection with `addProjection`, with a tile matrix sized to the projected world. It first projects the definition's own center. proj4 2.22.0 projects Albers, Lambert azimuthal, cylindrical equal-area, stereographic, Lambert conformal conic, and transverse Mercator definitions to NaN without `+x_0=0 +y_0=0`, so the page throws with the definition and that fix, and `check` reports it. `datamap.py crs` prints both. It fits the view in the map's `load` event. Bounds passed to the constructor are fitted in Web Mercator before the style selects the CRS, which draws the world at half its size.
 
 Under a CRS, Web Mercator tiles draw in the wrong place, so draw GeoJSON, or tiles cut in the CRS's own grid and listed in `tiles` with that grid (P11). Densify long edges with `geo --densify`, or a straight edge cuts a corner off a curved meridian (P12).
 
 ## Flows and arrowheads
 
-Direction is shown with arrowheads, which beat tapered lines in Jenny et al.'s user study. Each head is drawn at a screen angle the page measures from two projected points along the arrow's bearing, for three reasons.
-
-- A bearing is not a screen angle under a CRS that isn't conformal. In a test under Equal Earth they differed by about 30 degrees at high latitudes.
-- MapLibre's map-aligned icons on the globe drift from local north away from the view's center. A pixel test measured 11 to 88 degrees of error at places 55 to 72 degrees from the center.
-- On the globe, the page measures again whenever the view moves.
+Direction is shown with arrowheads, which beat tapered lines in Jenny et al.'s user study. Each head is drawn at a screen angle the page measures from two projected points along the arrow's bearing, for three reasons. A bearing is not a screen angle under a CRS that isn't conformal. In a test under Equal Earth they differed by about 30 degrees at high latitudes. MapLibre's map-aligned icons on the globe drift from local north away from the view's center. A pixel test measured 11 to 88 degrees of error at places 55 to 72 degrees from the center. And on the globe, the page measures again whenever the view moves.
 
 Each head is set back from its node by the node's radius and draws above the labels. `check` measures every head in view against the screen direction of its own line's last segment, and fails one more than 15 degrees off (P17).
 
 ## Labels
 
-The page places every point label itself, for flow nodes and for symbols. It tries each name's corners in Slocum's order, at the node's edge and again about twice as far out, and scores each against the flows, the arrowheads, the other nodes, the map's frame, and the names already placed, largest node first. It sets `text-anchor` and `text-offset` per name, then asks MapLibre which names it drew and moves each hidden one to its next corner. `check` warns on a name that didn't render and on an arrowhead over a name, and names each.
+The page places every point label itself, for flow nodes and for symbols. A name longer than 10 ems breaks at the space that leaves its two lines most even, with MapLibre's own wrapping off, so each name's box is known before it is placed. The page tries each name's corners in Slocum's order, at the node's edge and again about twice as far out, and scores each against the flows, the arrowheads, the other nodes, the map's frame, and the names already placed, largest node first; a corner that leaves the name nearer another circle than its own costs nearly as much as covering that circle (Slocum §12.5.2). It sets `text-anchor` and `text-offset` per name, then asks MapLibre which names it drew and moves each hidden one to its next corner. `check` warns on a name that didn't render, an arrowhead over a name, a name nearer another circle than its own, and a name that runs past the map's edge, and names each.
+
+## Notes on the map
+
+Each entry in `dm-spec.annotations` writes the finding on the map, beside the place it is about, so the reader doesn't hunt for it in a footer. The note is quiet type at the label size, wrapped at 180 or 120 px, with a short leader to its place, and a dot where no node marks it. The page tries four leader lengths in each of Slocum's corners and takes the one that covers least of the flows, the arrowheads, the circles, the names, other notes, and the class areas under it. `"at": "node:<key>"` points at a flow node or symbol by its key, so the leader starts at the circle's edge.
+
+On a globe, a note whose place is on the far side draws at the rim in the place's direction, with "(far side)" added. Clicking it, or Enter on it, turns the globe there, at once under a reduced-motion setting. `check` warns on a note that didn't render, with the reason, on one that covers a name, and when the title names a place that is hidden at load, on the far side or outside the view, and no note marks it (P24).
 
 ## The view
 
-The page fits the view to the data. Under a CRS it shows the whole world, in Mercator the data's bounds, and on the globe a disk that fills the map cell, centered on the data's mean position. Zoom then runs from the fitted zoom to three levels in, and Mercator stops panning about 4 degrees of longitude and 3 of latitude past the data (Muehlenhaus, ch. 9). A projection wider than its cell gets a map row of its own height, and the figure is centered on the page.
+The page fits the view to the data. In Mercator it shows the data's bounds. Under a CRS at world extent it shows the world between the cuts at the definition's `+lon_0` plus and minus 180, so a map centered on 11.6 E keeps Russia whole, and `check` fails a world whose edge runs past the frame. With no frame drawn, it crops to the latitudes the data covers and runs the full width, so no band of empty ocean sits below the southernmost country when Antarctica is left off. A projection wider than its cell gets a map row of its own height, and the figure is centered on the page. A static figure's map row hugs the map, and `check` warns when the figure's height leaves empty page below the source line, with the size that fits.
 
-Nothing else is on the map. There are no zoom buttons, no compass, and no scale bar, pitch stays 0, and rotation is off. A control goes in `controls` with the question it answers, or `check` warns (P23).
+`frame` is `"none"` by default because the world fixture rendered both ways said so. In a 640 px figure the same 608 px wide map took 278 px of height with no frame and 311 with the sphere, and at 1200x800 380 against 426. The sphere spends that height on empty polar ocean, and its graticule and outline carry no data; the bare map gives the figure that room back. With no ocean, class edges turn light gray so the palest class keeps its coast.
+
+On the globe the disk fills the map cell. It opens on the center, within 45 degrees of the equator, that keeps the most inflow within 64 degrees of the middle, so the largest destinations show at load, unless `center` says otherwise. Circles keep their legend size out to the rim (`circle-pitch-scale` is `viewport`; MapLibre's default shrinks them by about a fifth there). MapLibre keeps the globe one size as it turns by changing the zoom, so the page holds the zoom between the fitted zoom at the center's latitude plus the `dm-spec.zoom` offsets, and a globe turned toward the equator neither shrinks nor stops zooming in.
+
+Zoom runs from the fitted zoom to three levels in, and Mercator stops panning about 4 degrees of longitude and 3 of latitude past the data (Muehlenhaus, ch. 9). Nothing else is on the map. There are no zoom buttons, no compass, and no scale bar, pitch stays 0, and rotation is off. A control goes in `controls` with the question it answers, or `check` warns (P23).
 
 ## Offline basemaps
 
@@ -111,15 +116,11 @@ A globe or Mercator map can sit on a local Protomaps archive instead of `land.ge
 "tiles": [{"source": "basemap", "grid": "web-mercator", "url": "data/basemap.pmtiles", "flavor": "white"}]
 ```
 
-- The page then loads pmtiles 4.5.0 and @protomaps/basemaps 5.7.2 and draws the `white` flavor, land lighter than water.
-- The `light` flavor's water is a saturated cyan, and `grayscale` draws the ocean darker than the land; both compete with the data (P27).
-- Labels draw from local fonts in the page's own family, because the style names no glyphs.
-- PMTiles needs a server that answers Range requests, such as the one `check` runs. A page opened from a file can't use the archive.
-- The attribution control then credits Protomaps and OpenStreetMap, as the license asks.
+The page then loads pmtiles 4.5.0 and @protomaps/basemaps 5.7.2 and draws the `white` flavor, land lighter than water. The `light` flavor's water is a saturated cyan, and `grayscale` draws the ocean darker than the land; both compete with the data (P27). Labels draw from local fonts in the page's own family, because the style names no glyphs. PMTiles needs a server that answers Range requests, such as the one `check` runs. A page opened from a file can't use the archive. The attribution control then credits Protomaps and OpenStreetMap, as the license asks.
 
 ## The readiness hook and the report
 
-A classic script defines `window.dataMap` before the page's module runs, so a failed import rejects `dataMap.ready` at once. `ready` resolves after the map's first `idle` once the view is fitted, the arrowheads are turned, the labels are placed, the legend and companions are drawn, and the fonts have loaded. `dataMap.report()` returns the facts `check` judges, namely the projection in use, pitch and zoom, the controls, the fonts and type sizes, the legend's swatches, whether the map moves, the layers and sources, the text boxes, the rendered features per layer, the arrowheads' agreement with their lines, each label layer's node count with the names that rendered and any arrowhead over a name, and whether the tooltips are on.
+A classic script defines `window.dataMap` before the page's module runs, so a failed import rejects `dataMap.ready` at once. `ready` resolves after the map's first `idle` once the view is fitted, the arrowheads are turned, the labels are placed, the legend and companions are drawn, and the fonts have loaded. `dataMap.report()` returns the facts `check` judges, namely the projection in use, the center, pitch and zoom with the limits at the current latitude, the globe's radius, the controls, the fonts and type sizes, the legend's swatches, whether the map moves, the layers and sources, the text boxes, the rendered features per layer, the arrowheads' agreement with their lines, each label layer's names (rendered, hidden, covered, stray, and out of view), the notes, each flow line over the circle of a node it doesn't connect with the overlap in px, the reveal control's state, the figure's empty height, how far a world's edge runs past the frame, and whether the tooltips are on. `check` warns on a flow over an unconnected node, naming the flow, the node, and the overlap (P16).
 
 To add a layer by hand, pass a function as the second argument of `DataMap.start` in the page's module. It gets `{map, overlay, data, spec, legend, libs}` and runs after the labels are placed and before the final idle, so the screenshot waits for it.
 

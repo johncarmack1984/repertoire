@@ -27,7 +27,7 @@ Screen the basemap back so the data comes forward (Slocum §13.3.4, §13.4.3.2):
 
 Give each layer its own band of lightness, and check that the bands stay apart in grayscale (Munzner §12.5.2). Warm hues come forward and cool ones recede, so keep the warm ones for the data (Slocum §10.5.1). Put no hillshade or shadow under a choropleth, because it reads as marks and shifts the class colors (Munzner §6.3.5).
 
-The quietest basemap is none. A world choropleth needs only the sphere outline, a faint graticule, and its own polygons.
+The quietest basemap is none. A world choropleth needs only its own polygons, cropped to the latitudes they cover, which is the template's default under a CRS (`frame` none). Draw the sphere, its ocean, and a faint graticule only when the reader needs the globe's shape, and say why in `dm-spec.decisions`.
 
 ## Map elements
 
@@ -40,6 +40,7 @@ Each element answers a need of the reader, or it stays off (Slocum §11.4). Plac
 - **North arrow.** Only when north isn't up or the map serves navigation (Slocum §11.4.8). "It is a common misconception that every map needs a north arrow." On a world map, label the graticule instead when latitude matters.
 - **Frame and neat line.** None on screen, where the window frames the map (Slocum §11.4.1).
 - **Inset.** Only for a question the main map can't answer, such as a crowded area or a detached territory (Slocum §11.4.3; Muehlenhaus ch. 9).
+- **Notes.** Write the finding on the map, beside the place it is about, in a short note with a leader, through `dm-spec.annotations`: the six highest rates named where they sit, a new route named along its line. One to four notes; more turn the map into a caption. A place the title names that the opening view can't show gets a note too, which on a globe draws at the rim.
 
 ## Type and labels
 
@@ -74,7 +75,7 @@ Each edit can silently reset a font, a basemap, or a legend, which Muehlenhaus c
 
 ## Saying no to controls
 
-Add a control only when the brief names the question it answers, because "every interface element should correspond to a real question the map is prepared to answer." (Muehlenhaus ch. 9). That rules out zoom buttons, fullscreen, geolocation, layer toggles, sliders, and search by default. Panning and zooming by gesture and keyboard stay. Turn rotation off on a north-up map. List every control in `dm-spec.controls`; `check` fails any control the list leaves out (P23).
+Add a control only when the brief names the question it answers, because "every interface element should correspond to a real question the map is prepared to answer." (Muehlenhaus ch. 9). That rules out zoom buttons, fullscreen, geolocation, layer toggles, sliders, and search by default. An exploratory reader who must see more flows than a static cut shows is such a question, and `reveal` answers it with one slider that opens on the stated cut. Panning and zooming by gesture and keyboard stay. Turn rotation off on a north-up map. List every control in `dm-spec.controls`; `check` fails any control the list leaves out (P23).
 
 Set the zoom and pan limits from the data (P25):
 

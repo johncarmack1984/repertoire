@@ -32,11 +32,11 @@ Raised arcs are 3D, and an unjustified third dimension is a pitfall (P22). Munzn
 - The arcs stay close to the surface. The longest flow's apex is `dm-spec.arcs.apex` of the Earth's radius, 0.08 by default, and every other apex is in proportion to its flow's length.
 - `dm-spec.decisions` holds a pitfall 22 entry whose `why` says what the height buys this reader. The template ships that entry with an empty `why`, and `check` fails the page until it is filled.
 
-Set `arcs.apex` to 0 for flat great circles, which need no decision.
+Set `arcs.apex` to 0 for flat great circles, which need no decision. While the arcs are raised, the flows legend says "Arc height shows distance, not" and the unit, so no reader takes a tall arc for a large flow.
 
 deck.gl's arc peaks at its height times the flow's length over two, so the page sets the height to twice the apex share over the longest flow's angle. Measured in profile at the globe's edge, the longest of a test's arcs rose 8.2% of the radius past the surface at the default of 8%. Each arc's length comes from the lever's `dm_km`, and nothing else sets its height.
 
-Near the globe's edge an arc's height shows in profile, so arcs that land there curl over the horizon. That is the height drawn truthfully. If it confuses the reader, set `center` in `dm-spec` so the flows the title is about sit in the middle of the disk.
+Near the globe's edge an arc's height shows in profile, so arcs that land there curl over the horizon. That is the height drawn truthfully. The globe opens on the center that keeps the largest destinations in view, as `stacks/maplibre.md` says; if the arcs the title is about still curl at the rim, set `center` in `dm-spec`, and mark a place the title names on the far side with a note in `annotations`.
 
 ## Direction
 
@@ -44,7 +44,9 @@ Each flow ends in an arrowhead, because arrowheads beat tapered lines for direct
 
 The arc lands on the surface almost vertically, so the head sits at the landing point and points along the ground track, which is the arc's direction as the reader sees it from above.
 
-The two directions of a pair share one great circle and one height, so A to B and B to A draw as one arc with a head at each end. ArcLayer's `getTilt` would lean them apart, but 9.4.1 ignores it on great-circle arcs: a render with a tilt of 15 degrees was byte-identical to one without. When the pair matters, run the lever with `--net`, or draw flat flows on the maplibre globe, where each direction moves `dm_offset` pixels to the right of travel.
+The two directions of a pair share one great circle and one height, so A to B and B to A draw as one arc with a head at each end. ArcLayer's `getTilt` would lean them apart, but 9.4.1 ignores it on great-circle arcs, and a render with a tilt of 15 degrees was byte-identical to one without. When the pair matters, run the lever with `--net`, or draw flat flows on the maplibre globe, where each direction moves `dm_offset` pixels to the right of travel.
+
+The reveal slider works here too. When the lever ran with `--reveal` and `controls` lists `reveal`, the slider rebuilds the arc layer with the flows up to its value, and the heads and nodes follow. The arcs leave the ground, so `check` leaves them out when it looks for flows over unconnected nodes.
 
 ## Large layers
 
