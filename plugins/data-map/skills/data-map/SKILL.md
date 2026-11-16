@@ -76,23 +76,7 @@ Done when the brief names the idiom, why not the row above it, its companions, a
 
 ### 4. Encode
 
-Compute every class break, color, symbol size, line width, and flow path with the bundled levers, never by hand. Each prints PASS, WARN, and FAIL lines that name the pitfall and the fix, and each writes prepared GeoJSON whose `dm_*` properties carry the encoding, plus one `legend.json` that both the map and its legend read.
-
-```sh
-python3 <skill>/scripts/datamap.py crs --extent data.geojson --idiom area
-python3 <skill>/scripts/datamap.py geo --countries --sphere --graticule 30 --out map/data/base.geojson
-python3 <skill>/scripts/datamap.py classes visits.csv --field visits --per population --scale 1000 --geo counties.geojson --key fips --out-dir map/data
-python3 <skill>/scripts/datamap.py sizes reservoirs.geojson --field capacity --out-dir map/data
-python3 <skill>/scripts/datamap.py flows movers.csv --nodes states.csv --top 50 --geometry curved --out-dir map/data
-```
-
-`classes` refuses raw counts on an areal idiom, picks the method and the number of classes from the distribution, and labels the legend from the same rounded breaks. `sizes` scales symbols by area. `flows` curves each flow by its length, sends it around nodes it doesn't connect, keeps the largest flows, and states what it cut. Read `reference/projection.md` for the projection and `reference/color-and-classes.md` for the scheme and the classes. Run any command with `--help` for its flags.
-
-Done when every color, size, width, and line on the map comes from encode output, and every command exits 0.
-
-### 5. Build
-
-Pick the stack, unless the project already has one:
+Pick the stack for the brief's Stack line, unless the project already has one:
 
 | The map is | Stack |
 | :-- | :-- |
@@ -100,14 +84,31 @@ Pick the stack, unless the project already has one:
 | a zoomable web map | `maplibre`, Mercator or globe |
 | flows or points at world scale, interactive | `maplibre` globe, or `deck-gl` when it needs more than about 50,000 features or raised arcs |
 | a native app | `mln-rs` |
+| an answer from the no-map row | `maplibre` with the `chart` preset |
 
-Start from the stack's template, which already holds the title block, the legend panel, the source line, a quiet basemap or none, and no controls:
+Start the project from the stack's template, so the levers have a `data/` folder to write into. The template already holds the title block, the legend panel, the source line, a quiet basemap or none, and no controls:
 
 ```sh
 python3 <skill>/scripts/datamap.py new maplibre map --preset equal-earth
 ```
 
-Then read `stacks/<stack>.md` and `reference/design.md`, fill the page's marked slots, and inline the data so the page opens from a file:
+Then compute every class break, color, symbol size, line width, and flow path with the bundled levers, never by hand. Each prints PASS, WARN, and FAIL lines that name the pitfall and the fix. Each writes prepared GeoJSON whose `dm_*` properties carry the encoding, plus one `legend.json` that both the map and its legend read.
+
+```sh
+python3 <skill>/scripts/datamap.py crs --extent counties.geojson --idiom area
+python3 <skill>/scripts/datamap.py geo --countries --densify 100 --out map/data/land.geojson
+python3 <skill>/scripts/datamap.py classes visits.csv --field visits --per population --scale 1000 --geo counties.geojson --key fips --out-dir map/data
+python3 <skill>/scripts/datamap.py sizes reservoirs.geojson --field capacity --out-dir map/data
+python3 <skill>/scripts/datamap.py flows movers.csv --nodes states.csv --top 50 --geometry curved --out-dir map/data
+```
+
+`crs` prints the projection to register for the extent. `geo` writes the land, the sphere outline, or the graticule a CRS or a globe needs, one per call. `classes` refuses raw counts on an areal idiom, picks the method and the number of classes from the distribution, and labels the legend from the same rounded breaks. `sizes` scales symbols by area. `flows` curves each flow by its length, sends it around nodes it doesn't connect, keeps the largest flows, and states what it cut. Read `reference/projection.md` for the projection and `reference/color-and-classes.md` for the scheme and the classes. Run any command with `--help` for its flags.
+
+Done when every color, size, width, and line on the map comes from encode output, and every command exits 0.
+
+### 5. Build
+
+Read `stacks/<stack>.md` and `reference/design.md`, fill the page's marked slots, and inline the data so the page opens from a file:
 
 ```sh
 python3 <skill>/scripts/datamap.py sync map
