@@ -157,11 +157,11 @@ Refine an existing map by reviewing it first, then fixing what the review found.
 - Keep every place and every value. Drop or replace one only when it can't be mapped honestly, and name it and the reason in the report.
 - Fix in place when the user maintains the code. Keep their data plumbing and stack, and change the encoding and the presentation. Rebuild from a template only when the input is a screenshot or the user asks for a new file.
 - Run the encode levers on their data, so the fixes come from code. Then check and critique as in steps 6 and 7.
-- Report the faults fixed by pitfall number.
+- Report the faults fixed, each in plain words, as a review would name them.
 
 ## Reviewing
 
-A review changes nothing. Open with one line that names the map's idiom and says whether it serves the reader's task. Then list the faults, worst for the reader first. For each, quote or locate it, name the pitfall from `reference/pitfalls.md` by number, and give the fix in one line in the map's own stack. Put no mark on anything that keeps the rules, however differently you would have built it.
+A review changes nothing, and it goes to whoever asked, who may never have read this skill. Open with one line that names the map's idiom and says whether it serves the reader's task. When one change fixes several faults, as circles fix counts filled as areas, lead with that change and name the faults it fixes in the same item. Then list the rest, worst for the reader first, one line each: where the fault is, the rule it breaks in plain words, and the fix in the map's own stack. Use `reference/pitfalls.md` to find the faults, but leave its numbers out unless the reader uses this skill. A map on a web page answers to the page too: it needs a text alternative for screen readers, it must not capture the page's scrolling, and its scripts must not block the page. Keep the review under about 400 words; a fix that needs more than a line names the code to change instead of writing it. Put no mark on anything that keeps the rules, however differently you would have built it.
 
 ## Worked example
 
