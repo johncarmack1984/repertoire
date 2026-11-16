@@ -60,6 +60,7 @@ function label(parent, x, y, text, attrs = {}) {
 function mark(e, layer, kind, color, text, expect) {
   Object.assign(e.dataset, {dmLayer: layer, dmKind: kind, dmColor: color, dmLabel: text ?? '', dmExpect: expect ? '1' : '0'});
 }
+let pageLibs = {};
 let measurer;
 function measure(text) {
   measurer ??= document.createElement('canvas').getContext('2d');
@@ -152,6 +153,7 @@ const LEGENDS = {
       y += r.h + 6;
     }
     if (L.omitted_note) html('p', {class: 'dm-note'}, sec, L.omitted_note);
+    if (pageLibs.deck && (spec.arcs?.apex ?? ARC_APEX) > 0) html('p', {class: 'dm-note'}, sec, `Arc height shows distance, not ${L.unit || 'size'}.`);
     const nodes = data[filesOf(name, L).nodes]?.features || [];
     const sized = nodes.filter(n => n.properties.dm_r > 0 && n.properties.dm_value > 0);
     if (sized.length > 1) {
@@ -536,6 +538,32 @@ function meanCenter(pts) {
   }
   return [Math.atan2(y, x) / RAD, Math.atan2(z, Math.hypot(x, y)) / RAD];
 }
+// The globe opens on the center, on a 5-degree grid, that keeps the most inflow within 64 degrees of the middle,
+// where the disk still reads, and on a tie the one that brings it nearest the middle. A mean position can leave the
+// largest destinations on the far side, and a mean of far-flung places can fall near a pole.
+function globeCenter(pts) {
+  const inflow = new Map();
+  for (const [name, L] of layersOf()) {
+    if (L.kind !== 'flows') continue;
+    const f = filesOf(name, L);
+    const at = Object.fromEntries((data[f.nodes]?.features || []).map(n => [n.properties.dm_key ?? n.id, n.geometry.coordinates]));
+    for (const {properties: p} of data[f.main]?.features || []) {
+      if (at[p.dm_d]) inflow.set(p.dm_d, {at: at[p.dm_d], v: (inflow.get(p.dm_d)?.v || 0) + (p.dm_value || 0)});
+    }
+  }
+  if (!inflow.size) return meanCenter(pts);
+  let best = null;
+  for (let lat = -60; lat <= 60; lat += 5) for (let lon = -180; lon < 180; lon += 5) {
+    let seen = 0, near = 0;
+    for (const {at, v} of inflow.values()) {
+      const deg = angularKm(at, [lon, lat]) / EARTH_KM / RAD;
+      if (deg <= 64) seen += v;
+      near += v * Math.max(0, Math.cos(deg * RAD));
+    }
+    if (!best || seen > best.seen || (seen === best.seen && near > best.near)) best = {c: [lon, lat], seen, near};
+  }
+  return best.c;
+}
 function bbox(pts) {
   const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
   return [[Math.min(...xs), Math.min(...ys)], [Math.max(...xs), Math.max(...ys)]];
@@ -583,7 +611,7 @@ function fitView(map) {
   map.setMaxBounds(null);
   let fitted;
   if (type === 'globe') {
-    const center = Array.isArray(spec.center) ? spec.center : meanCenter(pts);
+    const center = Array.isArray(spec.center) ? spec.center : globeCenter(pts);
     map.jumpTo({center, zoom: 1.5});
     for (let i = 0; i < 3; i++) map.setZoom(map.getZoom() + Math.log2((Math.min(w, h) / 2 - pad) / globeRadius(map, center)));
   } else {
@@ -1036,6 +1064,7 @@ function hugMap(map) {
 const once = (target, event) => new Promise(r => target.once(event, r));
 
 async function start(libs, extend) {
+  pageLibs = libs;
   document.body.classList.toggle('dm-chart', !spec.projection);
   layOutFigure();
   drawLegend();

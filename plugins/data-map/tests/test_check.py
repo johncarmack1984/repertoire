@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import io
 import json
+import math
 import os
 import re
 import shutil
@@ -461,6 +462,12 @@ class PngCheck(unittest.TestCase):
         self.assertIn(("FAIL", "motion", 26), findings(result))
 
 
+def degrees(a: list, b: list) -> float:
+    """The angle between two [lon, lat] points, in degrees."""
+    (x1, y1), (x2, y2) = [map(math.radians, p) for p in (a, b)]
+    return math.degrees(math.acos(min(1, math.sin(y1) * math.sin(y2) + math.cos(y1) * math.cos(y2) * math.cos(x2 - x1))))
+
+
 def blobs(img, rgb: tuple, tol: int = 60) -> list[tuple]:
     """Each connected patch of RGB in the image, as (pixels, width, height)."""
     w, h, px = img.w, img.h, img.rgba
@@ -545,7 +552,7 @@ class Render(unittest.TestCase):
         cases = [("a name under an arrowhead", "map.setLayoutProperty('movers-labels', 'text-radial-offset', undefined); "
                   "map.setLayoutProperty('movers-labels', 'text-anchor', 'center'); map.setLayoutProperty('movers-labels', 'text-offset', [0, 0])",
                   "arrowheads cover", "Tokyo under the head of"),
-                 ("names too big to fit", "map.setLayoutProperty('movers-labels', 'text-size', 40)", "didn't render", "of 7 names")]
+                 ("names too big to fit", "map.setLayoutProperty('movers-labels', 'text-size', 40)", "didn't render", "names of movers-labels")]
         for what, code, says, names in cases:
             with self.subTest(what):
                 folder = copy("maplibre-globe", self.tmp / what.replace(" ", "-"))
@@ -577,6 +584,27 @@ class Render(unittest.TestCase):
         radii = [round((n / 3.14159) ** 0.5 / 2, 2) for n, w, h in blobs(img, (255, 0, 255)) if abs(w - h) <= 2]
         self.assertGreaterEqual(len(radii), 6, radii)
         self.assertTrue(all(7.4 <= r <= 8.4 for r in radii), radii)
+
+    def test_the_globe_opens_on_its_largest_destinations_unless_dm_spec_centers_it(self):
+        def into_mexico_city(doc):
+            for f in doc["features"]:
+                if f["properties"]["dm_d"] == "MEX":
+                    f["properties"]["dm_value"] *= 1000
+        mexico_city = make.PACIFIC["MEX"][1:3]
+        for center, want in ((None, mexico_city), ([120, 30], [120, 30])):
+            with self.subTest(center=center):
+                folder = copy("maplibre-globe", self.tmp / str(center))
+                data("movers", into_mexico_city)(folder)
+                spec(center=center)(folder)
+                rep = self.render(folder)[1]["report"]
+                self.assertLess(degrees(rep["center"], want), 64 if center is None else 0.01, rep["center"])
+
+    def test_raised_arcs_say_in_the_legend_that_height_is_distance(self):
+        for name, want in (("deck-globe", True), ("maplibre-globe", False)):
+            with self.subTest(name):
+                rep = self.render(copy(name, self.tmp / name))[1]["report"]
+                said = any(b["text"] == "Arc height shows distance, not movers." for b in rep["textBoxes"])
+                self.assertEqual(said, want)
 
     def test_a_synced_page_without_data_renders_and_passes(self):
         folder = copy("maplibre-globe", self.tmp)
