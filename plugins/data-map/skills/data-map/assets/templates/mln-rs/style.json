@@ -1,0 +1,59 @@
+{
+ "version": 8,
+ "name": "data map",
+ "projection": {"type": "globe"},
+ "center": [-170, 10],
+ "zoom": 2.5,
+ "pitch": 0,
+ "transition": {"duration": 0},
+ "sources": {
+  "countries": {"type": "geojson", "data": "file://{{DATA}}/countries.geojson"},
+  "classes": {"type": "geojson", "data": "file://{{DATA}}/classes.geojson"},
+  "sizes": {"type": "geojson", "data": "file://{{DATA}}/sizes.geojson"},
+  "flows": {"type": "geojson", "data": "file://{{DATA}}/flows.geojson"},
+  "nodes": {"type": "geojson", "data": "file://{{DATA}}/flows-nodes.geojson"},
+  "arrows": {"type": "geojson", "data": "file://{{DATA}}/flows-arrows.geojson"}
+ },
+ "layers": [
+  {"id": "ocean", "type": "background", "paint": {"background-color": "#f3f1ec"}},
+  {"id": "land", "type": "fill", "source": "countries", "paint": {"fill-color": "#d3d0c9"}},
+  {"id": "classes", "type": "fill", "source": "classes", "paint": {"fill-color": ["get", "dm_fill"]}},
+  {"id": "borders", "type": "line", "source": "countries", "paint": {"line-color": "#f3f1ec", "line-width": 0.5}},
+  {
+   "id": "sizes", "type": "circle", "source": "sizes",
+   "layout": {"circle-sort-key": ["get", "dm_order"]},
+   "paint": {
+    "circle-radius": ["get", "dm_r"], "circle-color": ["get", "dm_fill"],
+    "circle-stroke-color": "#f3f1ec", "circle-stroke-width": 1
+   }
+  },
+  {
+   "id": "flows", "type": "line", "source": "flows",
+   "layout": {"line-cap": "round", "line-join": "round", "line-sort-key": ["get", "dm_order"]},
+   "paint": {
+    "line-color": ["coalesce", ["get", "dm_fill"], "#08519c"],
+    "line-width": ["coalesce", ["feature-state", "dm_width"], ["get", "dm_width"]]
+   }
+  },
+  {
+   "id": "nodes", "type": "circle", "source": "nodes",
+   "layout": {"circle-sort-key": ["get", "dm_order"]},
+   "paint": {
+    "circle-radius": ["get", "dm_r"],
+    "circle-color": ["coalesce", ["get", "dm_fill"], "#525252"],
+    "circle-stroke-color": "#f3f1ec", "circle-stroke-width": 1
+   }
+  },
+  {
+   "id": "arrows", "type": "symbol", "source": "arrows",
+   "layout": {
+    "icon-image": "dm-arrow", "icon-size": ["/", ["get", "dm_arrow"], 16],
+    "icon-rotate": ["get", "dm_bearing"], "icon-rotation-alignment": "map", "icon-pitch-alignment": "map",
+    "icon-anchor": "top",
+    "icon-offset": ["interpolate", ["linear"], ["/", ["*", 16, ["+", ["get", "dm_setback"], 1]], ["get", "dm_arrow"]], 0, ["literal", [0, -4]], 64, ["literal", [0, 60]]],
+    "icon-allow-overlap": true, "icon-ignore-placement": true, "symbol-sort-key": ["get", "dm_order"]
+   },
+   "paint": {"icon-color": ["coalesce", ["get", "dm_fill"], "#08519c"]}
+  }
+ ]
+}

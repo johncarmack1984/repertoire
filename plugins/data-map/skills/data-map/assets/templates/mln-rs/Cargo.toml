@@ -1,0 +1,18 @@
+[package]
+name = "data-map"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+# louwers/mln-rs main as of 2026-11-16 (#537), pinned by commit. To move it, read
+# main with `git ls-remote https://github.com/louwers/mln-rs main`, put that commit
+# here, rebuild, and take a snapshot.
+mln-rs = { git = "https://github.com/louwers/mln-rs", rev = "6ce1bd9dd32795add207ce84ac8187d652434840" }
+serde_json = "1.0.154"
+winit = "0.30.13"
+
+# mln-rs is slow unoptimized, so `cargo run` optimizes every dependency and
+# leaves only this crate's code unoptimized.
+[profile.dev.package."*"]
+opt-level = 3
