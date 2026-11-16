@@ -595,18 +595,46 @@ async function registerCrs(maplibregl, proj4, url, p) {
 
 const frameOf = () => spec.frame ?? FRAME;
 
+// A world under a CRS runs from just inside the cut at lon_0 - 180 to just inside it at lon_0 + 180: geo --lon0 moves
+// the pieces west of the cut 360 degrees east, so a -180..180 box would crop both sides of a map centered off 0.
+function worldLons() {
+  const lon0 = spec.projection.type === 'crs' ? Number(spec.projection.definition?.match(/\+lon_0=(-?[\d.]+)/)?.[1] ?? 0) : 0;
+  return [lon0 - 180 + 1e-5, lon0 + 180 - 1e-5];
+}
+
 // What the view fits: a named world, a [W, S, E, N] box, or the data's bounds. A world under a CRS with no frame
 // runs the full width but only the latitudes its data covers, so no band of empty ocean sits below the southernmost
 // country when Antarctica is left off.
 function fitBox(pts) {
   const e = spec.extent;
   if (e === 'world') {
-    if (spec.projection.type !== 'crs' || frameOf() !== 'none' || !pts.length) return [[-180, -90], [180, 90]];
+    const [w, east] = worldLons();
+    if (spec.projection.type !== 'crs' || frameOf() !== 'none' || !pts.length) return [[w, -90], [east, 90]];
     const ys = pts.map(p => p[1]);
-    return [[-180, ys.reduce((a, b) => Math.min(a, b))], [180, ys.reduce((a, b) => Math.max(a, b))]];
+    return [[w, ys.reduce((a, b) => Math.min(a, b))], [east, ys.reduce((a, b) => Math.max(a, b))]];
   }
   if (Array.isArray(e)) return [[e[0], e[1]], [e[2], e[3]]];
   return bbox(pts.length ? pts : [[-180, -90], [180, 90]]);
+}
+
+// Points along a [[W, S], [E, N]] box's four edges, which a CRS bends into the map's outline.
+function boxEdge([[w, south], [e, north]]) {
+  const pts = [];
+  for (let i = 0; i <= 72; i++) {
+    const t = i / 72, lon = w + t * (e - w), lat = south + t * (north - south);
+    pts.push([lon, south], [lon, north], [w, lat], [e, lat]);
+  }
+  return pts;
+}
+
+// How far, in px, the world's edge runs past the map's frame under a CRS: 0 when the whole outline is in view.
+function edgeCut(map) {
+  if (spec.extent !== 'world' || spec.projection.type !== 'crs') return null;
+  const {clientWidth: W, clientHeight: H} = map.getCanvas();
+  return Math.round(10 * Math.max(0, ...boxEdge(fitBox(thematicPoints())).map(c => {
+    const p = map.project(c);
+    return Math.max(-p.x, p.x - W, -p.y, p.y - H);
+  }))) / 10;
 }
 
 function walk(c, out) {
@@ -1255,6 +1283,7 @@ function report(map, arcs) {
     annotations: map ? notesReport(map) : [],
     crossings: map ? crossings(map) : [],
     figure: figureSlack(),
+    edgeCut: map ? edgeCut(map) : null,
     dmControls: [...document.querySelectorAll('[data-dm-control]')].map(e => e.dataset.dmControl),
     reveal: map ? revealReport(map) : [],
     tooltips: !!document.querySelector('.dm-tip'),
@@ -1346,12 +1375,7 @@ function hugMap(map) {
   const cell = $('dm-map-cell'), {clientWidth: w, clientHeight: h} = cell;
   const figure = !!spec.figure?.size, narrow = document.body.classList.contains('dm-narrow');
   if (spec.projection.type === 'globe' || (!figure && innerWidth <= 720)) return false;
-  const pts = [], b = fitBox(thematicPoints()).flat();
-  for (let i = 0; i <= 36; i++) {
-    const t = i / 36;
-    pts.push([b[0] + t * (b[2] - b[0]), b[1]], [b[0] + t * (b[2] - b[0]), b[3]], [b[0], b[1] + t * (b[3] - b[1])], [b[2], b[1] + t * (b[3] - b[1])]);
-  }
-  const xy = pts.map(p => map.project(p)), xs = xy.map(p => p.x), ys = xy.map(p => p.y);
+  const xy = boxEdge(fitBox(thematicPoints())).map(p => map.project(p)), xs = xy.map(p => p.x), ys = xy.map(p => p.y);
   const aspect = (Math.max(...xs) - Math.min(...xs)) / (Math.max(...ys) - Math.min(...ys));
   const aside = $('dm-side'), top = aside ? aside.getBoundingClientRect().top : 0;
   const side = aside && !narrow ? Math.max(0, ...[...aside.querySelectorAll('section')].map(e => e.getBoundingClientRect().bottom - top)) : 0;

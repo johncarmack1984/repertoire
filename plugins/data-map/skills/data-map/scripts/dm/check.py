@@ -391,6 +391,9 @@ def judge_report(rep: dict, page: Page) -> list:
             out.append(WARN("zoom", f"zoom runs {lo} to {hi}, which the data can't support", 'set "zoom": {"min": "fit", "max": "fit+3"}', 25))
         else:
             out.append(PASS("zoom", f"zoom {lo:.2f} to {hi:.2f}; fitted at {rep.get('zoom', 0):.2f}", 25))
+        if (cut := rep.get("edgeCut")) and cut > 1:
+            out.append(FAIL("edge", f"the world's edge runs {cut:g} px past the map's frame, so the places along its sides are cut off",
+                            "fit the view to the CRS's own edges at lon_0 ± 180; restore the library with datamap.py sync", 33))
         out += judge_layers(rep, page)
         out += judge_labels(rep)
         out += judge_annotations(rep)

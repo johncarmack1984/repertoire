@@ -713,6 +713,21 @@ class Render(unittest.TestCase):
                 else:
                     self.assertGreater(png.near(counts, "#%02x%02x%02x" % ocean, 2), 10000, "the sphere's ocean is drawn")
 
+    def test_a_world_map_shows_its_whole_edge_around_its_own_central_meridian(self):
+        for frame, zoom_in, want in ((None, False, 0), ("sphere", False, 0), ("sphere", True, None)):
+            with self.subTest(frame=frame, zoom_in=zoom_in):
+                folder = copy("maplibre-crs", self.tmp / f"{frame}-{zoom_in}")
+                spec(frame=frame)(folder)
+                self.assertIn("+lon_0=11.6", (folder / "index.html").read_text())
+                if zoom_in:
+                    extend("map.setZoom(map.getZoom() + 0.1)")(folder)
+                code, result = self.render(folder)
+                if want == 0:
+                    self.assertEqual((code, result["report"]["edgeCut"]), (0, 0), findings(result, "FAIL"))
+                else:
+                    self.assertGreater(result["report"]["edgeCut"], 1)
+                    self.assertIn(("FAIL", "edge", 33), findings(result))
+
     def test_a_figure_taller_than_its_content_warns_with_the_height_that_fits(self):
         folder = copy("maplibre-crs", self.tmp / "tall")
         spec(figure={"size": "640x900"}, companions=[])(folder)

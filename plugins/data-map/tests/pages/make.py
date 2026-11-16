@@ -24,6 +24,8 @@ HERE = Path(__file__).resolve().parent
 SKILL = HERE.parents[1] / "skills" / "data-map"
 CLI = SKILL / "scripts" / "datamap.py"
 COUNTRIES = SKILL / "assets" / "geo" / "world-110m.json"
+sys.path.insert(0, str(SKILL / "scripts"))
+from dm.crs import WORLD_LON0 as LON0  # noqa: E402
 
 
 def dm(*args) -> None:
@@ -118,13 +120,13 @@ def build_maplibre_crs(out: Path, tmp: Path) -> None:
         rows.append([f["id"], p["name"], p["pop_est"], round(area_km2(f["geometry"]))])
     src = write_csv(tmp / "population.csv", ["iso_a3", "name", "pop_est", "area_km2"], rows)
     dense = tmp / "countries.geojson"
-    dm("geo", "--countries", "--densify", 250, "--out", dense)
+    dm("geo", "--countries", "--densify", 250, "--lon0", LON0, "--out", dense)
     # Antarctica has no permanent population, so it is left off, as a world rate map usually leaves it.
     countries = json.loads(dense.read_text())
     countries["features"] = [f for f in countries["features"] if f.get("id") != "ATA"]
     dense.write_text(json.dumps(countries))
     dm("new", "maplibre", out, "--preset", "equal-earth", "--force")
-    dm("geo", "--sphere", "--graticule", 30, "--out", out / "data" / "frame.geojson")
+    dm("geo", "--sphere", "--graticule", 30, "--lon0", LON0, "--out", out / "data" / "frame.geojson")
     dm("classes", src, "--field", "pop_est", "--per", "area_km2", "--scale", 1, "--geo", dense, "--key", "iso_a3=id",
        "--method", "quantile", "--k", 5, "--palette", "YlGnBu", "--layer", "density", "--out-dir", out / "data",
        "--title", "People per square kilometer", "--unit", "people per km²", "--label-field", "name")

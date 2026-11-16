@@ -17,7 +17,7 @@ DATA_REGION = re.compile(r"<!-- data-map:data -->\n(.*?)<!-- /data-map:data -->"
 DATA_FILE = re.compile(r'<!-- data-map:file (\S+) sha256:([0-9a-f]{64}) -->\n<script type="application/json" id="dm-data-([^"]+)">(.*?)</script>\n', re.S)
 SPEC = re.compile(r'(<script type="application/json" id="dm-spec">\n?)(.*?)(\n?</script>)', re.S)
 
-EQUAL_EARTH = {"type": "crs", "name": "custom:equal-earth", "definition": crs.equal_earth(), "property": "equal-area"}
+EQUAL_EARTH = {"type": "crs", "name": "custom:equal-earth", "definition": crs.equal_earth(crs.WORLD_LON0), "property": "equal-area"}
 PRESETS = {
     "equal-earth": {"projection": EQUAL_EARTH},
     "globe": {"projection": {"type": "globe"}},
