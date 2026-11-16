@@ -486,6 +486,13 @@ class Render(unittest.TestCase):
                     if name != "bare-maplibre":
                         self.assertEqual(findings(result, "WARN"), [], name)
 
+    def test_a_side_panel_that_cuts_off_its_companions_fails(self):
+        folder = copy("maplibre-mercator", self.tmp)
+        spec(companions=[{"type": "table", "layer": "capacity", "title": "Capacity by reservoir", "top": 6}] * 6)(folder)
+        code, result = self.render(folder, "--size", "1200x600")
+        self.assertEqual(code, 1)
+        self.assertIn(("FAIL", "clipped", 24), findings(result))
+
     def test_a_crs_with_no_false_origin_fails_with_the_fix(self):
         folder = copy("maplibre-crs", self.tmp)
         spec(projection={"type": "crs", "name": "custom:albers", "definition": ALBERS_NO_ORIGIN, "property": "equal-area"})(folder)

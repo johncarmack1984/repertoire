@@ -380,7 +380,8 @@ def judge_report(rep: dict, page: Page) -> list:
     if not close and len(fonts) <= 2:
         out.append(PASS("type", f"{', '.join(fonts)}; sizes {', '.join(f'{s:g}' for s in sizes)} px", 23))
     if clipped := rep.get("clipped"):
-        out.append(WARN("clipped", f"{len(clipped)} lines of the side panel are cut off: {'; '.join(clipped[:3])}", "shorten the companions, or give the page more height", 24))
+        out.append(FAIL("clipped", f"{len(clipped)} lines of the side panel are cut off at {(rep.get('viewport') or {}).get('w')}x{(rep.get('viewport') or {}).get('h')}: {'; '.join(clipped[:3])}",
+                        "cut the companions to what fits beside the map at this size, or move one below the map", 24))
     vw, vh = (rep.get("viewport") or {}).get("w"), (rep.get("viewport") or {}).get("h")
     if vw and (off := [b["text"] for b in rep.get("textBoxes", []) if b["x"] < -1 or b["y"] < -1 or b["x"] + b["w"] > vw + 1 or b["y"] + b["h"] > vh + 1]):
         out.append(WARN("offscreen", f"text runs off the page: {'; '.join(off[:3])}", "shorten it, or let it wrap", 24))
