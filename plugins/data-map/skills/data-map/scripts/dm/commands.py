@@ -779,26 +779,31 @@ def run_flows(args) -> int:
         findings.append(WARN("top-n", f"{len(drawn)} flows drawn at once tangle into a hairball", f"pass --top or --share; past {limit} flows the lines stop reading", 18))
     else:
         findings.append(PASS("top-n", note, 18))
-    # Curves clear only the nodes the map draws, which are the ends of the kept flows.
-    drawn_nodes = {x for f in kept for x in (f.o, f.d)}
-    placed = flows.place(kept, {k: n for k, n in nodes.items() if k in drawn_nodes}, args.geometry)
     vmax = max(f.value for f in kept)
     vmin = min(f.value for f in kept)
     fade_min = 1.0 if args.no_fade else args.fade_min
     color = args.color
-    order = {p.flow: rank for rank, p in enumerate(sorted(placed, key=lambda p: (-p.flow.value, p.flow.o, p.flow.d)))}
-    pair_set = {(p.flow.o, p.flow.d) for p in placed}
-    reciprocal = sum(1 for p in placed if (p.flow.d, p.flow.o) in pair_set) // 2
-    lines, arrows, arcs = [], [], []
-    node_ids = {key: i + 1 for i, key in enumerate(sorted({x for p in placed for x in (p.flow.o, p.flow.d)}))}
+    pair_set = {(f.o, f.d) for f in kept}
+    widths = {f: round(flows.width(f.value, vmax, args.max_width, args.min_width), 2) for f in kept}
+    offsets = {f: flows.side_offset(widths[f]) if (f.d, f.o) in pair_set else 0 for f in kept}
+    # Curves clear only the nodes the map draws, which are the ends of the kept flows.
+    node_ids = {key: i + 1 for i, key in enumerate(sorted({x for f in kept for x in (f.o, f.d)}))}
     measure = flows.NODE_VALUES[args.node_value]
     sized = {k: measure.size(totals[k]) for k in node_ids}
     size_max = max(sized.values())
     node_r = {k: symbols.radius(sized[k], size_max, flows.NODE_RMAX) for k in node_ids}
+    shown = {k: nodes[k] for k in node_ids}
+    if args.geometry == "curved":
+        placed, scale = flows.place_in_view(kept, shown, args.view, node_r, widths, offsets)
+    else:
+        placed, scale = flows.place(kept, shown, args.geometry), None
+    order = {p.flow: rank for rank, p in enumerate(sorted(placed, key=lambda p: (-p.flow.value, p.flow.o, p.flow.d)))}
+    reciprocal = sum(1 for f in kept if (f.d, f.o) in pair_set) // 2
+    lines, arrows, arcs = [], [], []
     split = 0
     for fid, p in enumerate(sorted(placed, key=lambda p: order[p.flow]), start=1):
         f = p.flow
-        w = round(flows.width(f.value, vmax, args.max_width, args.min_width), 2)
+        w, offset = widths[f], offsets[f]
         g = geo.line_geometry(p.coords)
         split += g["type"] == "MultiLineString"
         label = f"{nodes[f.o].label} to {nodes[f.d].label}"
@@ -806,7 +811,6 @@ def run_flows(args) -> int:
         if f.forward is not None and f.reverse:
             text += f" net ({num(f.forward)} out, {num(f.reverse)} back)"
         alpha = flows.opacity(f.value, vmin, vmax, fade_min)
-        offset = flows.side_offset(w) if (f.d, f.o) in pair_set else 0
         props = {"dm_o": f.o, "dm_d": f.d, "dm_value": f.value, "dm_width": w, "dm_offset": offset, "dm_opacity": alpha,
                  "dm_order": order[f], "dm_rank": order[f] + 1, "dm_km": round(p.km, 1), "dm_fill": color,
                  "dm_label": label, "dm_tip": text}
@@ -833,15 +837,7 @@ def run_flows(args) -> int:
     else:
         findings.append(PASS("great-circles", f"great circles densified every {flows.DENSIFY_DEG:g} degree; {reciprocal} reciprocal {'pair' if reciprocal == 1 else 'pairs'} offset to either side", 15))
     moved = [p for p in placed if p.clear and (p.side, p.curvature) != (1, flows.curvature_for(p.km, *km_range(placed)))]
-    stuck = [p for p in placed if not p.clear]
-    if args.geometry == "curved":
-        findings.append(PASS("clearance", f"{len(moved)} flows flipped or bent further to clear nodes they don't connect", 16))
-    if stuck:
-        names = ", ".join(f"{p.flow.o} to {p.flow.d} (near {', '.join(p.near)})" for p in stuck[:8])
-        findings.append(WARN("clearance", f"{len(stuck)} flows still pass within {flows.CLEARANCE_SHARE:.0%} of their length of an unconnected node: {names}",
-                             "move or drop the node, use --net, or pick another geometry", 16))
-    else:
-        findings.append(PASS("clearance", f"no flow passes within {flows.CLEARANCE_SHARE:.0%} of its length of a node it doesn't connect", 16))
+    findings += clearance_lines(placed, moved, args, scale)
     findings.append(PASS("antimeridian", f"{split} flows split into two parts at 180, with a vertex on the meridian", 20))
     findings.append(PASS("arrows", f"one arrowhead per flow at its destination, {flows.ARROW_RATIO:g} times the width and at least {flows.ARROW_MIN_PX:g} px", 17))
     findings.append(PASS("order", "small flows draw on top of large ones", 19))
@@ -868,6 +864,8 @@ def run_flows(args) -> int:
              "legend_values": lvals, "legend_widths": lwidths, "legend_opacities": lopacities,
              "arrow": {"ratio": flows.ARROW_RATIO, "min_px": flows.ARROW_MIN_PX},
              "nodes": node_legend,
+             "clearance": {"view": list(args.view), "zoom": round(math.log2(scale), 2), "gap_px": flows.CLEAR_PX} if scale
+             else {"share_of_length": flows.CLEARANCE_SHARE},
              "files": {"lines": f"{name}.geojson", "nodes": f"{name}-nodes.geojson", "arrows": f"{name}-arrows.geojson", "arcs": f"{name}-arcs.json"}}
     decisions = [
         legend.decision("geometry", args.geometry, "curves separate reciprocal and overlapping flows" if args.geometry == "curved" else "great circles on a globe", "Jenny et al. 2018 §4.1"),
@@ -882,6 +880,25 @@ def run_flows(args) -> int:
     ]
     files = {f"{name}-nodes.geojson": node_feats, f"{name}-arrows.geojson": arrows, f"{name}-arcs.json": arcs}
     return write_layer(args, lines, layer, flows.answers(all_flows, nodes, totals), decisions, findings, files)
+
+
+def clearance_lines(placed: list, moved: list, args, scale: float | None) -> list:
+    """What the curves did to clear nodes they don't connect, and each flow that still couldn't, by its worst gap."""
+    stuck = [p for p in placed if not p.clear]
+    if scale is None:
+        where, unit = f"{flows.CLEARANCE_SHARE:.0%} of their length", "km"
+        fix = "move or drop the node, use --net, or pick another geometry"
+    else:
+        where, unit = f"{flows.CLEAR_PX:g} px at the {args.view[0]:g} x {args.view[1]:g} px view (zoom {math.log2(scale):.2f})", "px"
+        fix = "zoom in (each step doubles every gap), give the map more room with --view, move or drop the node, or use --net"
+    out = []
+    if scale is not None:
+        out.append(PASS("clearance", f"{len(moved)} flows flipped or bent further to clear nodes they don't connect", 16))
+    if not stuck:
+        return out + [PASS("clearance", f"every flow keeps {where} from each node it doesn't connect", 16)]
+    names = ", ".join(f"{p.flow.o} to {p.flow.d} ({k} {g:+.1f} {unit})" for p in stuck[:8] for k, g in [min(p.near.items(), key=lambda kv: kv[1])])
+    return out + [WARN("clearance", f"{len(stuck)} flows still come within {where} of a node they don't connect: {names}; "
+                       "each gap runs from the line's edge to the node's, and is negative where they overlap", fix, 16)]
 
 
 def node_color_pair(args, findings: list) -> tuple | None:
@@ -944,6 +961,13 @@ def hex_color(text: str) -> str:
     if not re.fullmatch(r"#[0-9a-fA-F]{6}", text):
         raise argparse.ArgumentTypeError("a color as #rrggbb")
     return text.lower()
+
+
+def view_size(text: str) -> tuple:
+    m = re.fullmatch(r"(\d+(?:\.\d+)?)x(\d+(?:\.\d+)?)", text)
+    if not m or min(float(m[1]), float(m[2])) < 100:
+        raise argparse.ArgumentTypeError("the map's size as WxH in CSS px, each at least 100")
+    return float(m[1]), float(m[2])
 
 
 def color_pair(text: str) -> tuple:
@@ -1033,6 +1057,8 @@ def register(sub) -> None:
     p.add_argument("--fade-min", type=share, default=flows.FADE_MIN, metavar="A",
                    help=f"opacity of the smallest kept flow; the largest is 1 (default {flows.FADE_MIN:g})")
     p.add_argument("--no-fade", action="store_true", help="draw every flow fully opaque")
+    p.add_argument("--view", type=view_size, default=flows.VIEW, metavar="WxH",
+                   help="the map's size in CSS px, where curves clear nodes on screen (default %dx%d, the maplibre template's map at 1200x800)" % flows.VIEW)
     p.add_argument("--node-value", choices=list(flows.NODE_VALUES), default="gross",
                    help="what a node's circle area counts: in plus out (gross), arrivals (in), departures (out), or |in - out| (net, filled by sign)")
     p.add_argument("--node-colors", type=color_pair, metavar="GAIN,LOSS",

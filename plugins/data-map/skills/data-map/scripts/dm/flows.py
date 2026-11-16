@@ -18,6 +18,13 @@ GC_OFFSET = 0.05
 CLEARANCE_SHARE = 0.04
 DENSIFY_DEG = 1.0
 TURN_DEG = 2.5
+TILE = 512
+# The template's fit pads the view by FIT_PAD px past the largest node's radius (fitView in datamap.js).
+FIT_PAD = 14.0
+CLEAR_PX = 2.0
+# The maplibre template's map cell in a 1200 x 800 window (datamap.css): 1200 less 2 x 28 px of padding, the
+# 28 px gap and the 272 px side column is 844 wide; 800 less the padding, a two-line title, and the footer is 634.
+VIEW = (844, 634)
 ARROW_RATIO, ARROW_MIN_PX = 2.5, 6.0
 NODE_RMAX = 10.0
 # A dark warm orange-brown: warm hues are for the data, blue sinks on thin lines, and red reads as alarm.
@@ -29,7 +36,7 @@ NODE_COLOR = "#525252"
 # nor a loss outweighs the other.
 GAIN_COLOR, LOSS_COLOR = "#018571", "#6a51a3"
 HAIRBALL = {"curved": 100, "great-circle": 300}
-CANDIDATES = [(1, 1.0), (-1, 1.0), (1, 1.5), (-1, 1.5), (1, 2.0), (-1, 2.0)]
+CANDIDATES = [(1, 1.0), (-1, 1.0), (1, 1.5), (-1, 1.5), (1, 2.0), (-1, 2.0), (1, 2.5), (-1, 2.5), (1, 3.0), (-1, 3.0)]
 
 
 @dataclass(frozen=True)
@@ -60,13 +67,16 @@ class Placed:
     km: float
     side: int
     curvature: float
-    clearance_km: float
-    threshold_km: float
-    near: list = field(default_factory=list)
+    near: dict = field(default_factory=dict)
 
     @property
     def clear(self) -> bool:
         return not self.near
+
+    @property
+    def worst(self) -> float:
+        """The smallest gap to a node it comes too near, in the clearance's unit; inf when clear."""
+        return min(self.near.values(), default=math.inf)
 
 
 def aggregate(pairs: list) -> tuple:
@@ -193,34 +203,132 @@ def turn_samples(c: float) -> list:
     return [(1 - math.tan(top - 2 * top * i / k) / (2 * c)) / 2 for i in range(k + 1)]
 
 
-def side_of(p: list, a: list, b: list) -> int:
-    """1 when p lies to the right of travel from a to b, -1 to the left."""
-    n = geo.cross(geo.vec(a), geo.vec(b))
-    return -1 if geo.dot(geo.vec(p), n) > 0 else 1
+def mercator(p: list) -> tuple:
+    """Web Mercator at zoom 0 in 512 px tiles, as maplibre-gl draws a flat map."""
+    lat = math.radians(max(-85.0511, min(85.0511, p[1])))
+    return ((p[0] + 180) / 360 * TILE, (0.5 - math.log(math.tan(math.pi / 4 + lat / 2)) / (2 * math.pi)) * TILE)
 
 
-def nodes_too_near(coords: list, f: Flow, nodes: dict, threshold_km: float) -> tuple:
-    """Unconnected nodes within the threshold of the line, and the line's clearance from all of them."""
-    near, clearance = [], math.inf
-    ends = (nodes[f.o].pos, nodes[f.d].pos)
-    vs = [geo.vec(c) for c in coords]
-    mid = vs[len(vs) // 2]
-    reach = max(geo.angle(mid, v) for v in (vs[0], vs[-1])) + threshold_km / geo.R_KM
-    for nid, node in nodes.items():
-        if nid in (f.o, f.d) or min(geo.distance_km(node.pos, e) for e in ends) <= threshold_km:
-            continue
-        v = geo.vec(node.pos)
-        if geo.angle(v, mid) > reach * 1.5:
-            continue
-        dist = geo.point_polyline_angle(v, vs) * geo.R_KM
-        clearance = min(clearance, dist)
-        if dist < threshold_km:
-            near.append(nid)
-    return sorted(near), clearance
+def fit_scale(points: list, view: tuple, pad: float) -> float:
+    """2 ** zoom at which fitBounds puts these points in a view of (width, height) CSS px, padded on every side."""
+    xy = [mercator(p) for p in points]
+    dx = max(x for x, _ in xy) - min(x for x, _ in xy)
+    dy = max(y for _, y in xy) - min(y for _, y in xy)
+    fits = [(size - 2 * pad) / span for size, span in zip(view, (dx, dy)) if span > 0]
+    return min(fits) if fits else 1.0
 
 
-def place(flows: list, nodes: dict, geometry: str) -> list:
-    """Geometry for every flow, largest first; reciprocal flows always bow to opposite sides."""
+@dataclass(frozen=True)
+class ShareOfLength:
+    """On a globe no one view holds, so a line keeps a share of its own length from each node it doesn't connect."""
+
+    nodes: dict
+    share: float = CLEARANCE_SHARE
+
+    def gaps(self, coords: list, f: Flow) -> dict:
+        """Each unconnected node nearer than the share asks, with its distance in km less that share."""
+        threshold = self.share * geo.distance_km(self.nodes[f.o].pos, self.nodes[f.d].pos)
+        ends = (self.nodes[f.o].pos, self.nodes[f.d].pos)
+        vs = [geo.vec(c) for c in coords]
+        mid = vs[len(vs) // 2]
+        reach = max(geo.angle(mid, v) for v in (vs[0], vs[-1])) + threshold / geo.R_KM
+        out = {}
+        for nid, node in self.nodes.items():
+            if nid in (f.o, f.d) or min(geo.distance_km(node.pos, e) for e in ends) <= threshold:
+                continue
+            v = geo.vec(node.pos)
+            if geo.angle(v, mid) > reach * 1.5:
+                continue
+            dist = geo.point_polyline_angle(v, vs) * geo.R_KM
+            if dist < threshold:
+                out[nid] = dist - threshold
+        return out
+
+
+@dataclass(frozen=True)
+class OnScreen:
+    """At the view the page opens on, a line keeps CLEAR_PX between its edge and the circle of each node it doesn't
+    connect. It is measured where the line shows: shifted by its offset, and outside the circles at its two ends."""
+
+    nodes: dict
+    scale: float
+    radius: dict
+    width: dict
+    offset: dict
+
+    def px(self, p: list) -> tuple:
+        x, y = mercator(p)
+        return x * self.scale, y * self.scale
+
+    def gaps(self, coords: list, f: Flow) -> dict:
+        """Each unconnected node whose circle comes within CLEAR_PX of the line, with the pixels between their edges."""
+        half, shift = self.width[f] / 2, self.offset.get(f, 0)
+        ends = [(self.px(self.nodes[k].pos), self.radius[k]) for k in (f.o, f.d)]
+        segs = [s for a, b in zip(coords, coords[1:]) for s in visible(shifted(self.px(a), self.px(b), shift), ends)]
+        if not segs:
+            return {}
+        reach = max(self.radius.values()) + half + CLEAR_PX
+        xs = [x for s in segs for x, _ in s]
+        ys = [y for s in segs for _, y in s]
+        box = (min(xs) - reach, min(ys) - reach, max(xs) + reach, max(ys) + reach)
+        out = {}
+        for nid, node in self.nodes.items():
+            if nid in (f.o, f.d):
+                continue
+            q = self.px(node.pos)
+            if not (box[0] <= q[0] <= box[2] and box[1] <= q[1] <= box[3]):
+                continue
+            gap = min(point_segment(q, a, b) for a, b in segs) - self.radius[nid] - half
+            if gap < CLEAR_PX:
+                out[nid] = gap
+        return out
+
+
+def shifted(a: tuple, b: tuple, d: float) -> tuple:
+    """The screen segment a-b moved d px to the right of travel, as line-offset moves it (y grows downward)."""
+    if not d:
+        return a, b
+    dx, dy = b[0] - a[0], b[1] - a[1]
+    n = math.hypot(dx, dy) or 1.0
+    ox, oy = -dy / n * d, dx / n * d
+    return (a[0] + ox, a[1] + oy), (b[0] + ox, b[1] + oy)
+
+
+def visible(seg: tuple, circles: list) -> list:
+    """The parts of a screen segment outside every (center, radius) circle, which draws over the line."""
+    parts = [seg]
+    for c, r in circles:
+        parts = [q for s in parts for q in outside(s, c, r)]
+    return parts
+
+
+def outside(seg: tuple, c: tuple, r: float) -> list:
+    (ax, ay), (bx, by) = seg
+    dx, dy = bx - ax, by - ay
+    fx, fy = ax - c[0], ay - c[1]
+    qa, qb, qc = dx * dx + dy * dy, 2 * (fx * dx + fy * dy), fx * fx + fy * fy - r * r
+    disc = qb * qb - 4 * qa * qc
+    if qa == 0 or disc <= 0:
+        return [seg] if qc > 0 else []
+    root = math.sqrt(disc)
+    t1, t2 = max(0.0, (-qb - root) / (2 * qa)), min(1.0, (-qb + root) / (2 * qa))
+    if t1 >= t2:
+        return [seg]
+    at = lambda t: (ax + t * dx, ay + t * dy)
+    return [s for s in ((seg[0], at(t1)) if t1 > 0 else None, (at(t2), seg[1]) if t2 < 1 else None) if s]
+
+
+def point_segment(q: tuple, a: tuple, b: tuple) -> float:
+    dx, dy = b[0] - a[0], b[1] - a[1]
+    n = dx * dx + dy * dy
+    t = 0.0 if n == 0 else max(0.0, min(1.0, ((q[0] - a[0]) * dx + (q[1] - a[1]) * dy) / n))
+    return math.hypot(q[0] - a[0] - t * dx, q[1] - a[1] - t * dy)
+
+
+def place(flows: list, nodes: dict, geometry: str, clearance=None) -> list:
+    """Geometry for every flow, largest first; reciprocal flows always bow to opposite sides. A curve tries each
+    candidate side and bend until one keeps its clearance, else keeps the one nearest to it."""
+    clearance = clearance or ShareOfLength(nodes)
     kms = {f: geo.distance_km(nodes[f.o].pos, nodes[f.d].pos) for f in flows}
     dmin, dmax = min(kms.values(), default=0), max(kms.values(), default=0)
     pairs = {(f.o, f.d) for f in flows}
@@ -228,27 +336,42 @@ def place(flows: list, nodes: dict, geometry: str) -> list:
     out = []
     for f in sorted(flows, key=lambda f: (-f.value, f.o, f.d)):
         a, b = nodes[f.o].pos, nodes[f.d].pos
-        km = kms[f]
-        threshold = CLEARANCE_SHARE * km
         reciprocal = (f.d, f.o) in pairs
         if geometry == "great-circle":
             options = [(1, GC_OFFSET)] if reciprocal else [(1, 0.0)]
         else:
-            base = curvature_for(km, dmin, dmax)
+            base = curvature_for(kms[f], dmin, dmax)
             partner = chosen.get((f.d, f.o))
             options = [(s, base * m) for s, m in CANDIDATES if partner is None or s == partner]
         best = None
         for s, c in options:
             coords = curve(a, b, s, c) if c else geo.densify_gc([a, b], DENSIFY_DEG)
-            near, clearance = nodes_too_near(coords, f, nodes, threshold)
-            p = Placed(f, coords, km, s, c, clearance, threshold, near)
-            if best is None or (len(near), -clearance) < (len(best.near), -best.clearance_km):
+            p = Placed(f, coords, kms[f], s, c, clearance.gaps(coords, f))
+            if best is None or (len(p.near), -p.worst) < (len(best.near), -best.worst):
                 best = p
-            if not near:
+            if p.clear:
                 break
         chosen[(f.o, f.d)] = best.side
         out.append(best)
     return out
+
+
+def place_in_view(flows: list, nodes: dict, view: tuple, radius: dict, width: dict, offset: dict) -> tuple:
+    """Curves placed to clear nodes on screen at the view a page fits them to, with that view's 2 ** zoom.
+
+    The page fits the curves as well as the nodes, and the curves bend to the fit, so a few rounds settle both;
+    each round fits a smaller or equal scale, which only asks for more room.
+    """
+    pad = FIT_PAD + max(radius.values())
+    points = [n.pos for n in nodes.values()]
+    scale = fit_scale(points, view, pad)
+    for _ in range(4):
+        placed = place(flows, nodes, "curved", OnScreen(nodes, scale, radius, width, offset))
+        fitted = fit_scale(points + [c for p in placed for c in p.coords], view, pad)
+        if fitted >= scale * 0.999:
+            break
+        scale = fitted
+    return placed, scale
 
 
 def width(v: float, vmax: float, max_px: float, min_px: float) -> float:

@@ -65,6 +65,37 @@ def turns(line):
     return out
 
 
+
+def screen_gaps(out, layer, view):
+    """Fits a flows layer the way the maplibre template does (every vertex and node, padded 14 px past the largest
+    circle) and returns, per line, its smallest gap in px from its edge to the circle of a node it doesn't connect.
+    Each line is sampled every quarter pixel, shifted by its dm_offset, and left out under its two end circles."""
+    lines = json.loads((Path(out) / f"{layer}.geojson").read_text())["features"]
+    nodes = json.loads((Path(out) / f"{layer}-nodes.geojson").read_text())["features"]
+    parts = lambda g: g["coordinates"] if g["type"] == "MultiLineString" else [g["coordinates"]]
+    xy = [mercator(c) for f in lines for part in parts(f["geometry"]) for c in part] + [mercator(n["geometry"]["coordinates"]) for n in nodes]
+    pad = 14 + max(n["properties"]["dm_r"] for n in nodes)
+    k = min((view[0] - 2 * pad) / (max(x for x, _ in xy) - min(x for x, _ in xy)), (view[1] - 2 * pad) / (max(y for _, y in xy) - min(y for _, y in xy)))
+    at = {n["properties"]["dm_key"]: (tuple(v * k for v in mercator(n["geometry"]["coordinates"])), n["properties"]["dm_r"]) for n in nodes}
+    gaps = {}
+    for f in lines:
+        p = f["properties"]
+        ends = [at[p["dm_o"]], at[p["dm_d"]]]
+        shown = []
+        for part in parts(f["geometry"]):
+            q = [(x * k, y * k) for x, y in map(mercator, part)]
+            for a, b in zip(q, q[1:]):
+                n = max(1, int(math.dist(a, b) / 0.25))
+                nx, ny = -(b[1] - a[1]) / math.dist(a, b), (b[0] - a[0]) / math.dist(a, b)
+                for i in range(n + 1):
+                    c = (a[0] + (b[0] - a[0]) * i / n + nx * p["dm_offset"], a[1] + (b[1] - a[1]) * i / n + ny * p["dm_offset"])
+                    if all(math.dist(c, e) > r for e, r in ends):
+                        shown.append(c)
+        others = [(e, r) for key, (e, r) in at.items() if key not in (p["dm_o"], p["dm_d"])]
+        gaps[(p["dm_o"], p["dm_d"])] = min((math.dist(c, e) - r - p["dm_width"] / 2 for e, r in others for c in shown), default=math.inf)
+    return gaps
+
+
 class BikeCase:
     """The bike-share eval's own data, scaffolded once: 20 Portland stations and 380 OD pairs."""
 
@@ -417,6 +448,38 @@ class Flows(unittest.TestCase):
                 both = (p["dm_d"], p["dm_o"]) in pairs
                 self.assertEqual(p["dm_offset"], round(p["dm_width"] / 2 + 0.5, 2) if both else 0)
                 self.assertEqual(arrows[(p["dm_o"], p["dm_d"])]["dm_offset"], p["dm_offset"])
+
+
+
+class ScreenClearance(unittest.TestCase):
+    """Flows clear the stations they don't serve by 2 px on screen, at the view the page opens on."""
+
+    def test_every_bike_flow_clears_every_station_it_does_not_serve_at_the_default_view(self):
+        # Round 2 measured the old rule, 4% of a flow's length in km, at this zoom: five flows ran onto stations,
+        # one 3.3 px over Rose Quarter's circle.
+        with tempfile.TemporaryDirectory() as out:
+            code, text = BikeCase.flows(out, "--top", 40, "--max-width", 10)
+            self.assertEqual(code, 0, text)
+            gaps = screen_gaps(out, "bike", (844, 634))
+            self.assertEqual(len(gaps), 40)
+            self.assertGreaterEqual(min(gaps.values()), 2 - 0.05, sorted(gaps.items(), key=lambda kv: kv[1])[:3])
+            self.assertRegex(text, r"(?m)^PASS clearance \[P16\]: every flow keeps 2 px at the 844 x 634 px view")
+            layer = json.loads((Path(out) / "legend.json").read_text())["layers"]["bike"]
+            self.assertEqual(layer["clearance"]["view"], [844, 634])
+
+    def test_a_flow_that_cannot_clear_is_named_with_the_gap_the_screen_shows(self):
+        with tempfile.TemporaryDirectory() as out:
+            code, text = BikeCase.flows(out, "--top", 40, "--max-width", 10, "--view", "600x450")
+            self.assertEqual(code, 0, text)
+            measured = {pair: g for pair, g in screen_gaps(out, "bike", (600, 450)).items() if g < 2 - 0.05}
+        warn = re.search(r"(?m)^WARN clearance \[P16\]: (\d+) flows .*$", text)
+        self.assertTrue(warn, text)
+        named = {(o, d): float(g) for o, d, g in re.findall(r"(S\d+) to (S\d+) \(S\d+ ([-+][\d.]+) px\)", warn.group(0))}
+        self.assertEqual(int(warn.group(1)), len(named))
+        self.assertEqual(set(named), set(measured))
+        self.assertTrue(measured)
+        for pair, g in named.items():
+            self.assertAlmostEqual(g, measured[pair], delta=0.15)
 
 
 class NodeValues(unittest.TestCase):
