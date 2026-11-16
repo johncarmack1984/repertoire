@@ -1058,6 +1058,52 @@ function notesReport(map) {
     covers: n.covers || [], box: n.box && {x: at.x + n.box[0], y: at.y + n.box[1], w: n.box[2] - n.box[0], h: n.box[3] - n.box[1]}}));
 }
 
+// ---------- flows over nodes they don't connect, measured on screen at the current view ----------
+
+function distanceToSegment([x, y], a, b) {
+  const dx = b[0] - a[0], dy = b[1] - a[1], t = Math.max(0, Math.min(1, ((x - a[0]) * dx + (y - a[1]) * dy) / (dx * dx + dy * dy || 1)));
+  return Math.hypot(a[0] + t * dx - x, a[1] + t * dy - y);
+}
+
+// Each drawn MapLibre flow line that passes over the circle of a node it doesn't connect: the circle's center lies
+// nearer the line, moved by its dm_offset as MapLibre draws it, than the circle's radius plus half the line's width.
+// The lever clears nodes in kilometers, which can fall short at the zoom the page opens on. Raised deck.gl arcs leave
+// the ground, so they are left out.
+function crossings(map) {
+  const out = [], globe = spec.projection.type === 'globe';
+  const center = map.getCenter().toArray(), horizon = globe ? horizonDeg(map) : Infinity;
+  const front = c => !globe || angularKm(c, center) / EARTH_KM / RAD < horizon;
+  const xy = c => { const p = map.project(c); return [p.x, p.y]; };
+  for (const [name, L] of layersOf()) {
+    if (L.kind !== 'flows' || !map.getLayer(name)) continue;
+    const f = filesOf(name, L), all = data[f.nodes]?.features || [];
+    const names = Object.fromEntries(all.map(n => [n.properties.dm_key ?? n.id, n.properties.dm_label ?? n.id]));
+    const nodes = all.filter(n => front(n.geometry.coordinates))
+      .map(n => ({key: n.properties.dm_key ?? n.id, c: xy(n.geometry.coordinates), r: n.properties.dm_r || 3}));
+    for (const line of data[f.main]?.features || []) {
+      const p = line.properties, hw = (p.dm_width || 1) / 2, off = p.dm_offset || 0, worst = new Map();
+      for (const part of line.geometry.type === 'MultiLineString' ? line.geometry.coordinates : [line.geometry.coordinates]) {
+        for (let i = 1; i < part.length; i++) {
+          if (!front(part[i - 1]) || !front(part[i])) continue;
+          const a = xy(part[i - 1]), b = xy(part[i]), len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+          // Right of travel on a screen whose y runs down.
+          const nx = -(b[1] - a[1]) / len * off, ny = (b[0] - a[0]) / len * off;
+          const a2 = [a[0] + nx, a[1] + ny], b2 = [b[0] + nx, b[1] + ny];
+          for (const n of nodes) {
+            if (n.key === p.dm_o || n.key === p.dm_d) continue;
+            const over = n.r + hw - distanceToSegment(n.c, a2, b2);
+            if (over > (worst.get(n.key) ?? 0)) worst.set(n.key, over);
+          }
+        }
+      }
+      for (const [key, px] of worst) {
+        out.push({layer: name, flow: `${names[p.dm_o] ?? p.dm_o} to ${names[p.dm_d] ?? p.dm_d}`, node: names[key] ?? key, px: Math.round(px * 10) / 10});
+      }
+    }
+  }
+  return out.sort((a, b) => b.px - a.px);
+}
+
 // ---------- the report `datamap.py check` judges ----------
 
 const rect = e => { const r = e.getBoundingClientRect(); return {x: r.x, y: r.y, w: r.width, h: r.height}; };
@@ -1103,6 +1149,7 @@ function report(map, arcs) {
     arrows: arrowAgreement(map),
     labels: labelReport(map),
     annotations: map ? notesReport(map) : [],
+    crossings: map ? crossings(map) : [],
     tooltips: !!document.querySelector('.dm-tip'),
     rendered: renderedCounts(map),
     viewport: {w: innerWidth, h: innerHeight, dpr: devicePixelRatio}

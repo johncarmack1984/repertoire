@@ -29,6 +29,9 @@ import make  # noqa: E402
 from dm import chrome, png  # noqa: E402
 
 GOOD = ["maplibre-crs", "maplibre-globe", "deck-globe", "maplibre-mercator", "maplibre-chart"]
+# The warnings each good page renders with. A great circle can't bend around a node, and three of the Pacific
+# globe's run over Seoul, Los Angeles, and San Francisco at the opening view; the lever warns of it as well.
+EXPECTED_WARNS = {"maplibre-globe": [("WARN", "flows-over-nodes", 16)]}
 BROWSER = chrome.find_browser()
 PAGES = Path(tempfile.mkdtemp(prefix="data-map-pages-"))
 
@@ -513,7 +516,7 @@ class Render(unittest.TestCase):
                     self.assertEqual(code, 0, findings(result, "FAIL"))
                     self.assertTrue(Path(result["png"]).is_file())
                     if name != "bare-maplibre":
-                        self.assertEqual(findings(result, "WARN"), [], name)
+                        self.assertEqual(findings(result, "WARN"), EXPECTED_WARNS.get(name, []), name)
 
     def test_a_side_panel_that_cuts_off_its_companions_fails(self):
         folder = copy("maplibre-mercator", self.tmp)
@@ -662,6 +665,30 @@ class Render(unittest.TestCase):
                 self.assertLess(degrees(rep["center"], lima), 0.01)
                 self.assertEqual(rep["annotations"][0]["farSide"], False)
 
+    def test_a_flow_over_a_node_it_does_not_connect_warns_with_the_overlap(self):
+        nodes = {}
+
+        def through_tokyo(doc):
+            for f in doc["features"]:
+                p = f["properties"]
+                if (p["dm_o"], p["dm_d"]) == ("SHA", "MNL"):
+                    # The last segment stays, so the arrowhead still agrees with its line.
+                    f["geometry"] = {"type": "LineString", "coordinates": [nodes["SHA"]["at"], nodes["TYO"]["at"], *f["geometry"]["coordinates"][-2:]]}
+                    nodes["line"] = p
+
+        folder = copy("maplibre-globe", self.tmp)
+        for f in json.loads((folder / "data" / "movers-nodes.geojson").read_text())["features"]:
+            nodes[f["properties"]["dm_key"]] = {"at": f["geometry"]["coordinates"], "r": f["properties"]["dm_r"]}
+        data("movers", through_tokyo)(folder)
+        code, result = self.render(folder)
+        line = nodes["line"]
+        # Through Tokyo's center, then moved dm_offset px to the right of travel as MapLibre draws it.
+        px = round(nodes["TYO"]["r"] + line["dm_width"] / 2 - line["dm_offset"], 1)
+        warns = [f["message"] for f in result["findings"] if (f["status"], f["check"], f["pitfall"]) == ("WARN", "flows-over-nodes", 16)]
+        self.assertEqual(code, 0, findings(result, "FAIL"))
+        self.assertEqual(len(warns), 1, warns)
+        self.assertIn(f"Shanghai to Manila over Tokyo by {px:g} px", warns[0])
+
     def test_a_title_place_hidden_at_load_warns_until_a_note_marks_it(self):
         retitle = page('stay on its western side</h1>', 'stay on its western side, and few reach Lima</h1>')
         for notes, warned in (([], True), ([{"text": "Lima", "at": "node:LIM"}], False)):
@@ -679,7 +706,7 @@ class Render(unittest.TestCase):
         shutil.rmtree(folder / "data")
         code, result = self.render(folder)
         self.assertEqual(code, 0, findings(result, "FAIL"))
-        self.assertEqual(findings(result, "WARN"), [])
+        self.assertEqual(findings(result, "WARN"), EXPECTED_WARNS["maplibre-globe"])
 
     def test_without_a_network_the_render_is_reported_not_measured(self):
         folder = copy("maplibre-globe", self.tmp)

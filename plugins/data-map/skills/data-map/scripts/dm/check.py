@@ -389,6 +389,7 @@ def judge_report(rep: dict, page: Page) -> list:
         out += judge_labels(rep)
         out += judge_annotations(rep)
         out += judge_title_places(rep, page)
+        out += judge_crossings(rep)
     fonts = rep.get("fonts") or []
     if len(fonts) > 2:
         out.append(WARN("fonts", f"{len(fonts)} font families in use: {', '.join(fonts)}", "use at most two families", 23))
@@ -473,6 +474,18 @@ def judge_annotations(rep: dict) -> list:
     if notes and not out:
         far = sum(1 for a in notes if a.get("farSide"))
         out.append(PASS("annotations", f"{len(notes)} notes drawn on the map" + (f", {far} at the globe's rim for places on its far side" if far else ""), 24))
+    return out
+
+
+def judge_crossings(rep: dict) -> list:
+    out = []
+    by_layer: dict = {}
+    for c in rep.get("crossings") or []:
+        by_layer.setdefault(c["layer"], []).append(c)
+    for layer, found in by_layer.items():
+        out.append(WARN("flows-over-nodes", f"{len(found)} flows of {layer} pass over circles of nodes they don't connect: "
+                        + "; ".join(f"{c['flow']} over {c['node']} by {c['px']:g} px" for c in found),
+                        "bend those flows away from the node on screen, draw fewer flows, or shrink the circles; a reader takes a line over a circle to stop there", 16))
     return out
 
 
