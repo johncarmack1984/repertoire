@@ -74,18 +74,7 @@ The ratio is the finest that covers the positive values' span in at most 7 class
 
 A class that holds most of the units spreads one color over most of the map. When that class is the lowest, its pale color reads as none. `classes` warns when one class holds more than 40% of the units, a share past the even third of the fewest classes, and names the class, its share, and the fix (P5). Where the positive values span two orders of magnitude, the fix is `--method geometric`, with the share its largest class would hold.
 
-Rates per 100,000 for 172 countries, with skewness 4.7 and positive values from 0.044 to 117.7, show what each method does:
-
-| `--method` | k | Countries per class, low to high | Largest |
-| :-- | :-- | :-- | :-- |
-| `jenks` | 7 | 95, 43, 21, 6, 5, 1, 1 | 55% |
-| `geometric`, and `auto` | 5 | 18, 48, 56, 37, 13, at 0.2, 1, 5, 20 | 33% |
-| `quantile` | 7 | 25, 25, 25, 25, 24, 24, 24, at limits like 0.215 to 0.523 | 15% |
-| `headtail` | 4 | 130, 33, 6, 3 | 76% |
-| `equal` | 7 | 154, 11, 3, 2, 0, 1, 1 | 90% |
-| `manual` at 0.5, 2.5, 10, 40 | 5 | 47, 42, 50, 26, 7 | 29% |
-
-Jenks fits the raw values best and still leaves 55% of the countries in its palest class. Geometric breaks and the round hand breaks in the last row keep every class under a third.
+On rates that span orders of magnitude, Jenks fits the raw values best yet can leave half the units in its palest class, while geometric breaks, or round hand breaks in a near-constant ratio, keep each class near a third. Run `classes` with each method you weigh and compare the shares it prints; the warning names the largest class either way.
 
 ## The class count
 
