@@ -1,0 +1,29 @@
+schema_version: "1.1"
+name: world-rates-not-counts
+plugins:
+  - ../..
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: wrote-the-page
+    type: file_exists
+    path: measles-map/index.html
+    weight: 2
+  - name: equal-area-projection
+    type: regex
+    target: { source: file, path: measles-map/index.html }
+    pattern: 'eqearth|equal[\s_-]?earth|mollweide|\+proj=moll\b|eckert[\s_-]?(?:iv|4)\b|\+proj=eck4|\+proj=cea\b|cylindrical[\s_-]?equal[\s_-]?area|\+proj=laea|azimuthal[\s_-]?equal[\s_-]?area|homolosine|\+proj=igh\b|\bhammer\b'
+    flags: i
+    weight: 2
+  # Indicators: reported, not scored.
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?data-map"'
+    arm: with-only
+  - name: datamap-ran
+    type: tool_used
+    tool: Bash
+    input_match: 'datamap\.py'
+    min: 1
+    arm: with-only
