@@ -1,6 +1,6 @@
 # Display media
 
-This file holds the detail for step 4. It says which medium shows each measure and what a correct drawing of it looks like. The library draws every medium here except the combined bar-and-line graph, the Pareto chart, the treemap, and maps, so the geometry is for judging a drawing, not for making one. The rules follow chapter 6 of Few's book, "Effective Dashboard Display Media", unless another chapter is named.
+This file holds the detail for step 4. It says which medium shows each measure and what a correct drawing of it looks like. The library draws every medium here except the combined bar-and-line graph, the Pareto chart, and maps, so the geometry is for judging a drawing, not for making one. The rules follow chapter 6 of Few's book, "Effective Dashboard Display Media", unless another chapter is named.
 
 ## Choosing
 
@@ -100,7 +100,10 @@ A scatter plot shows whether two paired sets of values are related, in which dir
 
 ### Treemap
 
-A treemap fits a large hierarchy into the least space, with rectangle size for one quantity and one hue from white to saturated red for another. Few keeps it for spotting conditions that need attention, never for comparing or ranking values. The library doesn't draw one. Use a graphical table sorted by the condition, worst first, with alert dots, or small multiples of sorted bars per region. If the viewer truly has to scan hundreds of nested items, say in the report that the dashboard needs a treemap the library lacks; the check flags a hand-drawn one.
+A treemap fits a large hierarchy into the least space, with rectangle size for one quantity and one hue from neutral to saturated red for another. In a sales treemap, each state's area is its revenue and its color is its percent of quota. Few keeps it for spotting conditions that need attention across many items, never for comparing or ranking values. Use it when there are too many items for a table's rows, and a graphical table, worst first, when there are few.
+
+- Cells are squarified, so they stay near square, and grouped one level deep under header strips. A cell at or above its target stays neutral, a cell under the alert threshold is the full alert red, and the cells between take tints of it, so a cell's color and its alert agree. A label and its value appear only where they fit; every cell's exact values are on hover. Most cells' areas come within 3% of their share, close enough to spot a condition; `reference/api.md` gives the worst case.
+- `dd.treemap("#states", d.states, {sizeLabel: "Revenue"})`, keyed with `dd.legend` and its `heat` mark.
 
 ## Icons
 
