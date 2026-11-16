@@ -303,17 +303,33 @@ class Hung(Exception):
     pass
 
 
+# Chrome can't start its own sandbox inside another one, such as Claude Code's or a container's,
+# and says so in one of these lines. The rest of the run then launches it with --no-sandbox, still
+# inside the outer sandbox.
+NESTED_SANDBOX = ("sandbox initialization failed", "Failed to initialize sandbox", "No usable sandbox")
+no_sandbox = bool(os.environ.get("CI")) or (hasattr(os, "geteuid") and os.geteuid() == 0)
+
+
 def chrome(browser: str, extra: list[str], w: int, h: int, url: str, theme: str) -> subprocess.CompletedProcess:
-    with tempfile.TemporaryDirectory(prefix="dd-chrome-") as profile:
-        cmd = [browser, "--headless=new", "--disable-gpu", "--hide-scrollbars", "--force-device-scale-factor=1",
-               "--no-first-run", "--no-default-browser-check", "--disable-extensions", f"--user-data-dir={profile}",
-               f"--window-size={w},{h}", "--virtual-time-budget=5000", f"--blink-settings=preferredColorScheme={SCHEMES[theme]}", *extra, url]
-        if os.environ.get("CI") or (hasattr(os, "geteuid") and os.geteuid() == 0):
-            cmd.insert(1, "--no-sandbox")
-        try:
-            return subprocess.run(cmd, capture_output=True, text=True, timeout=60)
-        except subprocess.TimeoutExpired:
-            raise Hung(f"{browser} did not finish within 60 s") from None
+    global no_sandbox
+    # Chrome for macOS makes its single-instance socket in MAC_CHROMIUM_TMPDIR, else in the
+    # per-user folder under /var/folders, never in $TMPDIR, so a sandbox that allows writes
+    # only to $TMPDIR stops it at launch. The base folder keeps the socket path under 104 bytes.
+    env = {"MAC_CHROMIUM_TMPDIR": tempfile.gettempdir(), **os.environ}
+    while True:
+        with tempfile.TemporaryDirectory(prefix="dd-chrome-") as profile:
+            cmd = [browser, "--headless=new", "--disable-gpu", "--hide-scrollbars", "--force-device-scale-factor=1",
+                   "--no-first-run", "--no-default-browser-check", "--disable-extensions", f"--user-data-dir={profile}",
+                   f"--window-size={w},{h}", "--virtual-time-budget=5000", f"--blink-settings=preferredColorScheme={SCHEMES[theme]}", *extra, url]
+            if no_sandbox:
+                cmd.insert(1, "--no-sandbox")
+            try:
+                run = subprocess.run(cmd, capture_output=True, text=True, timeout=60, env=env)
+            except subprocess.TimeoutExpired:
+                raise Hung(f"{browser} did not finish within 60 s") from None
+        if no_sandbox or not any(line in run.stderr for line in NESTED_SANDBOX):
+            return run
+        no_sandbox = True
 
 
 def probe(page: Path, text: str) -> Path:
@@ -336,13 +352,16 @@ def measure(browser: str, page: Path, w: int, h: int, theme: str, delta=(0, 0)):
         run = chrome(browser, ["--dump-dom"], w + dw, h + dh, page.as_uri(), theme)
         m = REPORT.search(run.stdout)
         if not m:
-            return None, (dw, dh), run.stderr.strip().splitlines()[-3:]
+            err = "; ".join(run.stderr.strip().splitlines()[-3:])
+            what, fix = (("check.js wrote no #dd-report in the page", "check that the lib region is intact; run sync") if run.stdout.strip()
+                         else ("Chrome rendered nothing", "read Chrome's errors, or set DD_BROWSER to a Chrome that runs headless here"))
+            return None, (dw, dh), (what + (f" ({err})" if err else ""), fix)
         rep = json.loads(m[1])
         iw, ih = rep["viewport"]["w"], rep["viewport"]["h"]
         if (iw, ih) == (w, h):
             break
         dw, dh = dw + w - iw, dh + h - ih
-    return rep, (dw, dh), []
+    return rep, (dw, dh), None
 
 
 def screenshot(browser: str, page: Path, w: int, h: int, out: Path, theme: str) -> tuple[int, int] | None:
@@ -487,9 +506,9 @@ def cmd_check(a) -> int:
 def browser_pass(browser: str, page: Path, copy: Path, w: int, h: int, pw: int, ph: int, out: list[dict], themes: list[str]):
     shots, reports, judged, delta = [], {}, {}, (0, 0)
     for theme in themes:
-        rep, delta, err = measure(browser, copy, w, h, theme, delta)
+        rep, delta, failure = measure(browser, copy, w, h, theme, delta)
         if rep is None:
-            judged[theme] = [finding("FAIL", "browser", None, "check.js wrote no #dd-report in the page" + (f" ({'; '.join(err)})" if err else ""), "check that the lib region is intact; run sync")]
+            judged[theme] = [finding("FAIL", "browser", None, *failure)]
             break
         reports[theme] = rep
         judged[theme] = judge(rep, w, h, theme)
