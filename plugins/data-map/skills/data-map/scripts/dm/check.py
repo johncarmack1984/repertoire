@@ -15,7 +15,7 @@ from pathlib import Path
 from . import FAIL, PASS, WARN, Finding, report
 from . import chrome as cdp
 from . import png
-from .page import DATA_FILE, DATA_REGION, LIB_REGION, SPEC, drift
+from .page import DATA_FILE, DATA_REGION, LIB_REGION, SPEC, WORK, drift
 
 PINS = {"maplibre-gl": "6.18.0", "proj4": "2.22.0", "pmtiles": "4.5.0", "deck.gl": "9.4.1", "@protomaps/basemaps": "5.7.2"}
 AREAL = {"choropleth", "dots-and-density", "multivariate"}
@@ -291,6 +291,10 @@ def rule_text(page: Page) -> list:
                              ("source", source, "a source line with the date")):
         if not value or "[" in value:
             out.append(FAIL(key, f"the {key} is {'missing' if not value else 'still the placeholder'}", f"write {what}", 24))
+    tab = re.search(r"<title>(.*?)</title>", page.text, re.S)
+    if not tab or not tab[1].strip() or "[" in tab[1]:
+        out.append(FAIL("title", f"the page's <title>, the name on its tab, is {'missing' if not tab or not tab[1].strip() else 'still the placeholder'}",
+                        "write the title's point in <title>, shortened to fit a tab", 24))
     if title and re.search(r"\bmap\b", title, re.I):
         out.append(WARN("title", f'the title says "map": "{title}"', "state the point instead; the reader can see it is a map", 24))
     if re.search(r">\s*(Legend|Key)\s*<", page.authored):
@@ -319,8 +323,20 @@ def rule_annotations(page: Page) -> list:
     return []
 
 
+# What check and new used to leave beside the page, and an agent's notes: working files the deliverable leaves out.
+STRAY = re.compile(r"brief\.md|check\.json|index\..*\.png|.*notes?\.md")
+
+
+def rule_deliverable(page: Page) -> list:
+    stray = sorted(p.name for p in page.folder.iterdir() if p.is_file() and STRAY.fullmatch(p.name))
+    if stray:
+        return [WARN("deliverable", f"working files sit beside the page: {', '.join(stray)}",
+                     f"move them into {WORK}/, where new keeps the brief and check its screenshots and check.json; the folder ships index.html, data/, and vendor/")]
+    return []
+
+
 MAP_RULES = [rule_projection, rule_tiles, rule_controls, rule_pitch, rule_zoom, rule_legend, rule_annotations]
-PAGE_RULES = [rule_pins, rule_library, rule_fonts, rule_motion, rule_text, rule_companions]
+PAGE_RULES = [rule_pins, rule_library, rule_fonts, rule_motion, rule_text, rule_companions, rule_deliverable]
 
 
 def static_pass(page: Page) -> list:
@@ -636,7 +652,9 @@ def check_page(args) -> int:
         raise ValueError(f"dm-spec figure.scale {scale!r} is not a positive number")
     scale = int(scale) if scale == int(scale) else scale
     findings = static_pass(page)
-    shot = folder / (f"index.{w}x{h}.png" if scale == 1 else f"index.{w}x{h}@{scale:g}x.png")
+    work = folder / WORK
+    work.mkdir(exist_ok=True)
+    shot = work / (f"index.{w}x{h}.png" if scale == 1 else f"index.{w}x{h}@{scale:g}x.png")
     run = None
     browser = None if args.no_browser else cdp.find_browser()
     if args.no_browser or not browser:
@@ -659,7 +677,7 @@ def check_page(args) -> int:
               "size": [w, h], "scale": scale, "report": (run or {}).get("report"),
               "run": {k: v for k, v in (run or {}).items() if k not in ("report",)}}
     ok = not any(f.status == "FAIL" for f in findings)
-    (folder / "check.json").write_text(json.dumps({"ok": ok, "findings": [asdict(f) for f in findings], **record}, indent=1, ensure_ascii=False) + "\n")
+    (work / "check.json").write_text(json.dumps({"ok": ok, "findings": [asdict(f) for f in findings], **record}, indent=1, ensure_ascii=False) + "\n")
     return report(findings, args.json, record)
 
 

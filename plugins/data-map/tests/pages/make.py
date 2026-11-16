@@ -56,7 +56,7 @@ def fill(out: Path, *, title: str, subtitle: str, source: str, credits: str, spe
     current.update(spec)
     text = text[:m.start(2)] + json.dumps(current, indent=1, ensure_ascii=False) + text[m.end(2):]
     page.write_text(text, encoding="utf-8")
-    brief = out / "brief.md"
+    brief = out / ".dm" / "brief.md"
     brief.write_text(brief.read_text(encoding="utf-8").replace("Reader:\n", f"Reader: anyone reading the fixture page ({out.name})\n"),
                      encoding="utf-8")
 

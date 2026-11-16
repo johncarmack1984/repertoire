@@ -11,6 +11,8 @@ from pathlib import Path
 from . import FAIL, PASS, VERSION, WARN, crs, report
 
 TEMPLATES = Path(__file__).resolve().parents[2] / "assets" / "templates"
+# The project's working files, the brief, check's screenshots, and check.json, which never ship with the map.
+WORK = ".dm"
 LIB = {"css": ("style", "datamap.css"), "js": ("script", "datamap.js")}
 LIB_REGION = re.compile(r"<!-- data-map:lib (css|js)(?: (\S+) sha256:([0-9a-f]{64}))? -->\n(?:<(?:style|script)>\n(.*?)</(?:style|script)>\n)?<!-- /data-map:lib \1 -->", re.S)
 DATA_REGION = re.compile(r"<!-- data-map:data -->\n(.*?)<!-- /data-map:data -->", re.S)
@@ -152,8 +154,10 @@ def run_new(args) -> int:
     elif preset:
         raise UsageError(f"{args.stack} sets its projection in its own files; drop --preset")
     # shutil.copy keeps no timestamps: a copy carrying the template's old mtimes looks built already to cargo.
-    shutil.copytree(src, out, dirs_exist_ok=True, copy_function=shutil.copy)
+    shutil.copytree(src, out, dirs_exist_ok=True, copy_function=shutil.copy, ignore=shutil.ignore_patterns("brief.md"))
     (out / "data").mkdir(exist_ok=True)
+    (out / WORK).mkdir(exist_ok=True)
+    shutil.copy(src / "brief.md", out / WORK / "brief.md")
     findings = []
     if (out / "Cargo.toml").is_file():
         name = rename_package(out)
@@ -170,7 +174,7 @@ def run_new(args) -> int:
     else:
         findings.append(PASS("new", f"wrote {out.resolve()} from the {args.stack} template"))
     then = f"run datamap.py sync {out}" if page.exists() else "cargo run --release -- --snapshot out.png, then datamap.py check --png out.png"
-    findings.append(PASS("next", f"fill brief.md, write the layers with --out-dir {out / 'data'}, then {then}"))
+    findings.append(PASS("next", f"fill {out / WORK / 'brief.md'}, write the layers with --out-dir {out / 'data'}, then {then}"))
     return report(findings, args.json)
 
 
@@ -214,7 +218,7 @@ def run(args) -> int:
 
 def register(sub) -> None:
     p = sub.add_parser("new", help="start a map project from a stack's template",
-                       description="Copies the stack's template into OUT, with brief.md to fill in and an empty data/ folder.")
+                       description="Copies the stack's template into OUT, with an empty data/ folder and .dm/brief.md to fill in.")
     p.add_argument("stack", metavar="STACK", help="maplibre, deck-gl, or mln-rs")
     p.add_argument("out", metavar="OUT", help="the project folder to create")
     p.add_argument("--preset", choices=sorted(PRESETS), help="equal-earth (maplibre's default), globe (deck-gl's default), mercator, or chart (a page with no map, for a no-map answer)")

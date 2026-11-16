@@ -24,12 +24,12 @@ python3 <skill>/scripts/datamap.py check map --scale 2
 ```
 
 - `index.html` holds the `dm-spec` block, the title block, the map cell, the side panel, and the source line. `sync` inlines the page library from `assets/templates/lib/` and every JSON and GeoJSON file in `data/`.
-- `brief.md` is the brief to fill in before anything is drawn.
+- `.dm/` holds the working files, which never ship with the map: `brief.md`, the brief to fill in before anything is drawn, and the screenshots and `check.json` that `check` writes. `check` warns on a brief, a screenshot, `check.json`, or a notes file left beside `index.html`.
 - Every color, size, and width comes from `legend.json` and the `dm_*` properties the levers wrote. Edit the page's text and its `dm-spec`, not the library region; `check` fails a library edited by hand.
 
 ## The slots
 
-- `#dm-title` states the point, and `#dm-subtitle` says what, where, and when (Slocum, ch. 11). `check` fails a bracketed placeholder and warns on the word map.
+- `#dm-title` states the point, and `#dm-subtitle` says what, where, and when (Slocum, ch. 11). `<title>` names the tab, so it carries the same point, shortened to fit. `check` fails a bracketed placeholder in any of the three and warns on the word map.
 - `#dm-source` names who published the data and when. `#dm-credits` holds the projection and the boundary or basemap credit.
 - `dm-spec` records every decision the brief made. `check` judges the page against it.
 
@@ -130,7 +130,7 @@ To add a layer by hand, pass a function as the second argument of `DataMap.start
 - maplibre-gl's `glyphs`-free text uses `text-font` names as CSS families, and a generic such as `system-ui` can't carry a weight. The template handles basemap labels; a label layer of your own uses the page's font stack.
 - The levers write string ids for areas, so hover outlines match the feature's id with a filter rather than feature-state.
 - Class fills stay opaque. A `fill-opacity` below 1 blends each class with what lies under it, so the map no longer shows the legend's colors (P9), and `check` can't find them.
-- `check` writes `index.<W>x<H>.png` and `check.json` beside the page; keep them out of version control.
+- `check` writes `.dm/index.<W>x<H>.png` and `.dm/check.json`; keep `.dm/` out of version control.
 - A synced page holds every data file it draws, so it can travel without `data/`, and `check` then judges it from its inlined blocks. `sync` refuses such a page, since it would drop them.
 
 ## Updating the pins

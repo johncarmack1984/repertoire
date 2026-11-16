@@ -158,6 +158,17 @@ def turn_arrows(doc):
         f["properties"]["dm_bearing"] = (f["properties"]["dm_bearing"] + 90) % 360
 
 
+def tab_title(text: str):
+    def edit(folder: Path):
+        p = folder / "index.html"
+        p.write_text(re.sub(r"<title>.*?</title>", f"<title>{text}</title>", p.read_text(), count=1))
+    return edit
+
+
+def working_file(name: str):
+    return lambda folder: (folder / name).write_text("x")
+
+
 def drop_why(folder: Path):
     p = folder / "index.html"
     text = p.read_text()
@@ -187,6 +198,10 @@ STATIC_BAD = [
     ("a data layer no legend explains", "maplibre-crs", add_data("stations"), ("FAIL", "legend", 9)),
     ("data changed after sync", "maplibre-crs", data("density", recolor, resync=False), ("FAIL", "sync", 9)),
     ("the title still the placeholder", "maplibre-crs", page('id="dm-title">Bangladesh', 'id="dm-title">[A title] Bangladesh'), ("FAIL", "title", 24)),
+    ("the tab's title still the placeholder", "maplibre-crs", tab_title("[A title that states the point]"), ("FAIL", "title", 24)),
+    ("no tab title", "maplibre-globe", tab_title(""), ("FAIL", "title", 24)),
+    ("the brief beside the page", "maplibre-crs", working_file("brief.md"), ("WARN", "deliverable", None)),
+    ("an old screenshot beside the page", "maplibre-globe", working_file("index.1200x800@2x.png"), ("WARN", "deliverable", None)),
     ("a title that says map", "maplibre-crs", page('id="dm-title">Bangladesh', 'id="dm-title">A map: Bangladesh'), ("WARN", "title", 24)),
     ("no source line", "maplibre-globe", page('<p id="dm-source">Source: synthetic test data for the data-map plugin.</p>', ""), ("FAIL", "source", 24)),
     ("maplibre-gl off its pin", "maplibre-globe", lambda f: (page("maplibre-gl@6.18.0/dist/maplibre-gl.css", "maplibre-gl@6.17.0/dist/maplibre-gl.css")(f)),
@@ -330,7 +345,8 @@ class New(unittest.TestCase):
                 args = ["new", stack, out] + (["--preset", preset] if preset else [])
                 self.assertEqual(cli(*args)[0], 0)
                 self.assertEqual(self.spec_of(out)["projection"]["type"], want)
-                self.assertTrue((out / "brief.md").is_file() and (out / "data").is_dir())
+                self.assertTrue((out / ".dm" / "brief.md").is_file() and (out / "data").is_dir())
+                self.assertFalse((out / "brief.md").exists(), "the brief is a working file, kept out of the deliverable")
                 self.assertEqual(cli("sync", out, "--check")[0], 0)
 
     def test_every_template_brief_holds_the_brief_lines_in_one_block(self):
@@ -340,7 +356,7 @@ class New(unittest.TestCase):
             with self.subTest(stack):
                 out = self.tmp / stack
                 self.assertEqual(cli("new", stack, out)[0], 0)
-                head, intro, blocks = re.fullmatch(r"(# Brief)\n\n([^\n]+)\n\n((?:```[a-z]*\n.*?```\n)+)", (out / "brief.md").read_text(), re.S).groups()
+                head, intro, blocks = re.fullmatch(r"(# Brief)\n\n([^\n]+)\n\n((?:```[a-z]*\n.*?```\n)+)", (out / ".dm" / "brief.md").read_text(), re.S).groups()
                 self.assertEqual(blocks.count("```"), 2)
                 self.assertEqual(blocks.splitlines()[1:-1], want)
 
@@ -516,6 +532,10 @@ class Render(unittest.TestCase):
                     code, result = self.render(folder, "--scale", scale)
                     self.assertEqual(code, 0, findings(result, "FAIL"))
                     self.assertTrue(Path(result["png"]).is_file())
+                    self.assertEqual(Path(result["png"]).parent, folder.resolve() / ".dm", "screenshots are working files")
+                    self.assertTrue((folder / ".dm" / "check.json").is_file())
+                    self.assertEqual(sorted(p.name for p in folder.iterdir() if not p.name.startswith(".")),
+                                     sorted(p.name for p in (PAGES / name).iterdir() if not p.name.startswith(".")), "check adds nothing beside the page")
                     if name != "bare-maplibre":
                         self.assertEqual(findings(result, "WARN"), EXPECTED_WARNS.get(name, []), name)
 

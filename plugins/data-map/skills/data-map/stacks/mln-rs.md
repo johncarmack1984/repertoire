@@ -29,7 +29,7 @@ python3 <skill>/scripts/datamap.py check --png map.png --legend data/legend.json
 - `src/main.rs` holds the map's code, which builds the style and the arrowhead, applies live values, and writes the snapshot and its report.
 - `src/window.rs` holds the window.
 - `style.json` is the style, with `{{DATA}}` where the data folder's path goes.
-- `brief.md` is the brief to fill in.
+- `.dm/brief.md` is the brief to fill in, kept apart from what ships.
 
 `datamap.py new mln-rs OUT` names the package in `Cargo.toml` after the project folder and gives the copied files fresh times. Keep that name unique. The binary takes the name, as `target/release/map` above, under `$CARGO_TARGET_DIR` when that is set. Cargo hashes a root package's path relative to its own folder, so two projects with one package name in one target folder share a binary, and the binary reads the data folder it was built from. A fresh copy whose files keep their old times builds nothing and runs the other project's map.
 
