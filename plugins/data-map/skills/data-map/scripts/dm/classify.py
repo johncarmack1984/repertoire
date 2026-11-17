@@ -25,6 +25,9 @@ SPAN_DECADES = 2.0
 # ladder serves only when the first can't fill every class.
 LADDERS = ((1, 2, 5), (1, 2.5, 5))
 RATIO_WORDS = {1: "2 to 2.5", 2: "4 to 5", 3: "10"}
+# The top geometric class holds as few units as it can, so the darkest color isolates the highest values, but two at
+# least: a top break just under the maximum leaves a class of one outlier, often a tiny place with an unstable rate.
+TOP_MIN = 2
 
 
 def mean(xs: list) -> float:
@@ -350,9 +353,9 @@ def geometric_steps(d: float, k: int) -> int:
 
 
 def geometric_breaks(xs: list, k: int) -> list:
-    """Breaks that climb the same number of rungs per class, centered on the positive values: of the placements that leave
-    every class a value, the one whose wider end class spans the fewest decades, so neither the lowest class nor the
-    highest swallows its end of the range. Empty when no placement fills k classes."""
+    """Breaks that climb the same number of rungs per class. Of the placements that leave every class a value and none
+    more than SWALLOW_SHARE of them, the one whose top class holds the fewest, TOP_MIN at least; when none qualifies,
+    the one whose wider end class spans the fewest decades. Empty when no placement fills k classes."""
     pos = [x for x in xs if x > 0]
     lo, hi = pos[0], pos[-1]
     s = geometric_steps(math.log10(hi / lo), k)
@@ -364,7 +367,8 @@ def geometric_breaks(xs: list, k: int) -> list:
             sizes = [len(g) for g in groups(xs, inner)]
             if 0 in sizes:
                 continue
-            key = (max(math.log10(inner[0] / lo), math.log10(hi / inner[-1])), sum(n * n for n in sizes))
+            top = sizes[-1] if sizes[-1] >= TOP_MIN and max(sizes) <= SWALLOW_SHARE * len(xs) else math.inf
+            key = (top, max(math.log10(inner[0] / lo), math.log10(hi / inner[-1])), sum(n * n for n in sizes))
             if best is None or key < best[0]:
                 best = (key, inner)
         if best:
