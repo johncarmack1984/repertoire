@@ -1087,6 +1087,30 @@ class Render(unittest.TestCase):
                     box = next(b for b in rep["textBoxes"] if b["text"] == want[:60])
                     self.assertGreaterEqual(box["y"], rep["mapBox"]["y"] + rep["mapBox"]["h"], "the hint sits under the map")
 
+    def test_a_tap_just_beside_a_hairline_flow_shows_its_numbers(self):
+        # MapLibre hits a line only within half its width, so a pointer 4 px off a 1 px flow lands on nothing drawn.
+        tap = ("const thin = map.queryRenderedFeatures({layers: ['trips']})[0]; "
+               "const line = thin.geometry.type === 'LineString' ? thin.geometry.coordinates : thin.geometry.coordinates[0]; "
+               "const mid = map.project(line[Math.floor(line.length / 2)]); "
+               "const at = [...Array(24).keys()].map(i => [mid.x + 4 * Math.cos(i * Math.PI / 12), mid.y + 4 * Math.sin(i * Math.PI / 12)])"
+               ".find(p => !map.queryRenderedFeatures(p, {layers: ['trips', 'trips-nodes']}).length); "
+               "if (!at) throw new Error('no spot beside the flow is clear of drawn features'); "
+               "const r = map.getCanvas().getBoundingClientRect(), xy = {clientX: r.left + at[0], clientY: r.top + at[1], bubbles: true, button: 0}; "
+               "for (const kind of ['mousedown', 'mouseup', 'click']) map.getCanvas().dispatchEvent(new MouseEvent(kind, xy)); "
+               "const tip = document.querySelector('.dm-tip'), tips = new Set(DataMap.data.trips.features.map(f => f.properties.dm_tip)); "
+               "if (tip.style.display !== 'block' || !tips.has(tip.textContent)) throw new Error(`a tap beside a hairline flow showed ${tip.style.display === 'block' ? tip.textContent : 'nothing'}`)")
+
+        def hairlines(fc):
+            for f in fc["features"]:
+                f["properties"].update(dm_width=1, dm_offset=1 if f["properties"].get("dm_offset") else 0)
+
+        folder = copy("maplibre-flows", self.tmp)
+        data("trips", hairlines, resync=False)(folder)
+        extend(tap)(folder)
+        cli("sync", folder)
+        code, result = self.render(folder)
+        self.assertIn(("PASS", "ready", 33), findings(result), [f["message"] for f in result["findings"] if f["check"] == "ready"])
+
     def test_a_synced_page_without_data_renders_and_passes(self):
         folder = copy("maplibre-globe", self.tmp)
         shutil.rmtree(folder / "data")

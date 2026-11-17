@@ -12,6 +12,9 @@ const NS = 'http://www.w3.org/2000/svg';
 const RAD = Math.PI / 180;
 const EARTH_KM = 6371;
 const NONE = ['==', ['id'], '__dm_none__'];
+// MapLibre hits a line only within half its width, which leaves a hairline flow all but untappable, so an unseen line
+// at least this wide, in px, takes the pointer under each flow; a finger lands less exactly than a mouse.
+const HIT = matchMedia('(pointer: coarse)').matches ? 24 : 12;
 const ARROW = {len: 20, base: 19, pad: 4};
 const ARC_APEX = 0.08;
 const FRAME = 'none';
@@ -283,7 +286,7 @@ function applyView() {
   if (!map) return;
   for (const [name, L] of layersOf()) {
     if (L.kind !== 'flows') continue;
-    for (const id of [name, name + '-arrows']) if (map.getLayer(id)) map.setFilter(id, lineFilter(name));
+    for (const id of [name, name + '-hit', name + '-arrows']) if (map.getLayer(id)) map.setFilter(id, lineFilter(name));
     if (shownKeys[name]) for (const id of [name + '-nodes', name + '-labels']) if (map.getLayer(id)) map.setFilter(id, nodeFilter(name));
     const on = focused?.layer === name, color = on ? focusColor(focused.key) : ['coalesce', ['get', 'dm_fill'], L.color || t.flow];
     if (map.getLayer(name)) map.setPaintProperty(name, 'line-color', color);
@@ -571,12 +574,15 @@ function buildKinds(t, crs, deck) {
       if (lines && !deck) {
         part.sources[f.main] = lines;
         part.line.push(
+          // Under the drawn lines, so a pointer on a drawn line takes that line before a neighbor's wider unseen one.
+          {id: name + '-hit', type: 'line', source: f.main, ...(lineFilter(name) && {filter: lineFilter(name)}), layout: {'line-sort-key': ['get', 'dm_order']},
+            paint: {'line-opacity': 0, 'line-width': ['max', ['get', 'dm_width'], HIT], 'line-offset': ['coalesce', ['get', 'dm_offset'], 0]}},
           {id: name, type: 'line', source: f.main, ...(lineFilter(name) && {filter: lineFilter(name)}), layout: {'line-sort-key': ['get', 'dm_order'], 'line-join': 'round'},
             paint: {'line-color': color, 'line-width': ['get', 'dm_width'], 'line-offset': ['coalesce', ['get', 'dm_offset'], 0],
               'line-opacity': ['coalesce', ['get', 'dm_opacity'], 1]}},
           {id: name + '-hover', type: 'line', source: f.main, filter: NONE,
             paint: {'line-color': t.text, 'line-width': 1, 'line-gap-width': ['get', 'dm_width'], 'line-offset': ['coalesce', ['get', 'dm_offset'], 0]}});
-        part.hover.push([name, name + '-hover']);
+        part.hover.push([name, name + '-hover'], [name + '-hit', name + '-hover']);
       }
       if (nodes) {
         part.sources[f.nodes] = nodes;
@@ -880,6 +886,7 @@ function screenArrows(map) {
 
 // ---------- interaction: a tooltip from dm_tip, and an outline on the feature under the pointer ----------
 
+// One feature answers the pointer: the topmost of the hover layers' features under it, outlined alone.
 function interact(map, hover) {
   const tip = html('div', {class: 'dm-tip'}, $('dm-map-cell'));
   const show = (text, x, y) => {
@@ -890,16 +897,24 @@ function interact(map, hover) {
     tip.style.left = `${right ? x - 14 - tip.offsetWidth : x + 14}px`;
     tip.style.top = `${Math.max(y - tip.offsetHeight - 8, 0)}px`;
   };
-  for (const [layer, outline] of hover) {
-    // A tap fires click, not mousemove, so the tooltip answers both.
-    for (const kind of ['mousemove', 'click']) map.on(kind, layer, e => {
-      const f = e.features[0];
-      map.setFilter(outline, f.properties.dm_key != null ? ['==', ['get', 'dm_key'], f.properties.dm_key] : ['==', ['id'], f.id ?? '__dm_none__']);
-      map.getCanvas().style.cursor = focusLayer && layer === focusLayer + '-nodes' ? 'pointer' : 'default';
-      show(f.properties.dm_tip || f.properties.dm_label, e.point.x, e.point.y);
-    });
-    map.on('mouseleave', layer, () => { map.setFilter(outline, NONE); show(null); });
-  }
+  const outlines = new Map(hover);
+  let lit = null;
+  const light = (outline, filter) => {
+    if (lit && lit !== outline) map.setFilter(lit, NONE);
+    if (outline) map.setFilter(outline, filter);
+    lit = outline;
+  };
+  const answer = e => {
+    const layers = [...outlines.keys()].filter(id => map.getLayer(id));
+    const f = layers.length ? map.queryRenderedFeatures(e.point, {layers})[0] : null;
+    if (!f) { light(null); map.getCanvas().style.cursor = ''; show(null); return; }
+    light(outlines.get(f.layer.id), f.properties.dm_key != null ? ['==', ['get', 'dm_key'], f.properties.dm_key] : ['==', ['id'], f.id ?? '__dm_none__']);
+    map.getCanvas().style.cursor = focusLayer && f.layer.id === focusLayer + '-nodes' ? 'pointer' : 'default';
+    show(f.properties.dm_tip || f.properties.dm_label, e.point.x, e.point.y);
+  };
+  // A tap fires click, not mousemove, so the tooltip answers both.
+  for (const kind of ['mousemove', 'click']) map.on(kind, answer);
+  map.getCanvas().addEventListener('mouseleave', () => { light(null); show(null); });
   return show;
 }
 
@@ -1859,7 +1874,7 @@ async function start(libs, extend) {
     drawn = new Promise(r => { frame = r; });
     arcs = arcLayers(deck, t, show);
     Object.assign(live, {arcs, t, show});
-    overlay = new deck.MapLibreOverlay({interleaved: true, layers: arcs.map(a => a.layer),
+    overlay = new deck.MapLibreOverlay({interleaved: true, layers: arcs.map(a => a.layer), pickingRadius: HIT / 2,
       onAfterRender: () => frame(), onError: err => rejectReady(err)});
     map.addControl(overlay);
   }

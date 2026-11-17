@@ -55,7 +55,7 @@ python3 <skill>/scripts/datamap.py check map --scale 2
 
 ## What the page draws from data
 
-The page reads the legend's layers and draws each by its kind. A `classes` layer becomes fills with white boundaries, hatching for `dm_low_n`, and an outline on hover. A `sizes` layer becomes circles in `dm_order`, largest first, with labels. A `flows` layer becomes lines in `dm_order`, each as opaque as its `dm_opacity`, nodes sized by `dm_r`, labels, and an arrowhead at each destination.
+The page reads the legend's layers and draws each by its kind. A `classes` layer becomes fills with white boundaries, hatching for `dm_low_n`, and an outline on hover. A `sizes` layer becomes circles in `dm_order`, largest first, with labels. A `flows` layer becomes lines in `dm_order`, each as opaque as its `dm_opacity`, nodes sized by `dm_r`, labels, and an arrowhead at each destination. Under each flow an unseen line at least 12 px wide, 24 on a touch screen, takes the pointer, because MapLibre hits a line only within half its width and a 1 px flow would be all but untappable; a pointer on a drawn line still takes that line first. One feature answers the pointer at a time: the topmost under it, outlined alone.
 
 The `flows` lever draws every flow in one color, `#a63603` unless `--color` names another, and fades them by value, from `--fade-min` (0.45) at the smallest kept flow to fully opaque at the largest; `--no-fade` keeps them all opaque. Larger flows darker is Jenny et al.'s suggestion, and the fade follows magnitude, never length (Slocum, ch. 20), so long thin arcs don't out-ink short heavy ones.
 
