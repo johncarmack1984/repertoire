@@ -1584,14 +1584,14 @@ function hugMap(map) {
   const pad = fitPad(), want = Math.max(Math.ceil((w - 2 * pad) / aspect) + 2 * pad, side);
   if (want >= h - 8) return false;
   const row = want + below;
+  // The page starts at the top, as any page does, and the height left over falls below the source line.
+  document.body.style.alignContent = 'start';
   if (figure) {
     document.body.style.gridTemplateRows = narrow ? `auto ${row}px auto auto` : `auto ${row}px auto`;
-    document.body.style.alignContent = 'start';
   } else {
     document.body.style.height = 'auto';
     document.body.style.minHeight = '100%';
     document.body.style.gridTemplateRows = `auto ${row}px auto`;
-    document.body.style.alignContent = 'center';
   }
   map.resize();
   return true;
