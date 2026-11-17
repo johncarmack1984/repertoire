@@ -21,3 +21,4 @@ plugins/data-map/**/*.[0-9]*x[0-9]*.png
 plugins/data-map/**/*.[0-9]*x[0-9]*@2x.png
 plugins/data-map/**/check.json
 plugins/data-map/**/target/
+plugins/data-map/skills/data-map/assets/example/*/vendor/

@@ -313,10 +313,12 @@ class Static(unittest.TestCase):
         example = HERE.parent / "skills" / "data-map" / "assets" / "example" / "movers"
         folder = self.tmp / "movers"
         shutil.copytree(example, folder)
-        self.assertFalse((folder / "data").exists())
+        self.assertFalse((folder / "data").exists() or (folder / "vendor").exists())
+        self.assertEqual(cli("sync", folder)[0], 0)
         code, result = cli("check", folder, "--no-browser", "--json")
         self.assertEqual(code, 0, findings(result, "FAIL"))
-        self.assertEqual((result["size"], result["scale"]), ([1200, 700], 2))
+        self.assertEqual({f[1] for f in findings(result, "WARN")}, {"render"})
+        self.assertEqual((result["size"], result["scale"]), ([1200, 654], 2))
 
     def test_a_page_without_dm_spec_is_judged_on_its_render_only(self):
         code, result = cli("check", copy("bare-maplibre", self.tmp), "--no-browser", "--json")
