@@ -1329,7 +1329,7 @@ function placeNotes(map) {
     n.shown = a.far ? `${n.text} (far side)` : n.text;
     let best = null;
     for (const [k, width] of NOTE.widths.entries()) for (const reach of NOTE.reaches) for (const [, sx, sy] of CORNERS) {
-      const rows = wrap(n.shown, width), w = Math.max(...rows.map(measure)), h = rows.length * line;
+      const rows = wrap(n.shown, width), w = Math.max(...rows.map(r => measure(r))), h = rows.length * line;
       const u = sx && sy ? Math.SQRT1_2 : 1, end = [a.p[0] + sx * u * (a.r + reach), a.p[1] + sy * u * (a.r + reach)];
       const x0 = sx > 0 ? end[0] + 2 : sx < 0 ? end[0] - 2 - w : end[0] - w / 2;
       const y0 = sy > 0 ? end[1] + 1 : sy < 0 ? end[1] - 1 - h : end[1] - h / 2;
@@ -1382,7 +1382,8 @@ function revealReport(map) {
 function notesReport(map) {
   const at = map.getCanvas().getBoundingClientRect();
   return notes.map(n => ({text: n.shown ?? n.text, at: n.at, node: n.node, drawn: !!n.drawn, farSide: !!n.far, why: n.drawn ? null : n.why,
-    covers: n.covers || [], box: n.box && {x: at.x + n.box[0], y: at.y + n.box[1], w: n.box[2] - n.box[0], h: n.box[3] - n.box[1]}}));
+    covers: n.covers || [], box: n.box && {x: at.x + n.box[0], y: at.y + n.box[1], w: n.box[2] - n.box[0], h: n.box[3] - n.box[1]},
+    textWidth: n.g ? Math.max(...[...n.g.querySelectorAll('tspan')].map(s => s.getComputedTextLength())) : null}));
 }
 
 // ---------- flows over nodes they don't connect, measured on screen at the current view ----------

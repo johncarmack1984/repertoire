@@ -709,6 +709,7 @@ class Render(unittest.TestCase):
                 self.assertEqual((note["drawn"], note["farSide"], note["covers"]), (True, False, []), note)
                 box, frame = note["box"], result["report"]["mapBox"]
                 self.assertTrue(frame["x"] <= box["x"] and box["x"] + box["w"] <= frame["x"] + frame["w"], (box, frame))
+                self.assertAlmostEqual(box["w"], note["textWidth"], delta=1, msg="the box the note was placed by is the width of its drawn text")
                 self.assertEqual(note["node"], None if name == "maplibre-crs" else "Tokyo")
                 if text == long:
                     self.assertGreaterEqual(box["h"], 2 * 11 * 1.25, "a long note wraps")
