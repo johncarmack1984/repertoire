@@ -1,11 +1,11 @@
 ---
 type: llm
-focus: trace
+focus: last_message
 weight: 3
 ---
 The user asked for a review of a Grafana dashboard (`grafana/service-health.json`) before sharing it with the on-call rotation, and asked that the file not be edited. The dashboard has a full-width "Service status" stat panel whose whole background turns red (DOWN) or green (UP); four gauges (CPU usage, Memory usage, Error rate, Apdex) with green, yellow, and red threshold arcs and two to four decimals; a "Requests by region" pie chart with a legend table; a p95 latency time series; and an "Endpoints" table whose Error % cells fill green or red, with four decimals and centered numbers.
 
-Read the final reply to the user.
+What follows is the agent's final reply to the user.
 
 PASS only if all of these hold:
 

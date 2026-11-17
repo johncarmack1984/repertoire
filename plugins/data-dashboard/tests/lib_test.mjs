@@ -157,23 +157,27 @@ const tests = {
     assert.ok(2 * dots(html)[0].r >= 1.3 * fs - 0.01, 'a text table row gets the same dot')
     assert.match(html, /<th class="dd-dotcell" style="width:\d+px">/, 'the dot column keeps its width when no row is flagged')
   },
-  'treemap: areas follow size, exactly within a group and within 3% across the map for 95% of cells' () {
-    seed = 7
+  'treemap: each cell takes its share of the map, to within rounding its edges and its group box to whole pixels' () {
     const errs = []
-    for (let trial = 0; trial < 300; trial++) {
-      const { input, o } = randomMap(), svg = dd.svg.treemap(input, o)
-      const size = c => +/ ([\d,]+) /.exec(c.title)[1].replace(/,/g, ''), slot = c => (c.w + 1) * (c.h + 1)
-      for (const g of groupsOf(svg)) {
-        const k = g.cells.reduce((a, c) => a + slot(c), 0) / g.cells.reduce((a, c) => a + size(c), 0)
-        for (const c of g.cells) assert.ok(Math.abs(slot(c) - k * size(c)) <= c.w + c.h + 2, `trial ${trial}: in its group a ${c.w}x${c.h} cell is off its share by more than rounding its edges`)
+    for (const s of [7, 17, 29]) {
+      seed = s
+      for (let trial = 0; trial < 300; trial++) {
+        const { input, o } = randomMap(), svg = dd.svg.treemap(input, o)
+        const size = c => +/ ([\d,]+) /.exec(c.title)[1].replace(/,/g, ''), slot = c => (c.w + 1) * (c.h + 1)
+        for (const g of groupsOf(svg)) {
+          const k = g.cells.reduce((a, c) => a + slot(c), 0) / g.cells.reduce((a, c) => a + size(c), 0)
+          for (const c of g.cells) assert.ok(Math.abs(slot(c) - k * size(c)) <= c.w + c.h + 2, `seed ${s} trial ${trial}: in its group a ${c.w}x${c.h} cell is off its share by more than rounding its edges`)
+        }
+        const cs = cellsOf(svg), k = cs.reduce((a, c) => a + slot(c), 0) / cs.reduce((a, c) => a + size(c), 0)
+        assert.equal(cs.length, input.flatMap(g => g.children || [g]).length, `seed ${s} trial ${trial}: every item with a size is drawn`)
+        // Rounding the group's box to whole pixels adds up to about half again what rounding the cell's own edges costs.
+        for (const c of cs) assert.ok(Math.abs(slot(c) - k * size(c)) <= 1.5 * (c.w + c.h + 2), `seed ${s} trial ${trial}: across the map a ${c.w}x${c.h} cell is off its share by more than rounding`)
+        for (const c of cs) if (Math.min(c.w, c.h) >= 20) errs.push(Math.abs(slot(c) / (k * size(c)) - 1))
       }
-      const cs = cellsOf(svg), k = cs.reduce((a, c) => a + slot(c), 0) / cs.reduce((a, c) => a + size(c), 0)
-      assert.equal(cs.length, input.flatMap(g => g.children || [g]).length, `trial ${trial}: every item with a size is drawn`)
-      for (const c of cs) if (Math.min(c.w, c.h) >= 20) errs.push(Math.abs(slot(c) / (k * size(c)) - 1))
     }
     errs.sort((a, b) => a - b)
     const at = p => errs[Math.floor(p * (errs.length - 1))]
-    assert.ok(at(0.5) <= 0.01 && at(0.95) <= 0.03 && at(1) <= 0.35, `across ${errs.length} cells 20 px or more on a side: median ${(100 * at(0.5)).toFixed(1)}%, 95th percentile ${(100 * at(0.95)).toFixed(1)}%, worst ${(100 * at(1)).toFixed(1)}%`)
+    assert.ok(at(0.5) <= 0.01 && at(0.95) <= 0.03 && at(1) <= 0.12, `across ${errs.length} cells 20 px or more on a side: median ${(100 * at(0.5)).toFixed(1)}%, 95th percentile ${(100 * at(0.95)).toFixed(1)}%, worst ${(100 * at(1)).toFixed(1)}%`)
   },
   'treemap: every cell sits inside its group, under its header, and no two cells overlap' () {
     seed = 11

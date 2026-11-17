@@ -32,7 +32,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-VERSION = "0.2.0"
+VERSION = "0.2.2"
 ASSETS = Path(__file__).resolve().parent.parent / "assets"
 LIB = {"css": ("style", "dashboard.css"), "lib": ("script", "dashboard.js")}
 UNIT = 20

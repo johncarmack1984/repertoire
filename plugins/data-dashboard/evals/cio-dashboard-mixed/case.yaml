@@ -49,3 +49,42 @@ graders:
     target: { source: file, path: cio-dashboard.html }
     pattern: '"asOf"\s*:\s*"\d{4}-\d\d-\d\dT\d\d:\d\d(?::\d\d)?(?:Z|[+-]\d\d:?\d\d)"|as of[^<]{0,60}\d{1,2}:\d\d[^<]{0,20}\b(?:[ECMP][SD]T|UTC|GMT|Pacific)\b'
     flags: i
+  - name: no-green
+    type: regex
+    target: { source: file, path: cio-dashboard.html }
+    pattern: '#[0-6][0-9a-f][89a-f][0-9a-f][0-8][0-9a-f](?:[0-9a-f]{2})?(?![0-9a-f])|#[0-6][89a-f][0-8](?![0-9a-f])|rgba?\(\s*(?:\d|[1-9]\d)\s*,\s*(?:1[3-9]\d|2[0-5]\d)\s*,\s*(?:\d|[1-9]\d|1[01]\d)\s*[,)]|hsla?\(\s*(?:[89]\d|1[0-5]\d)(?:deg)?\s*,?\s*(?:[3-9]\d|100)%|(?:[:=]\s*|["''])(?:green|lime|limegreen|forestgreen|seagreen|mediumseagreen|darkgreen|springgreen|lightgreen|palegreen|yellowgreen|olivedrab)\b(?!-)'
+    flags: i
+    match: not_contains
+  - name: no-blue
+    type: regex
+    target: { source: file, path: cio-dashboard.html }
+    pattern: '#(?:0[0-9a-f]{3}[5-9a-f]|1[0-9a-f]{3}[6-9a-f]|2[0-9a-f]{3}[7-9a-f]|3[0-9a-f]{3}[89a-f]|4[0-9a-f]{3}[9a-f]|5[0-9a-f]{3}[a-f]|6[0-9a-f]{3}[b-f]|7[0-9a-f]{3}[c-f]|8[0-9a-f]{3}[d-f]|9[0-9a-f]{3}[ef])[0-9a-f](?:[0-9a-f]{2})?(?![0-9a-f])|rgba?\(\s*(?:\d|[1-9]\d|1[01]\d)\s*,\s*\d{1,3}\s*,\s*(?:1[89]\d|2[0-5]\d)\s*[,)]|(?:[:=]\s*|["''])(?:blue|steelblue|royalblue|dodgerblue|cornflowerblue|deepskyblue|skyblue|lightblue)\b(?!-)'
+    flags: i
+    match: not_contains
+  - name: events-in-window
+    type: regex
+    target: { source: file, path: cio-dashboard.html }
+    pattern: '^(?=[\s\S]*generator test)(?=[\s\S]*go-?live)(?=[\s\S]*security audit)(?=[\s\S]*email cutover)(?=[\s\S]*change freeze)'
+    flags: i
+  - name: top-five-projects
+    type: regex
+    target: { source: file, path: cio-dashboard.html }
+    pattern: '^(?=[\s\S]*data warehouse capacity expansion)(?=[\s\S]*single sign-on for vendor portals)(?=[\s\S]*backup site failover test)(?=[\s\S]*laptop fleet refresh)(?=[\s\S]*help desk chatbot)'
+    flags: i
+  - name: lists-cut-to-the-window
+    type: regex
+    target: { source: file, path: cio-dashboard.html }
+    pattern: 'id\s*=\s*["'']dd-data["''][^>]*>(?:(?!</script>)[\s\S])*?(?:payroll system patch|board IT review|year-end close support|conference room AV|intranet redesign|printer consolidation)'
+    flags: i
+    match: not_contains
+  - name: response-times-as-distributions
+    type: regex
+    target: { source: file, path: cio-dashboard.html }
+    pattern: '\b(?:dd|DataDashboard)\.box\s*\(\s*["''`]#|box[- ]?plot|each sample|percentile|strip (?:plot|chart)|\.strip\b|class\s*=\s*["''][^"'']*\bstrip\b'
+    flags: i
+  - name: no-orange-or-yellow
+    type: regex
+    target: { source: file, path: cio-dashboard.html }
+    pattern: '#[c-f][0-9a-f][4-9a][0-9a-f][0-4][0-9a-f](?:[0-9a-f]{2})?(?![0-9a-f])|#[c-f][0-9a-f][b-f][0-9a-f][0-6][0-9a-f](?:[0-9a-f]{2})?(?![0-9a-f])|#[c-f][4-9a-f][0-4](?![0-9a-f])|(?:[:=]\s*|["''])(?:orange|darkorange|orangered|coral|tomato|gold|goldenrod|yellow|amber)\b(?!-)'
+    flags: i
+    match: not_contains

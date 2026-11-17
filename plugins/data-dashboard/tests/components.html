@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="dd-viewport" content="1440x1100">
 <title>Components</title>
-<!-- data-dashboard:css 0.2.0 sha256:fcc0f3fcdbae804dbee2d8bdfd70e92e9741672a29fa3b49885df7730fa97c9b -->
+<!-- data-dashboard:css 0.2.2 sha256:fcc0f3fcdbae804dbee2d8bdfd70e92e9741672a29fa3b49885df7730fa97c9b -->
 <style>
 :root {
   --dd-cols: 72;
@@ -827,12 +827,12 @@ dd.legend('#states-legend', [{ mark: 'heat', tone: 0, label: 'Quota met' }, { ma
 dd.text('#cust', d.customers, { rank: true, cols: ['name::Customer', 'pipeline:usd0k:Pipeline', 'qtd:usd0k:QTD', 'ytd:usd0k:YTD'] })
 </script>
 <!-- /data-dashboard:page -->
-<!-- data-dashboard:lib 0.2.0 sha256:79fc775fafec9b9b7257873fc39b021ef38024c41f25544843fb1d71f7eb0709 -->
+<!-- data-dashboard:lib 0.2.2 sha256:9a2d80aca28fe9d9b661c7b76f45ca9d6c7e9ee8909560bef93210f3bf1c1262 -->
 <script>
-/* data-dashboard 0.2.0: Stephen Few's dashboard display media, drawn as SVG. MIT license. */
+/* data-dashboard 0.2.2: Stephen Few's dashboard display media, drawn as SVG. MIT license. */
 (() => {
 'use strict'
-const VERSION = '0.2.0'
+const VERSION = '0.2.2'
 const POLICY = { warn: 0.95, alert: 0.85 }
 const WORD = { good: 'good', ok: 'satisfactory', warn: 'warning', alert: 'critical', none: 'no comparison' }
 const DOTC = { warn: 'dd-dot-warn', alert: 'dd-dot-alert' }
@@ -1402,8 +1402,10 @@ function scatter (input, o) {
   return svg(W, H, join(o.title, sets.map(s => `${s.name || 'points'}, ${s.points.length} points`).join('; ')), kids, 'dd-scatter')
 }
 
-function squarify (sizes, x, y, w, h) {
-  const k = w * h / (sizes.reduce((a, b) => a + b, 0) || 1), out = []
+// Squarify's rows for these sizes in a w × h box. Each row runs along the shorter side of what is left (a column
+// when the box is wider than tall) and takes items while that keeps them nearer square.
+function rowsOf (sizes, w, h) {
+  const k = w * h / (sizes.reduce((a, b) => a + b, 0) || 1), rows = []
   const worst = (sum, hi, lo, side) => max(side * side * hi / (sum * sum), sum * sum / (side * side * lo))
   for (let i = 0; i < sizes.length;) {
     const side = min(w, h)
@@ -1413,15 +1415,25 @@ function squarify (sizes, x, y, w, h) {
       if (worst(sum + a, max(hi, a), min(lo, a), side) > worst(sum, hi, lo, side)) break
       sum += a; hi = max(hi, a); lo = min(lo, a)
     }
-    const thick = sum / side
-    let at = w >= h ? y : x
-    for (let n = i; n < j; n++) {
-      const len = sizes[n] * k / thick
-      out.push(w >= h ? { x, y: at, w: thick, h: len } : { x: at, y, w: len, h: thick })
+    rows.push({ n: j - i, col: w >= h })
+    if (w >= h) w -= sum / side; else h -= sum / side
+    i = j
+  }
+  return rows
+}
+function squarify (sizes, x, y, w, h, rows = rowsOf(sizes, w, h)) {
+  const k = w * h / (sizes.reduce((a, b) => a + b, 0) || 1), out = []
+  let i = 0
+  for (const { n, col } of rows) {
+    const row = sizes.slice(i, i + n), thick = row.reduce((a, b) => a + b, 0) * k / (col ? h : w)
+    let at = col ? y : x
+    for (const s of row) {
+      const len = s * k / thick
+      out.push(col ? { x, y: at, w: thick, h: len } : { x: at, y, w: len, h: thick })
       at += len
     }
-    if (w >= h) { x += thick; w -= thick } else { y += thick; h -= thick }
-    i = j
+    if (col) { x += thick; w -= thick } else { y += thick; h -= thick }
+    i += n
   }
   return out
 }
@@ -1449,13 +1461,16 @@ function treemap (input, o) {
   const sum = groups.reduce((s, g) => s + g.total, 0), WH = (W + gg) * (H + gg)
   const head = b => b.h - gg >= 2 * strip ? strip : 0, inner = b => max(0, b.w - gg) * max(0, b.h - gg - head(b))
   // A group's box also holds its header strip and gaps, which cost the most in a small group. Size each box as if square,
-  // area − edge·√area + corner = k·total, then correct from the boxes' real shapes and keep the closest pass, since squarify jumps between arrangements.
+  // area − edge·√area + corner = k·total, and let squarify choose the rows from those areas. Then, with the rows held,
+  // grow each box by what its strip and gaps cost until every inner area is its share; letting squarify choose the
+  // rows again on each pass would jump between arrangements and never converge.
   const edge = strip + 2 * gg, corner = gg * (strip + gg), need = k => groups.map(g => ((edge + Math.sqrt(max(0, edge * edge - 4 * corner + 4 * k * g.total))) / 2) ** 2)
   let lo = 0, hi = WH / sum
   for (let n = 0; n < 40; n++) { const k = (lo + hi) / 2; if (need(k).reduce((a, b) => a + b, 0) > WH) hi = k; else lo = k }
   let weights = need(lo), best = null
-  for (let n = 0; n < 4; n++) {
-    const boxes = squarify(weights, 0, 0, W + gg, H + gg), ins = boxes.map(inner), k = ins.reduce((a, b) => a + b, 0) / sum
+  const rows = rowsOf(weights, W + gg, H + gg)
+  for (let n = 0; n < 40 && !(best?.err < 1e-6); n++) {
+    const boxes = squarify(weights, 0, 0, W + gg, H + gg, rows), ins = boxes.map(inner), k = ins.reduce((a, b) => a + b, 0) / sum
     const err = max(...groups.map((g, i) => Math.abs(ins[i] / (k * g.total) - 1)))
     if (!best || err < best.err) best = { boxes, err }
     weights = groups.map((g, i) => g.total + (boxes[i].w * boxes[i].h - ins[i]) / k)

@@ -6,7 +6,7 @@ This file holds the detail for the review and refine modes, and shows how to app
 
 Open with a one-line verdict that names the dashboard's role and says whether a glance shows what needs action. Then list the faults, worst for the viewer first. For each one, quote it or locate it (a selector, a component, a panel title, a region of a screenshot), name the mistake by number, and give the fix in that stack. List by name every measure that has nothing to compare against, since that is mistake 2 wherever it appears.
 
-Put no mark on anything that keeps the rules, however differently you would have built it. Don't rewrite in a review; each fix is one line, not a new dashboard.
+Put no mark on anything that keeps the rules, however differently you would have built it. Name it once as one to keep, and suggest nothing for it, not even an addition such as annotations, markers, or another series, since a suggestion on a correct panel reads as one more fault. When a fix to the arrangement moves it, say that it moves unchanged. Don't rewrite in a review; each fix is one line, not a new dashboard.
 
 ```
 A strategic sales dashboard whose one real alert is lost among a dozen colors.
