@@ -93,6 +93,9 @@ def synced(text: str, out: Path, page: Path) -> str:
     text = LIB_REGION.sub(lambda m: lib_block(m[1]), text)
     if not DATA_REGION.search(text):
         raise UsageError(f"{page} has no <!-- data-map:data --> region; start from `datamap.py new`")
+    # A page that travels without data/ keeps the data it inlines, so sync can still restore its library and vendor/.
+    if not (out / "data").is_dir():
+        return text
     blocks = "".join(data_block(p) for p in data_files(out))
     return DATA_REGION.sub(lambda m: f"<!-- data-map:data -->\n{blocks}<!-- /data-map:data -->", text, count=1)
 
@@ -212,10 +215,9 @@ def run_sync(args) -> int:
     if not page.is_file():
         raise UsageError(f"{page} does not exist; sync is for the maplibre and deck-gl stacks")
     old = page.read_text(encoding="utf-8")
-    if not (out / "data").is_dir() and (region := DATA_REGION.search(old)) and DATA_FILE.search(region[1]):
-        raise UsageError(f"{out / 'data'} does not exist, so sync would drop every data file {page} inlines; restore data/ first")
     new = synced(old, out, page)
     files = [f"data/{p.name}" for p in data_files(out)]
+    kept = None if (out / "data").is_dir() else len(DATA_FILE.findall(DATA_REGION.search(new)[1]))
     findings = []
     if args.check:
         said = drift(old, out)
@@ -224,14 +226,15 @@ def run_sync(args) -> int:
         else:
             findings.append(PASS("sync", f"{page} holds the current library and {len(files)} data files"))
         return report(findings, args.json)
-    if not files:
+    if not files and not kept:
         findings.append(WARN("sync", f"{out / 'data'} holds no JSON or GeoJSON yet", "write the layers with --out-dir OUT/data first", 9))
     libs = libs_of(new, page)
     install(out, libs)
     if new != old:
         page.write_text(new, encoding="utf-8")
     size = len(new.encode()) / 1e6
-    findings.append(PASS("sync", f"{page} inlines the {VERSION} library and {', '.join(files) or 'no data files'} ({size:.1f} MB)"))
+    held = f"keeps the {kept} data files it inlines, with no data/ folder" if kept else ", ".join(files) or "no data files"
+    findings.append(PASS("sync", f"{page} inlines the {VERSION} library and {held} ({size:.1f} MB)"))
     findings.append(PASS("vendor", f"{out / 'vendor'} holds {', '.join(f'{lib.name} {lib.version}' for lib in libs)}, from {vendor.cache_dir()}"
                          if libs else "the page loads no library, so there is no vendor/ folder"))
     if size > 20:

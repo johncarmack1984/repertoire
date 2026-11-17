@@ -148,7 +148,7 @@ To add a layer by hand, pass a function as the second argument of `DataMap.start
 - The levers write string ids for areas, so hover outlines match the feature's id with a filter rather than feature-state.
 - Class fills stay opaque. A `fill-opacity` below 1 blends each class with what lies under it, so the map no longer shows the legend's colors (P9), and `check` can't find them.
 - `check` writes `.dm/index.<W>x<H>.png` and `.dm/check.json`; keep `.dm/` out of version control.
-- A synced page holds every data file it draws, so it can travel without `data/`, though never without `vendor/`, and `check` then judges it from its inlined blocks. `sync` refuses such a page, since it would drop them.
+- A synced page holds every data file it draws, so it can travel without `data/`, though never without `vendor/`, and `check` then judges it from its inlined blocks. `sync` keeps the data such a page inlines, and restores its library and `vendor/`.
 
 ## Updating the pins
 

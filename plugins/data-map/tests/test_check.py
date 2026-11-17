@@ -299,10 +299,12 @@ class Static(unittest.TestCase):
         self.assertEqual(code, 0, findings(result, "FAIL"))
         self.assertIn(("PASS", "legend", 9), findings(result))
         self.assertIn("inlined data files are its data", next(f["message"] for f in result["findings"] if f["check"] == "sync"))
-        # sync would drop every inlined file, so it refuses and leaves the page alone.
+        # sync keeps every inlined file and puts back the libraries the page can't travel without.
         before = (folder / "index.html").read_text()
-        self.assertEqual(cli("sync", folder)[0], 2)
+        shutil.rmtree(folder / "vendor")
+        self.assertEqual(cli("sync", folder)[0], 0)
         self.assertEqual((folder / "index.html").read_text(), before)
+        self.assertTrue((folder / "vendor").is_dir())
         page('"layers":{"movers"', '"layers":{"movers"}{')(folder)
         code, result = cli("check", folder, "--no-browser", "--json")
         self.assertEqual(code, 1)
