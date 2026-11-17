@@ -504,7 +504,7 @@ def judge_report(rep: dict, page: Page) -> list:
                         f'set dm-spec figure.size to "{fig["w"]}x{fig["h"] - fig["slack"]}", the height its content fills'))
     if clipped := rep.get("clipped"):
         out.append(FAIL("clipped", f"{len(clipped)} lines of the side panel are cut off at {(rep.get('viewport') or {}).get('w')}x{(rep.get('viewport') or {}).get('h')}: {'; '.join(clipped[:3])}",
-                        "cut the companions to what fits beside the map at this size, or move one below the map", 24))
+                        "move a companion the reader needs below the map, where the page scrolls, rather than cut it; cut only what the brief doesn't need", 24))
     vw, vh = (rep.get("viewport") or {}).get("w"), (rep.get("viewport") or {}).get("h")
     if vw and (off := [b["text"] for b in rep.get("textBoxes", []) if b["x"] < -1 or b["y"] < -1 or b["x"] + b["w"] > vw + 1 or b["y"] + b["h"] > vh + 1]):
         if (page.spec or {}).get("figure"):
