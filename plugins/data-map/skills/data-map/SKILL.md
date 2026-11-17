@@ -24,7 +24,7 @@ With no data and no map to work from, ask what the reader needs to see and where
 
 ### 2. Brief
 
-Write the brief before touching the data or the design. It is working notes, never part of the map, and every later step and every subagent reads it. Keep it in your notes until step 4 creates the project, then paste it into the project's `brief.md`:
+Write the brief before touching the data or the design. It is working notes, never part of the map, and every later step and every subagent reads it. Keep it in your notes until step 4 creates the project, then paste it into the project's `.dm/brief.md`, the hidden folder that holds the working files so the deliverable stays clean:
 
 ```
 Reader:      who reads it, and what they decide with it
@@ -108,13 +108,13 @@ Done when every color, size, width, and line on the map comes from encode output
 
 ### 5. Build
 
-Read `stacks/<stack>.md` and `reference/design.md`, fill the page's marked slots, and inline the data so the page opens from a file:
+Read `stacks/<stack>.md` and `reference/design.md`, fill the page's marked slots, and inline the data and the pinned libraries so the page opens from a file with no network:
 
 ```sh
 python3 <skill>/scripts/datamap.py sync map
 ```
 
-Every element on the page is a decision. The templates add nothing until the brief asks for it, and the page's `dm-spec` block records what was asked for. A map in an existing codebase keeps its stack and takes the same encoding, the same legend, and the same rules.
+`sync` copies the libraries into the project's `vendor/` from a cache it fills on the first run, so ship `vendor/` with `index.html`. Every element on the page is a decision. The templates add nothing until the brief asks for it, and the page's `dm-spec` block records what was asked for. For a reader who explores, `controls` can list `focus`, which shows one place's flows when the reader clicks or picks it and rewrites the title from a template, and `reveal`, a slider for more flows; run `flows --reveal --reveal-max` with every flow so focused totals are whole. `highlight` names the places the title is about, and `annotations` put the finding on the map. `stacks/maplibre.md` gives each key. A map in an existing codebase keeps its stack and takes the same encoding, the same legend, and the same rules.
 
 Done when the page's `dm-spec` matches the brief's projection, interface, and refused controls.
 
@@ -124,7 +124,7 @@ Done when the page's `dm-spec` matches the brief's projection, interface, and re
 python3 <skill>/scripts/datamap.py check map
 ```
 
-The check renders the page in headless Chrome, saves a screenshot beside it, and prints a line per finding: the pitfall, the measured fact, and the fix. It fails a Mercator world map of an areal idiom, Web Mercator tiles under a registered CRS, a layer with no legend, a legend color missing from the render, a blank frame, controls or fonts the brief didn't ask for, a side panel that cuts off a legend or companion, and motion that starts by itself. It warns on a node name that didn't render or that an arrowhead covers. Check a static figure at the size it will be shown and at device scale 2: set `figure` in `dm-spec`, or pass `--size` and `--scale`. Type that reads at the design size shrinks below legibility in a narrower column. For the mln-rs stack, run the app's `cargo run --release -- --snapshot map.png`, then `datamap.py check --png map.png --legend map/data/legend.json`.
+The check renders the page in headless Chrome, then again from disk with the network blocked, saves the screenshots and `check.json` in `.dm/`, and prints a line per finding: the pitfall, the measured fact, and the fix. It fails a Mercator world map of an areal idiom, Web Mercator tiles under a registered CRS, a layer with no legend, a legend color missing from the render, a blank frame, controls or fonts the brief didn't ask for, a side panel that cuts off a legend or companion, a page that doesn't draw offline, a placeholder tab title, and motion that starts by itself. It warns on a node name that didn't render or that an arrowhead covers, a flow over a node it doesn't serve, companions that crowd the map, and working files left beside `index.html`. Check a static figure at the size it will be shown and at device scale 2: set `figure` in `dm-spec`, or pass `--size` and `--scale`. Type that reads at the design size shrinks below legibility in a narrower column. For the mln-rs stack, run the app's `cargo run --release -- --snapshot map.png`, then `datamap.py check --png map.png --legend map/data/legend.json`.
 
 - Fix every FAIL and read every WARN.
 - Open the screenshot with Read and look at it as the reader would.
@@ -142,7 +142,7 @@ Done when the critic's answers match the key, the first thing it noticed is the 
 
 Tell whoever asked, in a few lines:
 
-- the absolute paths of the map and its screenshot;
+- the absolute paths of the map and its screenshot, and that `index.html` travels with `vendor/`;
 - the idiom, why it fits the task, and the candidate it beat;
 - what was cut or left out, such as "the 50 largest of 2,097 flows, carrying 23% of movers", and the controls refused;
 - the claims the data can't support, and any departure from the sources;
