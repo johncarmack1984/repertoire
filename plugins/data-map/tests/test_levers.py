@@ -912,28 +912,33 @@ class NodeValues(unittest.TestCase):
         layer = json.loads((Path(out) / "legend.json").read_text())["layers"]["bike"]
         return read("bike-nodes.geojson"), read("bike.geojson"), read("bike-arrows.geojson"), layer, text
 
-    def test_net_sizes_by_the_balance_and_fills_gains_and_losses_apart(self):
+    def test_net_sizes_by_traffic_and_fills_by_which_way_the_balance_tips(self):
         t = self.totals()
         with tempfile.TemporaryDirectory() as out:
             nodes, _, _, layer, text = self.run_bike(out, "--node-value", "net")
-        # The scaffold's notes: Rose Quarter gains 1,250 bikes over October and Union Station loses 1,036.
+        # The scaffold's notes: Rose Quarter gains 1,250 bikes over October and Union Station loses 1,036. Lloyd Center
+        # takes 1,444 trips in and 1,426 out, 2,870 in all, and gains 18: sized by its balance it drew at
+        # 10 x sqrt(18 / 1,250) = 1.2 px, and by its traffic, against Union Station's 5,170, it draws at 7.45 px.
         by_key = {n["dm_key"]: n for n in nodes}
         self.assertEqual((by_key["S09"]["dm_net"], by_key["S01"]["dm_net"]), (1250, -1036))
+        self.assertEqual((by_key["S10"]["dm_value"], by_key["S10"]["dm_net"], by_key["S10"]["dm_fill"]), (2870, 18, "#018571"))
+        self.assertAlmostEqual(by_key["S10"]["dm_r"], 7.45, places=2)
         for n in nodes:
-            net = t[n["dm_key"]]["in"] - t[n["dm_key"]]["out"]
+            gross, net = t[n["dm_key"]]["in"] + t[n["dm_key"]]["out"], t[n["dm_key"]]["in"] - t[n["dm_key"]]["out"]
             self.assertEqual(n["dm_net"], net)
-            self.assertEqual(n["dm_value"], abs(net))
+            self.assertEqual(n["dm_value"], gross)
             self.assertEqual(n["dm_fill"], "#018571" if net > 0 else "#6a51a3" if net < 0 else "#525252")
             self.assertIn(f"net {'+' if net > 0 else ''}{net:,.0f}", n["dm_tip"])
-            self.assertAlmostEqual(n["dm_r"], 10 * math.sqrt(abs(net) / 1250), places=2)
+            self.assertAlmostEqual(n["dm_r"], 10 * math.sqrt(gross / 5170), places=2)
         self.assertTrue({"#018571", "#6a51a3"} <= {n["dm_fill"] for n in nodes})
         legend = layer["nodes"]
         self.assertEqual((legend["value"], legend["colors"]), ("net", {"gain": "#018571", "loss": "#6a51a3"}))
-        self.assertEqual(legend["title"], "Circle area: trips gained or lost (in minus out), across all 380 flows")
+        self.assertEqual(legend["title"], "Circle area: trips in and out, across all 380 flows")
         for v, r in zip(legend["legend_values"], legend["legend_radii"]):
-            self.assertAlmostEqual(r, 10 * math.sqrt(v / 1250), places=2)
+            self.assertAlmostEqual(r, 10 * math.sqrt(v / 5170), places=2)
         self.assertEqual(legend["legend_values"], sorted(legend["legend_values"], reverse=True))
-        self.assertRegex(text, r"(?m)^PASS nodes: ")
+        self.assertRegex(text, r"(?m)^PASS nodes: each circle's area is true to its trips in and out, and the largest \(5,170\) has a 10 px radius; "
+                               r"#018571 where more arrive than leave, #6a51a3 where more leave")
 
     def test_in_and_out_size_by_arrivals_and_departures_in_one_gray(self):
         t = self.totals()

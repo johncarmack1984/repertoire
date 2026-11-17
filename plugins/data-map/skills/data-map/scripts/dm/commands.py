@@ -930,8 +930,8 @@ def run_flows(args) -> int:
                         "larger flows darker, faded by magnitude and never by length" if fade_min < 1 else "--no-fade",
                         "Jenny et al. 2018 §4.2", "Slocum §20.7.2.1"),
         legend.decision("top-n", note, "fewer flows read; the cut is stated", "Jenny et al. 2018", "Yang et al. 2019"),
-        legend.decision("nodes", f"circle area by {unit} {measure.words}" + (", filled by sign" if node_colors else ""),
-                        "a place's balance, which the pairs can't show" if node_colors else "true to area, across every flow before the cut",
+        legend.decision("nodes", f"circle area by {unit} {measure.words}" + (", filled by the sign of in minus out" if node_colors else ""),
+                        "how busy a place is and which way its balance tips, which the pairs can't show" if node_colors else "true to area, across every flow before the cut",
                         "Slocum §20.7.2.2" if node_colors else "Slocum §17.5"),
     ]
     files = {f"{name}-nodes.geojson": node_feats, f"{name}-arrows.geojson": arrows, f"{name}-arcs.json": arcs}

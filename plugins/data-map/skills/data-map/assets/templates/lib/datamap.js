@@ -235,7 +235,7 @@ const LEGENDS = {
 };
 
 const NODE_TITLES = {gross: u => `Circle area: all ${u} in and out`, in: u => `Circle area: ${u} arriving`,
-  out: u => `Circle area: ${u} leaving`, net: u => `Circle area: ${u} gained or lost`};
+  out: u => `Circle area: ${u} leaving`, net: u => `Circle area: all ${u} in and out`};
 
 function signs(sec, layer, colors, unit, nodes) {
   const has = sign => nodes.some(n => Math.sign(n.properties.dm_net || 0) === sign);

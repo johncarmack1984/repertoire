@@ -165,7 +165,8 @@ NODE_VALUES = {
     "gross": NodeMeasure("in and out", lambda t: t["in"] + t["out"]),
     "in": NodeMeasure("arriving", lambda t: t["in"]),
     "out": NodeMeasure("leaving", lambda t: t["out"]),
-    "net": NodeMeasure("gained or lost (in minus out)", lambda t: abs(t["in"] - t["out"])),
+    # A place can be among the busiest and still balance, so net sizes by traffic too and its fill says which way it tips.
+    "net": NodeMeasure("in and out", lambda t: t["in"] + t["out"]),
 }
 
 
