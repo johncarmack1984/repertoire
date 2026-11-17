@@ -80,6 +80,8 @@ Pick each measure's medium by what the viewer needs to see. `reference/media.md`
 | a condition across too many items for a table, such as revenue by state against quota | treemap | `dd.treemap` |
 | values to look up, ranked lists, schedules | text table | `dd.text` |
 
+When a measure is a set of samples judged by the share within a limit, such as response times where a system is fine while 90% of today's samples beat its acceptable time, draw the samples as a box plot against the limit and give the group the rule's `state`. The share decides the alert dot, and the plot shows how far over the slow samples run, which a bullet graph of the share hides.
+
 Never draw a pie, donut, gauge, meter, thermometer, traffic light, radar, area graph, or anything in 3D. The library has no function for any of them, and a call to one throws an error that names the medium to use instead. Use the same medium for the same kind of data everywhere, even if every key measure ends up a bullet graph.
 
 Done when nothing on the left-out list is used and every difference between media reflects a difference in the data.

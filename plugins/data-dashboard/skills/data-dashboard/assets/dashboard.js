@@ -1,7 +1,7 @@
-/* data-dashboard 0.2.2: Stephen Few's dashboard display media, drawn as SVG. MIT license. */
+/* data-dashboard 0.2.3: Stephen Few's dashboard display media, drawn as SVG. MIT license. */
 (() => {
 'use strict'
-const VERSION = '0.2.2'
+const VERSION = '0.2.3'
 const POLICY = { warn: 0.95, alert: 0.85 }
 const WORD = { good: 'good', ok: 'satisfactory', warn: 'warning', alert: 'critical', none: 'no comparison' }
 const DOTC = { warn: 'dd-dot-warn', alert: 'dd-dot-alert' }
@@ -513,17 +513,19 @@ function quartiles (vs) {
   return { min: s[0], q1: q(0.25), median: q(0.5), q3: q(0.75), max: s[s.length - 1] }
 }
 function box (input, o) {
-  const e = env(o), f = o.format || 'int', gs = input.map(g => ({ ...g, ...(g.values ? quartiles(g.values) : {}), band: g.band || o.band }))
-  const F = frame(e, gs.map(g => g.label), [], false), bh = px(F.slot * 0.5)
+  const e = env(o), f = o.format || 'int'
+  const gs = input.map(g => ({ ...g, ...(g.values ? quartiles(g.values) : {}), band: g.band || o.band, st: g.state ? state(g, o.policy) : null }))
+  const F = frame(e, gs.map(g => g.label), [], gs.some(g => g.st)), bh = px(F.slot * 0.5)
   const xs = gs.flatMap(g => [g.min, g.max, ...(g.band || [])]).filter(isNum)
   const t = scaleFor(...(o.domain || [min(0, ...xs), most(xs, 1) * 1.04]), F.x1 - F.x0, f, e, true)
   const sc = lin(t.lo, t.hi, F.x0, F.x1), X = v => px(sc(clamp(v, t.lo, t.hi)))
   const kids = gs.map((g, i) => {
     const cy = F.cy(i), by = px(cy - bh / 2), sum = ['min', 'q1', 'median', 'q3', 'max'].filter(k => isNum(g[k])).map(k => `${k} ${fmt(g[k], f)}`)
-    return row(null, g.label, `${g.label}: ${sum.join(', ')}`, [g.band ? R(X(g.band[0]), px(cy - F.slot * 0.42), X(g.band[1]) - X(g.band[0]), px(F.slot * 0.84), 'dd-ok-band dd-band') : null,
-      F.cells(i), o.range ? R(X(g.min), by, X(g.max) - X(g.min), bh, 'dd-range dd-mark dd-crisp')
+    const said = g.st && [g.label, g.note, WORD[g.st.level]].filter(Boolean).join(', ')
+    return row(g.st && g.st.level, g.label, [said, `${g.label}: ${sum.join(', ')}`].filter(Boolean).join('; '), [g.band ? R(X(g.band[0]), px(cy - F.slot * 0.42), X(g.band[1]) - X(g.band[0]), px(F.slot * 0.84), 'dd-ok-band dd-band') : null,
+      F.cells(i, g.st && g.st.level), o.range ? R(X(g.min), by, X(g.max) - X(g.min), bh, 'dd-range dd-mark dd-crisp')
         : [R(X(g.min), px(cy), X(g.max) - X(g.min), 1, 'dd-whisker dd-mark dd-crisp'), R(X(g.q1) + 0.5, by + 0.5, X(g.q3) - X(g.q1) - 1, bh - 1, 'dd-box dd-mark')],
-      isNum(g.median) ? R(X(g.median) - 1, by - 2, 2, bh + 4, 'dd-median dd-mark dd-crisp') : null])
+      isNum(g.median) ? R(X(g.median) - 1, by - 2, 2, bh + 4, 'dd-median dd-mark dd-crisp') : null], g.key)
   })
   if (o.axis !== false) kids.push(axisX(sc, t, F.H + 2, f, e))
   return svg(e.W, F.H + (o.axis !== false ? axisH(e) + 2 : 0), join(o.title, gs.map(g => `${g.label} median ${fmt(g.median, f)}, ${fmt(g.min, f)} to ${fmt(g.max, f)}`).join('; ')), kids, 'dd-box-svg')
