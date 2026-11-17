@@ -1,6 +1,6 @@
 # Critique
 
-Step 7 follows this file once `check` passes and the screenshot has been opened. A reader with no context looks at the PNG and answers three questions whose answers code computed. Then the agent grades those answers, walks the idiom's default lies and `pitfalls.md` with located evidence, and fixes what fails, for two rounds at most.
+Step 7 follows this file once `check` passes and the screenshot has been opened. A reader with no context looks at the PNG and answers three questions whose answers code computed. Then the agent grades those answers, walks the idiom's default lies and `pitfalls.md` with located evidence, and fixes what fails, in one round.
 
 ## Why a cold reader
 
@@ -87,7 +87,7 @@ Before the report, confirm Muehlenhaus's ten points (ch. 6):
 
 ## Rounds
 
-A round is the critic, the grading, the walk, the fixes, and a fresh `check`. Run a second round only when the first found defects, with a fresh subagent and the new PNG. Stop after two rounds. Report what still fails as open, with its pitfall number and its place in the PNG.
+A round is the critic, the grading, the walk, the fixes, and a fresh `check`. Run one round. Run a second, with a fresh subagent and the new PNG, only when the critic answered a key question wrong and the fix was meant to cure it; polish doesn't earn one. Report what still fails as open, with its pitfall number and its place in the PNG.
 
 ## Without subagents
 

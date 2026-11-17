@@ -108,13 +108,13 @@ Done when every color, size, width, and line on the map comes from encode output
 
 ### 5. Build
 
-Read `stacks/<stack>.md` and `reference/design.md`, fill the page's marked slots, and inline the data and the pinned libraries so the page opens from a file with no network:
+Read `stacks/<stack>.md` and `reference/design.md`, then make the page for this reader. The template is a starting point, not a frame: fill its slots, and move, drop, or add what the reader's decision needs, such as a picker above the map or a ranked table below it when it doesn't fit beside it, so long as the page keeps its `dm-spec` block, its legend, and its readiness hook. Then inline the data and the pinned libraries so the page opens from a file with no network:
 
 ```sh
 python3 <skill>/scripts/datamap.py sync map
 ```
 
-`sync` copies the libraries into the project's `vendor/` from a cache it fills on the first run, so ship `vendor/` with `index.html`. Every element on the page is a decision. The templates add nothing until the brief asks for it, and the page's `dm-spec` block records what was asked for. For a reader who explores, `controls` can list `focus`, which shows one place's flows when the reader clicks or picks it and rewrites the title from a template, and `reveal`, a slider for more flows; run `flows --reveal --reveal-max` with every flow so focused totals are whole. `highlight` names the places the title is about, and `annotations` put the finding on the map. `stacks/maplibre.md` gives each key. A map in an existing codebase keeps its stack and takes the same encoding, the same legend, and the same rules.
+`sync` copies the libraries into the project's `vendor/` from a cache it fills on the first run, so ship `vendor/` with `index.html`. Every element on the page is a decision. The templates add nothing until the brief asks for it, and the page's `dm-spec` block records what was asked for. For a reader who explores, `controls` can list `focus`, which shows one place's flows when the reader clicks or picks it and rewrites the title from a template, and `reveal`, a slider for more flows, whose kept line in the legend updates as it moves, so the subtitle shouldn't repeat it; run `flows --reveal --reveal-max` with every flow so focused totals are whole. `highlight` names the places the title is about, and `annotations` put the finding on the map. `stacks/maplibre.md` gives each key. A map in an existing codebase keeps its stack and takes the same encoding, the same legend, and the same rules.
 
 Done when the page's `dm-spec` matches the brief's projection, interface, and refused controls.
 
@@ -134,7 +134,7 @@ Done when the check exits 0 and the screenshot has been opened.
 
 ### 7. Critique
 
-Follow `reference/critique.md`. A critic with no context gets the screenshot, the reader line, and the answer key's three questions, never the answers or the code. Compare its answers with the key: a wrong answer is a defect in the map, not a difference of opinion. Then walk the idiom file's default lies and `reference/pitfalls.md` against the screenshot, with a located piece of evidence for each, and name three ways the map could still mislead. Take at most two rounds of fixes.
+Follow `reference/critique.md`. A critic with no context gets the screenshot, the reader line, and the answer key's three questions, never the answers or the code. Compare its answers with the key: a wrong answer is a defect in the map, not a difference of opinion. Then walk the idiom file's default lies and `reference/pitfalls.md` against the screenshot, with a located piece of evidence for each, and name three ways the map could still mislead. Fix what it finds once; a second round is for a wrong answer the fix was meant to cure, not for polish.
 
 Done when the critic's answers match the key, the first thing it noticed is the question's subject, and every default lie has located evidence that the map avoids it.
 
