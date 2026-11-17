@@ -43,6 +43,9 @@ BENDS = (1.0, 0.5, 0.75, 1.5, 2.0, 2.5, 3.0)
 # three quarters of a city map bowed 73 and 109 px at the default view, 11% and 17% of its height, ink their volume
 # didn't earn (Jenny et al. kept curvature low, §3.2.4.1).
 BEND_SHARE = CURVE_MIN / 2
+# Nor does a bend's apex sit more than a third of the flow's own length off its chord, curvature 2/3, which runs a
+# quadratic Bézier 5/6 + 3 ln 3 / 8, about 1.25, times its chord. The view's cap alone let a short flow bend into a loop.
+LENGTH_SHARE = 1 / 3
 # A great circle that runs too near a node bends off it, as a curve with one of these curvatures, the flat map's range.
 GC_BENDS = (0.05, 0.1, 0.15, 0.2, 0.3)
 # The globe's tiles end at 85.0511 degrees, in MapLibre and mln-rs alike, and a line drawn past them loops round the
@@ -388,8 +391,8 @@ def point_segment(q: tuple, a: tuple, b: tuple) -> float:
 
 def place(flows: list, nodes: dict, geometry: str, clearance) -> list:
     """Geometry for every flow, largest first; reciprocal flows always bow to opposite sides. A flow tries its own
-    bend, held to the clearance's cap, then other sides and bends within the cap until one keeps its clearance: a
-    curve its BENDS, a great circle its GC_BENDS and the cap. When none does, it keeps the one nearest to clearing
+    bend, held to the clearance's cap and LENGTH_SHARE, then other sides and bends within both until one keeps its
+    clearance: a curve its BENDS, a great circle its GC_BENDS and the cap. When none does, it keeps the one nearest to clearing
     that bends no deeper than its own. A great circle never rises past POLE_LAT if a bend keeps it below, then its
     own bend is the least that does, and a reciprocal flow takes its partner's side of the pole if only that clears it.
     Such a flow records in pole how high its own bend would have run."""
@@ -403,7 +406,7 @@ def place(flows: list, nodes: dict, geometry: str, clearance) -> list:
         reciprocal = (f.d, f.o) in pairs
         partner = chosen.get((f.d, f.o))
         sides = (1, -1) if partner is None else (partner,)
-        top = clearance.max_curvature(f)
+        top = min(clearance.max_curvature(f), 2 * LENGTH_SHARE)
         if geometry == "great-circle":
             own = base = GC_OFFSET if reciprocal else 0.0
             bends = sorted({base} | {c for c in GC_BENDS + (top,) if base < c <= top})

@@ -145,6 +145,21 @@ class BikeCase:
                    "--value", "trips", "--id", "station_id", "--unit", "trips", "--layer", "bike", "--out-dir", out, *args)
 
 
+class StudentCase:
+    """The student globe eval's own data, scaffolded once: 40 countries and 300 pairs."""
+
+    tmp = None
+
+    @classmethod
+    def flows(cls, out, *args):
+        if cls.tmp is None:
+            cls.tmp = tempfile.TemporaryDirectory()
+            subprocess.run(["bash", str(EVALS / "student-flows-globe" / "scaffold.sh")], cwd=cls.tmp.name, check=True)
+        d = Path(cls.tmp.name) / "students"
+        return cli("flows", d / "flows.csv", "--nodes", d / "countries.csv", "--geometry", "great-circle", "--unit", "students",
+                   "--layer", "students", "--out-dir", out, *args)
+
+
 class Classing(unittest.TestCase):
     def test_jenks_finds_slocums_optimal_three_classes(self):
         # Slocum §5.8: the optimal classes are 11-14, 31-33, 99-100, with ADCM 7.
@@ -573,12 +588,12 @@ class Flows(unittest.TestCase):
 
 
 
-def assert_named_as_measured(case, text, gaps):
+def assert_named_as_measured(case, text, gaps, ids=r"S\d+"):
     """The flows the clearance WARN names are exactly those the screen shows within 2 px, each with its gap."""
     measured = {pair: g for pair, g in gaps.items() if g < 2 - 0.05}
     warn = re.search(r"(?m)^WARN clearance \[P16\]: (\d+) flows .*$", text)
     case.assertTrue(warn and measured, text)
-    named = {(o, d): float(g) for o, d, g in re.findall(r"(S\d+) to (S\d+) \(S\d+ ([-+][\d.]+) px\)", warn.group(0))}
+    named = {(o, d): float(g) for o, d, g in re.findall(rf"({ids}) to ({ids}) \({ids} ([-+][\d.]+) px\)", warn.group(0))}
     case.assertEqual(int(warn.group(1)), len(named))
     case.assertEqual(set(named), set(measured))
     for pair, g in named.items():
@@ -649,6 +664,28 @@ class ScreenClearance(unittest.TestCase):
         self.assertFalse(placed.clear)
         self.assertLessEqual(placed.curvature, 0.21 + 1e-9)
         self.assertEqual(screen.gaps(flows.curve(nodes["A"].pos, nodes["B"].pos, 1, 3 * 0.21), ab), {})
+
+    def test_no_bend_runs_a_flow_past_a_third_of_its_length_off_its_chord(self):
+        # A to B, the longest of two flows, takes curvature 0.30 and runs 700 px along the Equator with no cap from the
+        # view. Circles sit on the chord and at the apex of each bend up to twice its own on both sides, so only 2.5
+        # times, curvature 0.75, clears; that runs the flow 1.30 times its chord. A bend whose apex sits a third of the
+        # chord off it, curvature 2/3, runs 5/6 + 3 ln 3 / 8 = 1.245 times, so the flow keeps a bend no deeper than its own.
+        scale = 700 / (512 / 360)
+        lat = lambda px: -math.degrees(math.atan(math.sinh(px / (scale * 512) * 2 * math.pi)))
+        nodes = {"A": flows.Node("A", 0, 0, "A"), "B": flows.Node("B", 1, 0, "B"), "C": flows.Node("C", 0, 30, "C"), "D": flows.Node("D", 0.5, 30, "D")}
+        apexes = [0] + [s * m * 0.30 * 350 for m in (0.5, 0.75, 1, 1.5, 2) for s in (1, -1)]
+        for i, px in enumerate(apexes):
+            nodes[f"N{i}"] = flows.Node(f"N{i}", 0.5, lat(px), f"N{i}")
+        ab, cd = flows.Flow("A", "B", 100), flows.Flow("C", "D", 50)
+        screen = flows.OnScreen(nodes, scale, {k: 4.0 for k in nodes}, {ab: 4.0, cd: 4.0}, {})
+        stretch = lambda coords: sum(math.dist(*(screen.px(p) for p in pq)) for pq in zip(coords, coords[1:])) / math.dist(screen.px(coords[0]), screen.px(coords[-1]))
+        deep = flows.curve(nodes["A"].pos, nodes["B"].pos, 1, 2.5 * 0.30)
+        self.assertEqual(screen.gaps(deep, ab), {})
+        self.assertAlmostEqual(stretch(deep), 1.30, places=2)
+        placed = next(p for p in flows.place([ab, cd], nodes, "curved", screen) if p.flow == ab)
+        self.assertFalse(placed.clear)
+        self.assertLessEqual(placed.curvature, 0.30 + 1e-9)
+        self.assertLessEqual(stretch(placed.coords), 1.25)
 
 
 def sphere(p):
@@ -753,6 +790,20 @@ class GlobeClearance(unittest.TestCase):
         self.assertAlmostEqual(length, 1, places=3)
         self.assertRegex(text, rf"(?m)^WARN clearance \[P16\]: 1 flows still come within 2 px on a globe 293 px in radius \(the 844 x 634 px view\) "
                                rf"of a node they don't connect: CHN to USA \(JPN {gap:+.1f} px\)")
+
+    def test_no_bend_runs_a_flow_past_a_quarter_longer_and_one_that_cannot_clear_is_named(self):
+        # The student globe at 358 x 486 px: a globe of 358 / 2 - 14 - 10 = 155 px and a cap of 0.06 x 358 = 21.5 px.
+        # Germany to the United Kingdom, 881 km, runs 21 px on it, so that cap allowed a
+        # curvature of 2, which ran the flow 2.3 times its great circle to clear a node. A bend whose apex sits a third
+        # of the chord off it runs 5/6 + 3 ln 3 / 8 = 1.245 times as long.
+        with tempfile.TemporaryDirectory() as out:
+            code, text = StudentCase.flows(out, "--top", 30, "--reveal", "--reveal-max", 300, "--max-width", 12, "--view", "358x486", "--node-value", "in")
+            self.assertEqual(code, 0, text)
+            lines, r = globe_lines(out, "students", (358, 486))
+            rank = {(p["dm_o"], p["dm_d"]): p["dm_rank"] for p in (f["properties"] for f in json.loads((Path(out) / "students.geojson").read_text())["features"])}
+        self.assertEqual((r, len(lines)), (155, 300))
+        self.assertLessEqual(max(length for _, _, length in lines.values()), 1.25, max(lines.items(), key=lambda kv: kv[1][2]))
+        assert_named_as_measured(self, text, {pair: gap for pair, (gap, _, _) in lines.items() if rank[pair] <= 30}, ids="[A-Z]{3}")
 
     def test_a_great_circle_past_85_degrees_bends_below_it_and_the_warn_says_how_far(self):
         # Delhi to the middle of the United States, 176 degrees of longitude apart, rises to 87 N; the globe's tiles

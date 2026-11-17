@@ -882,11 +882,12 @@ def run_flows(args) -> int:
         node_feats.append(data.feature(nid, props, {"type": "Point", "coordinates": nodes[key].pos}))
     if args.geometry == "curved":
         capped = sum(p.capped for p in placed)
-        held = f"; no bend runs deeper than {flows.BEND_SHARE:.0%} of the view's shorter side ({flows.BEND_SHARE * min(args.view):.0f} px), which held {capped} long {'flow' if capped == 1 else 'flows'} shallower"
+        held = f"; no bend runs deeper than {flows.BEND_SHARE:.0%} of the view's shorter side ({flows.BEND_SHARE * min(args.view):.0f} px), which held {capped} long {'flow' if capped == 1 else 'flows'} shallower, or deeper than {flows.LENGTH_SHARE:.0%} of the flow's own length"
         findings.append(PASS("curves", f"each flow bows to the right of travel, more for longer flows (curvature {flows.CURVE_MIN} to {flows.CURVE_MAX}){held}; {reciprocal} reciprocal {'pair sits' if reciprocal == 1 else 'pairs sit'} on opposite sides", 15))
     else:
         findings.append(PASS("great-circles", f"great circles densified every {flows.DENSIFY_DEG:g} degree; {reciprocal} reciprocal {'pair' if reciprocal == 1 else 'pairs'} offset to either side; "
-                                              f"a great circle that runs over a node bends off it by up to {flows.BEND_SHARE:.0%} of the view's shorter side ({flows.BEND_SHARE * min(args.view):.0f} px)", 15))
+                                              f"a great circle that runs over a node bends off it by up to {flows.BEND_SHARE:.0%} of the view's shorter side ({flows.BEND_SHARE * min(args.view):.0f} px) "
+                                              f"or {flows.LENGTH_SHARE:.0%} of its own length, whichever is less", 15))
     moved = [p for p in placed if p.clear and p.moved]
     where = (f"at the {args.view[0]:g} x {args.view[1]:g} px view (zoom {math.log2(scale):.2f})" if scale
              else f"on a globe {globe:.0f} px in radius (the {args.view[0]:g} x {args.view[1]:g} px view)")
