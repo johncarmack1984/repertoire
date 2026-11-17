@@ -230,6 +230,7 @@ STATIC_BAD = [
     ("a focus template with a field the page doesn't fill", "maplibre-flows", spec(focus={"title": "{name} sends most to {nme}"}), ("FAIL", "focus", 24)),
     ("focus on a layer that holds only its largest flows", "maplibre-globe", spec(controls=["focus"], focus={"title": "{name}"}), ("WARN", "focus", 24)),
     ("focus with no flows to focus", "maplibre-crs", spec(controls=["focus"]), ("WARN", "controls", 23)),
+    ("a hint that is neither words nor false", "maplibre-globe", spec(hint=True), ("FAIL", "hint", 23)),
 ]
 
 BROWSER_BAD = [
@@ -637,7 +638,7 @@ class Render(unittest.TestCase):
                   "map.setLayoutProperty('movers-labels', 'text-anchor', 'left'); map.setLayoutProperty('movers-labels', 'text-offset', [3, 0])",
                   "nearer another circle than their own", "Shanghai, nearer Tokyo"),
                  ("names pushed off the frame", "map.setLayoutProperty('movers-labels', 'text-radial-offset', undefined); "
-                  "map.setLayoutProperty('movers-labels', 'text-anchor', 'left'); map.setLayoutProperty('movers-labels', 'text-offset', [8, 0])",
+                  "map.setLayoutProperty('movers-labels', 'text-anchor', 'left'); map.setLayoutProperty('movers-labels', 'text-offset', [12, 0])",
                   "run past the map's edge", "Los Angeles")]
         for what, code, says, names in cases:
             with self.subTest(what):
@@ -1059,6 +1060,32 @@ class Render(unittest.TestCase):
         self.assertLess(degrees(up["center"], still["center"]), 0.5, "the globe stayed put")
         self.assertEqual(sideways["viewport"]["scrollY"], 0)
         self.assertGreater(degrees(sideways["center"], still["center"]), 20, "the globe turned")
+
+    def test_a_hint_under_an_interactive_map_says_what_the_reader_can_do(self):
+        tap = ("const f = DataMap.data.capacity.features[0], at = map.project(f.geometry.coordinates), r = map.getCanvas().getBoundingClientRect(); "
+               "const xy = {clientX: r.left + at.x, clientY: r.top + at.y, bubbles: true, button: 0}; "
+               "for (const kind of ['mousedown', 'mouseup', 'click']) map.getCanvas().dispatchEvent(new MouseEvent(kind, xy)); "
+               "if (document.querySelector('.dm-tip').style.display !== 'block') throw new Error('a tap showed no tooltip')")
+        cases = (("a flows map with focus", "maplibre-flows", [], "Hover or tap for numbers; click or tap a place for its flows alone, Esc to go back; drag to pan; scroll or pinch to zoom."),
+                 ("a globe", "maplibre-globe", [], "Hover or tap for numbers; drag to turn the globe; scroll or pinch to zoom."),
+                 ("a globe that tilts", "maplibre-globe", [extend("map.setMaxPitch(60); map.dragRotate.enable()")],
+                  "Hover or tap for numbers; drag to turn the globe; scroll or pinch to zoom; right-drag to tilt."),
+                 ("a tap on a circle", "maplibre-mercator", [extend(tap)], "Hover or tap for numbers; drag to pan; scroll or pinch to zoom."),
+                 ("words of the page's own", "maplibre-crs", [spec(hint="Hover a country for its rate.")], "Hover a country for its rate."),
+                 ("no hint", "maplibre-crs", [spec(hint=False)], None),
+                 ("a static figure", "maplibre-crs", [spec(figure={"size": "640x617"}, companions=[])], None))
+        for what, name, edits, want in cases:
+            with self.subTest(what):
+                folder = copy(name, self.tmp / what.replace(" ", "-"))
+                for edit in edits:
+                    edit(folder)
+                result = self.render(folder)[1]
+                self.assertIn(("PASS", "ready", 33), findings(result))
+                rep = result["report"]
+                self.assertEqual(rep["hint"], want)
+                if want:
+                    box = next(b for b in rep["textBoxes"] if b["text"] == want[:60])
+                    self.assertGreaterEqual(box["y"], rep["mapBox"]["y"] + rep["mapBox"]["h"], "the hint sits under the map")
 
     def test_a_synced_page_without_data_renders_and_passes(self):
         folder = copy("maplibre-globe", self.tmp)

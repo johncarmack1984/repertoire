@@ -891,7 +891,8 @@ function interact(map, hover) {
     tip.style.top = `${Math.max(y - tip.offsetHeight - 8, 0)}px`;
   };
   for (const [layer, outline] of hover) {
-    map.on('mousemove', layer, e => {
+    // A tap fires click, not mousemove, so the tooltip answers both.
+    for (const kind of ['mousemove', 'click']) map.on(kind, layer, e => {
       const f = e.features[0];
       map.setFilter(outline, f.properties.dm_key != null ? ['==', ['get', 'dm_key'], f.properties.dm_key] : ['==', ['id'], f.id ?? '__dm_none__']);
       map.getCanvas().style.cursor = focusLayer && layer === focusLayer + '-nodes' ? 'pointer' : 'default';
@@ -951,7 +952,7 @@ function arcLayers(deck, t, show) {
       getWidth: a => a.dm_width, widthUnits: 'pixels',
       getSourceColor: a => [...rgb(arcColor(a)), 255 * (a.dm_opacity ?? 1)],
       getTargetColor: a => [...rgb(arcColor(a)), 255 * (a.dm_opacity ?? 1)],
-      pickable: true, onHover: info => show(info.object?.dm_tip, info.x, info.y)
+      pickable: true, onHover: info => show(info.object?.dm_tip, info.x, info.y), onClick: info => show(info.object?.dm_tip, info.x, info.y)
     })});
   }
   return out;
@@ -1468,6 +1469,7 @@ function report(map, arcs) {
     dmControls: [...document.querySelectorAll('[data-dm-control]')].map(e => e.dataset.dmControl),
     reveal: map ? revealReport(map) : [],
     focus: map ? focusReport(map) : null,
+    hint: $('dm-hint')?.textContent ?? null,
     highlight: [...highlighted].map(key => ({key, name: highlightNames().get(key) ?? null,
       companions: document.querySelectorAll(`[data-dm-highlight="${CSS.escape(key)}"]`).length})),
     tooltips: !!document.querySelector('.dm-tip'),
@@ -1556,7 +1558,8 @@ function layOutFigure() {
 // A static figure keeps its size, so its map row hugs the map and any height left over falls below the source line,
 // where the report measures it.
 function hugMap(map) {
-  const cell = $('dm-map-cell'), {clientWidth: w, clientHeight: h} = cell;
+  // The hint line sits in the map's cell, under the map.
+  const cell = $('dm-map-cell'), w = cell.clientWidth, below = cell.clientHeight - $('map').clientHeight, h = cell.clientHeight - below;
   const figure = !!spec.figure?.size, narrow = document.body.classList.contains('dm-narrow');
   if (spec.projection.type === 'globe' || (!figure && innerWidth <= 720)) return false;
   const xy = boxEdge(fitBox(thematicPoints())).map(p => map.project(p)), xs = xy.map(p => p.x), ys = xy.map(p => p.y);
@@ -1565,13 +1568,14 @@ function hugMap(map) {
   const side = aside && !narrow ? Math.max(0, ...[...aside.querySelectorAll('section')].map(e => e.getBoundingClientRect().bottom - top)) : 0;
   const pad = fitPad(), want = Math.max(Math.ceil((w - 2 * pad) / aspect) + 2 * pad, side);
   if (want >= h - 8) return false;
+  const row = want + below;
   if (figure) {
-    document.body.style.gridTemplateRows = narrow ? `auto ${want}px auto auto` : `auto ${want}px auto`;
+    document.body.style.gridTemplateRows = narrow ? `auto ${row}px auto auto` : `auto ${row}px auto`;
     document.body.style.alignContent = 'start';
   } else {
     document.body.style.height = 'auto';
     document.body.style.minHeight = '100%';
-    document.body.style.gridTemplateRows = `auto ${want}px auto`;
+    document.body.style.gridTemplateRows = `auto ${row}px auto`;
     document.body.style.alignContent = 'center';
   }
   map.resize();
@@ -1748,6 +1752,37 @@ function focusReport(map) {
     partners: s ? s.ranked.map(r => ({key: r.key, name: r.name, out: r.out, in: r.in})) : []};
 }
 
+// ---------- the hint: one quiet line under an interactive map saying what a reader can do with it ----------
+
+// From dm-spec and the map's own handlers: hover or tap for numbers, click a place to focus it, drag to pan or turn,
+// zoom, and tilt when the map allows it. dm-spec.hint replaces the line with its own words, and false leaves it off;
+// a static figure has none.
+function hintText(map) {
+  if (spec.hint === false || spec.figure?.size || !spec.projection) return '';
+  if (typeof spec.hint === 'string') return spec.hint;
+  const said = [], z = spec.zoom || {};
+  if (spec.tooltips !== false && layersOf().length) said.push('hover or tap for numbers');
+  if (focusLayer) said.push('click or tap a place for its flows alone, Esc to go back');
+  said.push(spec.projection.type === 'globe' ? 'drag to turn the globe' : 'drag to pan');
+  if (!(z.min != null && z.min === z.max)) said.push('scroll or pinch to zoom');
+  if (map && map.getMaxPitch() > map.getMinPitch() && (map.dragRotate.isEnabled() || map.touchPitch.isEnabled())) said.push('right-drag to tilt');
+  const line = said.join('; ');
+  return line[0].toUpperCase() + line.slice(1) + '.';
+}
+
+// Written before the map exists, so the map's cell leaves the line its room; after the page's own extension runs,
+// the line is written again, and if it grew, the map resizes.
+function drawHint(map) {
+  const text = hintText(map), cell = $('dm-map-cell');
+  let hint = $('dm-hint');
+  if (!text) { hint?.remove(); $('map').style.bottom = ''; return false; }
+  hint ??= html('p', {id: 'dm-hint', class: 'dm-hint'}, cell);
+  const before = hint.offsetHeight;
+  hint.textContent = text;
+  $('map').style.bottom = `${hint.offsetHeight + 6}px`;
+  return hint.offsetHeight !== before;
+}
+
 // ---------- start ----------
 
 // The pinned libraries sync copied into vendor/, as the head's tags loaded them. Chrome loads no ES module from a
@@ -1778,6 +1813,7 @@ async function start(libs, extend) {
   drawLegend();
   drawCompanions();
   focusPicker();
+  drawHint(null);
   if (!spec.projection) {
     window.dataMap.report = () => report(null, null);
     await document.fonts.ready;
@@ -1836,6 +1872,7 @@ async function start(libs, extend) {
   map.on('move', () => moveNotes(map));
   map.on('moveend', () => placeNotes(map));
   if (extend) await extend({map, overlay, layers: (arcs || []).map(a => a.layer), data, spec, legend, libs});
+  if (drawHint(map)) map.resize();
   map.triggerRepaint();
   await Promise.all([once(map, 'idle'), drawn]);
   window.dataMap.report = () => report(map, live.arcs || arcs);

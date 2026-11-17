@@ -397,7 +397,14 @@ def rule_highlight(page: Page) -> list:
     return []
 
 
-MAP_RULES = [rule_projection, rule_tiles, rule_controls, rule_focus, rule_pitch, rule_zoom, rule_legend, rule_annotations, rule_highlight]
+def rule_hint(page: Page) -> list:
+    hint = page.spec.get("hint")
+    if hint is None or hint is False or (isinstance(hint, str) and hint.strip()):
+        return []
+    return [FAIL("hint", f"dm-spec.hint is {hint!r}", "leave it out for the line the page writes, write your own line, or set false for none", 23)]
+
+
+MAP_RULES = [rule_projection, rule_tiles, rule_controls, rule_focus, rule_pitch, rule_zoom, rule_legend, rule_annotations, rule_highlight, rule_hint]
 PAGE_RULES = [rule_pins, rule_library, rule_fonts, rule_motion, rule_text, rule_companions, rule_deliverable]
 
 

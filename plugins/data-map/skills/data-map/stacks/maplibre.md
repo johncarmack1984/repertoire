@@ -49,7 +49,8 @@ python3 <skill>/scripts/datamap.py check map --scale 2
 | `focus` | with `focus` in `controls`, the focused page's title and subtitle as templates, `by` (`out`, `in`, or `both`, the default), and the `layer` when there are two |
 | `highlight` | the keys of the places the title names, such as `["IND", "BGD"]`: a flow node's `dm_key` or an area's or symbol's id. Their names draw bold, their circles get a dark ring, an area gets a dark outline on a white casing, and a bar or table row in a companion that names one draws bold, its bar dark. `check` warns on a key no node or area has |
 | `frame` | under a CRS, `"none"` (the default) or `"sphere"`, which draws the ocean, the graticule, and the world's outline |
-| `tooltips` | `false` to take the hover tooltips off; the page shows them unless told |
+| `tooltips` | `false` to take the tooltips off; the page shows them on hover and on a tap unless told |
+| `hint` | the line under an interactive map saying what a reader can do, which the page writes from `controls`, the zoom limits, and the projection, such as "Hover or tap for numbers; drag to turn the globe; scroll or pinch to zoom.", and adds "right-drag to tilt" when the map allows it. A string replaces it, and `false` leaves it off; a static figure has none |
 | `figure` | a static figure's destination size, such as `{"size": "640x700", "scale": 2}`. The page lays itself out at that size in any window, in one column with the classes running across when it is 720 px wide or less, and the map keeps at least 55% of the height. `check` renders there unless `--size` or `--scale` says otherwise, and fails any text cut off or run off the figure |
 
 ## What the page draws from data
