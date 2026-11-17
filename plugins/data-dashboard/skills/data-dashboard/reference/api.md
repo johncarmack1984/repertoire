@@ -80,7 +80,7 @@ An alert dot is one line of text across, 1.3 times the type size: 16 px at 12.5 
 | `dd.state(m, policy?)` | `{level, ratio, text}`, as above. |
 | `dd.flags(target)` | Writes the count of flagged rows into `target`, as above, and keeps it current. `dd.svg.flags({alert, warn})` returns the line as HTML from two lists of labels. |
 | `dd.flagged(root = document)` | `{total, alert: [labels], warn: [labels]}`, the rows under `root` with each row counted once, as above. `dd.flags` and the check's alert count both read it. |
-| `dd.version` | `"0.2.2"`. |
+| `dd.version` | `"0.2.3"`. |
 
 Format specs:
 
@@ -185,7 +185,7 @@ A row with a `target` gets a target tick and a state, and a dot when it is `warn
 
 ### `box(groups, opts)`
 
-`groups` are `{label, values}` (quartiles computed) or `{label, min, q1, median, q3, max}`, each with an optional `band: [lo, hi]`. Few's simplified box plot has a whisker from min to max with no caps, a light box from q1 to q3 with a dark outline, and the median as a 2 px line, all over an optional acceptable band. Options: `band` (for every group), `range` (draws range bars from min to max with a median line instead), `format`, `domain`, `axis`.
+`groups` are `{label, values}` (quartiles computed) or `{label, min, q1, median, q3, max}`, each with an optional `band: [lo, hi]`, and an optional `state` (`good`, `ok`, `warn` or `alert`), `note` and `key`. A group in `warn` or `alert` gets an alert dot before its label and counts in `dd.flagged()`, and its label, note, and state lead the row's title. Few's simplified box plot has a whisker from min to max with no caps, a light box from q1 to q3 with a dark outline, and the median as a 2 px line, all over an optional acceptable band. Options: `band` (for every group), `range` (draws range bars from min to max with a median line instead), `format`, `domain`, `axis`.
 
 ### `scatter(points or {sets}, opts)`
 

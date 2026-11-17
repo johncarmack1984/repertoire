@@ -89,7 +89,7 @@ Lines show the shape of data over time, such as trends, cycles, rates of change,
 These show how a set of values spreads across its range, which a sum or an average hides, such as salaries in each grade or response times for each system. Range bars from low to high are the simplest form; range bars with a median line are enough for many dashboards; the simplified box plot is Few's choice when the spread inside the range matters. Teach the box plot to viewers who haven't read one (chapter 7, "Test Your Design for Usability").
 
 - The simplified box plot has whiskers to the lowest and highest values with no caps, a light gray box from the 25th to the 75th percentile, and the median as a solid line. Range bars float on a zero-based axis with the median as a dark line. A gray band behind the glyphs can mark the acceptable range.
-- `dd.box("#response", d.systems, {band: [0, 3]})`
+- `dd.box("#response", d.systems, {band: [0, 3]})`. A group's `state` comes from the alert rule, such as the share of samples within the limit, and draws its alert dot; its `note` says why, such as "27 of 30 within 3.0 s".
 
 ### Scatter plot
 

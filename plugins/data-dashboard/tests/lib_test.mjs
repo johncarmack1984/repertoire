@@ -261,6 +261,17 @@ const tests = {
     assert.deepEqual(dd.flagged(page(svg, again)), { total: 3, alert: ['California'], warn: ['Oregon'] })
     assert.match(svg, /aria-label="West: Oregon 92, 92% of target, warning; California 80, 80% of target, critical\. East: New York 104, 104% of target, good"/, 'the name lists every cell by group, largest first')
   },
+  'dd.box: a group with a state gets its alert dot and counts as flagged; without states the plot is unchanged' () {
+    const page = svg => ({ querySelectorAll: () => (svg.match(/<g [^>]*data-dd-level[^>]*>/g) || []).map(t => ({ getAttribute: k => attrs(t)[k] ?? null })) })
+    const groups = [{ label: 'Data warehouse', values: [1.2, 2.1, 2.6, 3.4, 3.9], band: [0, 3] }, { label: 'ERP', values: [0.8, 1.1, 1.3, 1.6], band: [0, 2] }]
+    const plain = dd.svg.box(groups, { width: 600, format: 'dec1' })
+    const flagged = dd.svg.box([{ ...groups[0], state: 'warn', key: 'dw', note: '2 of 5 samples over 3.0 s' }, groups[1]], { width: 600, format: 'dec1' })
+    assert.doesNotMatch(plain, /dd-dot-/, 'no states, no dots')
+    assert.equal((flagged.match(/dd-dot-warn/g) || []).length, 1, 'the warned group gets one dot')
+    assert.deepEqual(dd.flagged(page(flagged)).warn, ['Data warehouse'])
+    assert.match(flagged, /<title>Data warehouse, 2 of 5 samples over 3\.0 s, warning; Data warehouse: min/, 'the state and its note lead the row title')
+    assert.ok(rects(flagged, 'dd-box')[0].x > rects(plain, 'dd-box')[0].x, 'the dot column moves the plot right of the dots')
+  },
   'dd.flagged counts each flagged row once, by measure key, and dd.svg.flags says it' () {
     const page = (...parts) => ({ querySelectorAll: () => parts.join('').match(/<(?:g|tr) [^>]*data-dd-level[^>]*>/g).map(t => ({ getAttribute: k => attrs(t)[k] ?? null })) })
     const ms = { oNeg: { label: 'O−', value: 1.6, target: 5, ranges: [2, 3, 5], history: [3, 2, 1.6] },
