@@ -210,7 +210,7 @@ const LEGENDS = {
     for (const r of rows) {
       const cy = y + r.h / 2, half = r.len * ARROW.base / ARROW.len / 2;
       mark(svg('line', {x1: 0, x2: run + 0.5, y1: cy, y2: cy, stroke: color, 'stroke-width': r.w, 'stroke-opacity': r.a}, s), name, 'flow', color, fmt(r.v), true);
-      svg('polygon', {points: `${run},${cy - half} ${run + r.len},${cy} ${run},${cy + half}`, fill: color, 'fill-opacity': r.a}, s);
+      svg('polygon', {points: `${run},${cy - half} ${run + r.len},${cy} ${run},${cy + half}`, fill: color}, s);
       label(s, run + longest + 10, cy, fmt(r.v));
       y += r.h + 6;
     }
@@ -605,7 +605,7 @@ function buildKinds(t, crs, deck) {
             'icon-offset': ['array', 'number', 2, ['get', 'dm_icon_offset']], 'icon-rotate': ['get', 'dm_screen'],
             'icon-rotation-alignment': 'viewport', 'icon-pitch-alignment': 'viewport',
             'icon-allow-overlap': true, 'icon-ignore-placement': true, 'symbol-sort-key': ['get', 'dm_order']},
-          paint: {'icon-color': color, 'icon-halo-color': t.page, 'icon-halo-width': 1, 'icon-opacity': ['coalesce', ['get', 'dm_opacity'], 1]}});
+          paint: {'icon-color': color, 'icon-halo-color': t.page, 'icon-halo-width': 1}});
       }
       return part;
     }

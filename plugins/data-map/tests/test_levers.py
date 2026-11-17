@@ -520,7 +520,9 @@ class Flows(unittest.TestCase):
                 self.assertAlmostEqual(p["dm_opacity"], 0.45 + 0.55 * (p["dm_value"] - vmin) / (vmax - vmin), places=3)
             by_value = sorted(lines, key=lambda p: p["dm_value"])
             self.assertEqual((by_value[0]["dm_opacity"], by_value[-1]["dm_opacity"]), (0.45, 1.0))
-            self.assertEqual({(a["dm_o"], a["dm_d"]): a["dm_opacity"] for a in arrows}, {(p["dm_o"], p["dm_d"]): p["dm_opacity"] for p in lines})
+            # A faded head on a thin flow drew at half strength and readers missed it, so heads carry no fade.
+            self.assertEqual(len(arrows), len(lines))
+            self.assertEqual([a for a in arrows if "dm_opacity" in a], [])
             # Each legend width carries its value's opacity, so the swatches match the lines.
             self.assertEqual(len(layer["legend_opacities"]), len(layer["legend_widths"]))
             for v, a in zip(layer["legend_values"], layer["legend_opacities"]):
@@ -530,8 +532,8 @@ class Flows(unittest.TestCase):
             lines, _, layer = self.flows_run(out, "--fade-min", 0.2)
             self.assertEqual(min(p["dm_opacity"] for p in lines), 0.2)
         with tempfile.TemporaryDirectory() as out:
-            lines, arrows, layer = self.flows_run(out, "--no-fade")
-            self.assertEqual({p["dm_opacity"] for p in lines + arrows} | set(layer["legend_opacities"]), {1.0})
+            lines, _, layer = self.flows_run(out, "--no-fade")
+            self.assertEqual({p["dm_opacity"] for p in lines} | set(layer["legend_opacities"]), {1.0})
 
     def test_flows_draw_in_one_warm_color_unless_told(self):
         with tempfile.TemporaryDirectory() as out:
@@ -870,8 +872,9 @@ class Reveal(unittest.TestCase):
             self.assertEqual([p["dm_value"] for p in by_rank], trips)
             for p in feats:
                 self.assertAlmostEqual(p["dm_width"], max(1, 10 * p["dm_value"] / 1486), places=2)
-                self.assertAlmostEqual(p["dm_opacity"], 0.45 + 0.55 * (p["dm_value"] - 1) / (1486 - 1), places=3)
                 self.assertEqual(p["dm_order"], p["dm_rank"] - 1)
+        for p in lines:
+            self.assertAlmostEqual(p["dm_opacity"], 0.45 + 0.55 * (p["dm_value"] - 1) / (1486 - 1), places=3)
         self.assertEqual(len(nodes), 20)
         # All 20 stations widen the fit. South Waterfront to Union Station must bow opposite its 1,486-trip reverse,
         # and no bend on that side clears Pioneer Square, so it is the one first-view flow the lever names.

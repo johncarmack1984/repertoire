@@ -55,7 +55,7 @@ The flags are `--snapshot PNG`, `--size WxH` in logical pixels (1200x800 by defa
 | `sizes` | `sizes.geojson` | `dm_r`, `dm_fill`, `dm_order` |
 | `flows` | `flows.geojson` | `dm_width`, `dm_offset`, `dm_fill`, `dm_opacity`, `dm_order` |
 | `nodes` | `flows-nodes.geojson` | `dm_r`, `dm_fill`, `dm_order` |
-| `arrows` | `flows-arrows.geojson` | `dm_arrow`, `dm_bearing`, `dm_setback`, `dm_offset`, `dm_value`, `dm_fill`, `dm_opacity` |
+| `arrows` | `flows-arrows.geojson` | `dm_arrow`, `dm_bearing`, `dm_setback`, `dm_offset`, `dm_value`, `dm_fill` |
 
 The file names are the levers' defaults. A lever run with `--layer` writes another name, so rename the source's file to match. The sort keys draw small flows over large ones (P19) and small circles over large ones (P14). The arrows align to the map in rotation and pitch, so they lie on the sphere and point along the flow at its destination, as Jenny et al. advise (§4.2).
 

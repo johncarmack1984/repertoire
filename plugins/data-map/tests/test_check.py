@@ -928,6 +928,27 @@ class Render(unittest.TestCase):
         self.assertEqual(signs, {colors["gain"]: True, colors["loss"]: True})
         self.assertIn(("PASS", "legend-colors", 9), findings(result))
 
+    def test_a_faint_flow_s_arrowhead_draws_at_full_strength(self):
+        # The smallest flow the slider can reveal draws its line at the fade's floor, 0.45. With every layer hidden but
+        # that flow's arrowhead, the head is the only thing in the flows' color on the map, so its color shows whether it
+        # faded with its line.
+        folder = copy("maplibre-flows", self.tmp)
+        rank = json.loads((folder / "data" / "legend.json").read_text())["layers"]["trips"]["reveal"]["count"]
+        line = next(f["properties"] for f in json.loads((folder / "data" / "trips.geojson").read_text())["features"] if f["properties"]["dm_rank"] == rank)
+        self.assertEqual(line["dm_opacity"], 0.45)
+        extend("for (const l of map.getStyle().layers) if (l.id !== 'trips-arrows') map.setLayoutProperty(l.id, 'visibility', 'none'); "
+               f"map.setFilter('trips-arrows', ['==', ['get', 'dm_rank'], {rank}])")(folder)
+        result = self.render(folder)[1]
+        box, dpr = result["report"]["mapBox"], result["report"]["viewport"]["dpr"]
+        counts = png.read(Path(result["png"]).read_bytes()).histogram(tuple(box[k] * dpr for k in ("x", "y", "w", "h")))
+        self.assertEqual((result["report"]["rendered"]["trips"], result["report"]["rendered"]["trips-nodes"]), (0, 0))
+        # How far each pixel in the flows' hue runs from the white page to the flow color, by its green channel. The
+        # soft edge of a 6 px icon keeps even a full head's core a little short of 1, while a head faded with its line
+        # stays under 0.45.
+        green = png.hex_rgb(line["dm_fill"])[1]
+        head = [(255 - g) / (255 - green) for r, g, b in map(png.key_rgb, counts) if r > g + 30 and r > b + 50]
+        self.assertGreater(max(head, default=0), 0.9)
+
     def test_a_title_place_hidden_at_load_warns_until_a_note_marks_it(self):
         retitle = page('stay on its western side</h1>', 'stay on its western side, and few reach Lima</h1>')
         for notes, warned in (([], True), ([{"text": "Lima", "at": "node:LIM"}], False)):

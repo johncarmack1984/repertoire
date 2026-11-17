@@ -865,7 +865,7 @@ def run_flows(args) -> int:
         # Six decimals, about 0.1 m: at five, rounding turns the vertices of a short curve by several degrees.
         lines.append(data.feature(fid, props, g, nd=6))
         arrows.append(data.feature(fid, {"dm_o": f.o, "dm_d": f.d, "dm_value": f.value, "dm_bearing": round(geo.end_bearing(p.coords), 2),
-                                         "dm_arrow": round(flows.arrow_size(w), 2), "dm_width": w, "dm_offset": offset, "dm_opacity": alpha,
+                                         "dm_arrow": round(flows.arrow_size(w), 2), "dm_width": w, "dm_offset": offset,
                                          "dm_order": order[f], "dm_rank": order[f] + 1, "dm_setback": round(node_r[f.d], 2), "dm_fill": color},
                                    {"type": "Point", "coordinates": nodes[f.d].pos}))
         arcs.append({"source": data.round_coords(nodes[f.o].pos), "target": data.round_coords(nodes[f.d].pos), "value": f.value,
