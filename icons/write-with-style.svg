@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" fill="#F2EEE6"/>
+  <!-- Lines of prose, with the needless words struck out. -->
+  <g stroke="#2A2A28" stroke-width="3.6" stroke-linecap="round">
+    <line x1="13" y1="18.5" x2="51" y2="18.5"/>
+    <line x1="13" y1="27.5" x2="21" y2="27.5"/><line x1="45" y1="27.5" x2="51" y2="27.5"/>
+    <line x1="13" y1="36.5" x2="47" y2="36.5"/><line x1="13" y1="45.5" x2="37" y2="45.5"/>
+  </g>
+  <line x1="26" y1="27.5" x2="40" y2="27.5" stroke="#A8A398" stroke-width="3.6" stroke-linecap="round"/>
+  <line x1="23.5" y1="27.5" x2="42.5" y2="27.5" stroke="#B4432F" stroke-width="1.8" stroke-linecap="round"/>
+</svg>

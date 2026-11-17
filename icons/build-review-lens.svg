@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" fill="#F2EEE6"/>
+  <!-- Lines of a change, and a lens that picks out the one a maintainer would mark. -->
+  <defs><clipPath id="lens"><circle cx="37" cy="31" r="10.5"/></clipPath></defs>
+  <g stroke="#CBC5B9" stroke-width="3.2" stroke-linecap="round">
+    <line x1="11" y1="15" x2="33" y2="15"/><line x1="15" y1="23" x2="45" y2="23"/><line x1="15" y1="31" x2="42" y2="31"/>
+    <line x1="11" y1="39" x2="31" y2="39"/><line x1="15" y1="47" x2="35" y2="47"/>
+  </g>
+  <g clip-path="url(#lens)" stroke-width="3.2" stroke-linecap="round">
+    <line x1="15" y1="23" x2="45" y2="23" stroke="#7F7A71"/><line x1="15" y1="31" x2="42" y2="31" stroke="#B4432F"/><line x1="11" y1="39" x2="31" y2="39" stroke="#7F7A71"/>
+  </g>
+  <circle cx="37" cy="31" r="12" fill="none" stroke="#2A2A28" stroke-width="3.2"/>
+  <line x1="45.8" y1="39.8" x2="53" y2="47" stroke="#2A2A28" stroke-width="5" stroke-linecap="round"/>
+</svg>

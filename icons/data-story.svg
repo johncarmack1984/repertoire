@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" fill="#F2EEE6"/>
+  <!-- The point in words above a gray line, and only the change that matters in the accent. -->
+  <rect x="12" y="11" width="28" height="3.4" rx="1.7" fill="#2A2A28"/>
+  <rect x="12" y="17.6" width="19" height="2.2" rx="1.1" fill="#A8A398"/>
+  <line x1="12" y1="53" x2="52" y2="53" stroke="#CBC5B9" stroke-width="1"/>
+  <polyline points="12,45 20,43 28,46 36,40 44,38" fill="none" stroke="#A8A398" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
+  <line x1="44" y1="38" x2="52" y2="25" stroke="#B4432F" stroke-width="3.2" stroke-linecap="round"/>
+  <circle cx="52" cy="25" r="3.4" fill="#B4432F"/>
+</svg>

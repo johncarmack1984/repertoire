@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" fill="#F2EEE6"/>
+  <!-- The main checkout's line, and side work on its own branch beside it. -->
+  <line x1="23" y1="10" x2="23" y2="54" stroke="#2A2A28" stroke-width="3.6" stroke-linecap="round"/>
+  <path d="M23 21 C23 30 41 26 41 35 L41 52" fill="none" stroke="#B4432F" stroke-width="3.6" stroke-linecap="round"/>
+  <g fill="#2A2A28"><circle cx="23" cy="15" r="4.2"/><circle cx="23" cy="31" r="4.2"/><circle cx="23" cy="47" r="4.2"/></g>
+  <g fill="#B4432F"><circle cx="41" cy="39" r="4.2"/><circle cx="41" cy="50" r="4.2"/></g>
+</svg>
