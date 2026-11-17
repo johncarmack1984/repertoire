@@ -8,6 +8,7 @@ Skills for coding agents, published as Claude Code plugins. Each is also a plain
 | [`build-review-lens`](plugins/build-review-lens/) | Reads a repository's PR history to find who reviews and what passes, then writes a lens skill for each reviewer to review your branch as that maintainer would. |
 | [`data-story`](plugins/data-story/) | Turns numbers into a point a reader gets in seconds and can act on, by answering the questions *Storytelling with Data* asks before anything is drawn. |
 | [`data-dashboard`](plugins/data-dashboard/) | Builds, fixes, and reviews dashboards the way Stephen Few's *Information Dashboard Design* teaches: one screen read at a glance, every measure against its comparison, and color only for what needs attention. |
+| [`data-map`](plugins/data-map/) | Designs, builds, and checks thematic maps the way the cartography canon teaches: the idiom chosen from the data and the reader's task, an equal-area projection where area matters, classes and color computed by code, flows that curve and point, and a render a cold reader checks. |
 | [`write-with-style`](plugins/write-with-style/) | Writes and edits prose by Strunk's *The Elements of Style* (1918): the point first, a topic sentence to open each paragraph, definite sentences in the active voice, and no needless words. |
 
 ## Install
@@ -20,6 +21,7 @@ As Claude Code plugins:
 /plugin install build-review-lens@repertoire
 /plugin install data-story@repertoire
 /plugin install data-dashboard@repertoire
+/plugin install data-map@repertoire
 /plugin install write-with-style@repertoire
 ```
 
@@ -37,6 +39,7 @@ ln -s "$PWD/repertoire/plugins/sidework/skills/sidework" ~/.claude/skills/sidewo
 ln -s "$PWD/repertoire/plugins/build-review-lens/skills/build-review-lens" ~/.claude/skills/build-review-lens
 ln -s "$PWD/repertoire/plugins/data-story/skills/data-story" ~/.claude/skills/data-story
 ln -s "$PWD/repertoire/plugins/data-dashboard/skills/data-dashboard" ~/.claude/skills/data-dashboard
+ln -s "$PWD/repertoire/plugins/data-map/skills/data-map" ~/.claude/skills/data-map
 ln -s "$PWD/repertoire/plugins/write-with-style/skills/write-with-style" ~/.claude/skills/write-with-style
 ```
 
@@ -81,6 +84,20 @@ Asked to fix a dashboard, the skill keeps every measure and rewrites the present
 
 Four of its evals are the situations in the book's chapter 8: the sales manager's dashboard, the CIO's, the web marketing analyst's, and a sales dashboard full of chapter 3's mistakes to fix. A fifth reviews a Grafana dashboard, and a sixth checks that a single chart for a README goes elsewhere. The skill's [`reference/sources.md`](plugins/data-dashboard/skills/data-dashboard/reference/sources.md) maps each step to its chapter and lists where the skill departs from the 2006 book.
 
+## data-map
+
+A thematic map makes an argument about where, and most of the ways to get one wrong look fine. `data-map` loads when an agent is asked to map data or show it by place, region, or route, or to fix or review a map. It works through the decisions in Terry Slocum and colleagues' *Thematic Cartography and Geovisualization*, Tamara Munzner's *Visualization Analysis and Design*, and Ian Muehlenhaus's *Prompt Cartography*, with Jenny and colleagues' flow-map principles, Yang and colleagues' study of flows on globes, and Schöttler and colleagues' design space for geospatial networks.
+
+<img src="plugins/data-map/skills/data-map/assets/example/movers/movers.png" alt="The lower 48 states in an Albers projection, with the 50 largest moves between states in 2024 drawn as curved orange-brown arrows, the widest and darkest from California to Texas. The title says that of the 50 biggest moves, 40 went next door or to Florida or Texas, and a table beside the map lists the ten largest with their margins of error." width="720">
+
+Before it draws, the agent writes a brief: who reads the map, the one question it answers, what the data can and can't support, and up to three candidate idioms with the way each would mislead. A small CLI then does the arithmetic that looks right when it's wrong. It refuses raw counts on a choropleth, picks the classes from the distribution, sizes symbols by area, curves each flow around the places it doesn't connect, splits lines at the antimeridian, and writes one legend file that both the map and its legend read. Templates for MapLibre GL JS, with equal-area projections through a registered CRS, for deck.gl, and for a native MapLibre app start with nothing the brief didn't ask for.
+
+A check renders the page in headless Chrome and fails a Mercator world choropleth, Web Mercator tiles under a custom projection, a legend color missing from the render, and motion that starts by itself. Then a critic with no context answers three questions about the screenshot, and its answers are graded against ones the code computed, which counters a model's habit of praising its own work.
+
+Asked to fix a map, the skill keeps every value and changes the encoding in the map's own stack. Asked to review one, it cites 36 numbered pitfalls and gives each fix in a line.
+
+Its eight evals ask for a world map of rates from raw counts, an interactive map of trips between bike-share stations, a globe of student flows across the Pacific, a symbol map of hospital beds, a review of a Mercator map full of defaults, a refine of straight flows, and two requests where a chart beats a map. The skill's [`reference/sources.md`](plugins/data-map/skills/data-map/reference/sources.md) maps each step to its sources and records where they disagree.
+
 ## write-with-style
 
 An agent writes prose that people have to read: PR descriptions, commit messages, READMEs, issues, review comments, and email. `write-with-style` loads before it writes any of that, and when it's asked to tighten, edit, or review a draft. It edits by the rules of William Strunk Jr.'s *The Elements of Style* (1918). The point comes first, in one sentence. Each paragraph opens on its topic sentence and ends on its consequence. Each sentence makes a definite assertion in the active voice and ends on its news. Every word tells.
@@ -91,4 +108,4 @@ A revision keeps every fact, figure, name, link, and code span, and cuts a predi
 
 ## Development
 
-`just validate` checks the marketplace and every plugin with `claude plugin validate --strict`. `just lint` runs shellcheck over sidework's scripts and the eval scaffolds, and compiles the lens miner. `just eval sidework`, `just eval data-story`, `just eval data-dashboard`, and `just eval write-with-style` run those plugins' eval suites, `just dashboards` runs data-dashboard's library tests and palette check, then checks its template, components page, and worked example in headless Chrome, and `just lab` reproduces the nested-worktree failures. CI runs the same checks on every push and pull request; the evals workflow runs on demand and needs an `ANTHROPIC_API_KEY` secret.
+`just validate` checks the marketplace and every plugin with `claude plugin validate --strict`. `just lint` runs shellcheck over sidework's scripts and the eval scaffolds, and compiles the lens miner. `just eval sidework`, `just eval data-story`, `just eval data-dashboard`, `just eval data-map`, and `just eval write-with-style` run those plugins' eval suites, `just dashboards` runs data-dashboard's library tests and palette check, then checks its template, components page, and worked example in headless Chrome, `just maps` runs data-map's tests and checks its fixture pages in headless Chrome, `just maps-native` builds data-map's native template and checks its snapshot, and `just lab` reproduces the nested-worktree failures. CI runs the same checks on every push and pull request, and builds the native template on macOS when its files change; the evals workflow runs on demand and needs an `ANTHROPIC_API_KEY` secret.

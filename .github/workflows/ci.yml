@@ -29,13 +29,17 @@ jobs:
             claude plugin validate --strict "${plugin}skills"
           done
       - name: Lint the shell scripts and the eval scaffolds
-        run: shellcheck -x plugins/sidework/scripts/*.sh plugins/sidework/evals/_fixtures/lib.sh plugins/*/evals/*/scaffold.sh
+        run: shellcheck -x plugins/sidework/scripts/*.sh plugins/sidework/evals/_fixtures/lib.sh plugins/*/evals/*/scaffold.sh plugins/data-map/tests/native.sh
       - name: Compile the lens miner
         run: |
           python3 -m py_compile plugins/build-review-lens/skills/build-review-lens/scripts/mine_reviews.py
           python3 plugins/build-review-lens/skills/build-review-lens/scripts/mine_reviews.py --help > /dev/null
       - name: Compile the dashboard check
         run: python3 -m py_compile plugins/data-dashboard/skills/data-dashboard/scripts/dashboard.py
+      - name: Compile the map levers
+        run: |
+          python3 -m py_compile plugins/data-map/skills/data-map/scripts/datamap.py plugins/data-map/skills/data-map/scripts/dm/*.py
+          python3 plugins/data-map/skills/data-map/scripts/datamap.py --help > /dev/null
       - name: Build every eval fixture
         run: |
           for scaffold in plugins/*/evals/*/scaffold.sh; do
@@ -52,6 +56,18 @@ jobs:
       - uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4
       - name: Check data-dashboard's pages in headless Chrome
         run: just dashboards
+
+  maps:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # The runner has no GPU, so Chrome draws WebGL with SwiftShader.
+      DM_CHROME_FLAGS: --use-angle=swiftshader --enable-unsafe-swiftshader
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4
+      - name: Test data-map's levers and check its pages in headless Chrome
+        run: just maps
 
   nesting-lab:
     runs-on: ubuntu-latest

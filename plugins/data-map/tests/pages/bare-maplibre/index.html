@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Rainfall zones</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@6.18.0/dist/maplibre-gl.css">
+<style>html, body { margin: 0; height: 100%; } #map { position: absolute; inset: 0; }</style>
+</head>
+<body>
+<div id="map"></div>
+<script type="module">
+import * as maplibregl from 'https://cdn.jsdelivr.net/npm/maplibre-gl@6.18.0/dist/maplibre-gl.mjs';
+
+const zone = (mm, w, s, e, n) => ({type: 'Feature', properties: {mm},
+  geometry: {type: 'Polygon', coordinates: [[[w, s], [e, s], [e, n], [w, n], [w, s]]]}});
+const zones = {type: 'FeatureCollection', features: [
+  zone(400, -10, 36, 0, 42), zone(700, 0, 36, 10, 42), zone(900, -10, 42, 0, 48), zone(1300, 0, 42, 10, 48)]};
+
+const map = new maplibregl.Map({
+  container: 'map',
+  center: [0, 42],
+  zoom: 4,
+  style: {
+    version: 8,
+    sources: {zones: {type: 'geojson', data: zones}},
+    layers: [
+      {id: 'background', type: 'background', paint: {'background-color': '#f4f4f4'}},
+      {id: 'zones', type: 'fill', source: 'zones',
+       paint: {'fill-color': ['interpolate', ['linear'], ['get', 'mm'], 400, '#deebf7', 1300, '#08519c']}},
+      {id: 'zone-edges', type: 'line', source: 'zones', paint: {'line-color': '#ffffff', 'line-width': 1}}
+    ]
+  }
+});
+map.addControl(new maplibregl.NavigationControl());
+</script>
+</body>
+</html>

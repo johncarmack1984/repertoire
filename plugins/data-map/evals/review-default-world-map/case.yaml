@@ -1,0 +1,48 @@
+schema_version: "1.1"
+name: review-default-world-map
+plugins:
+  - ../..
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: file-left-alone
+    type: regex
+    target: { source: file, path: ev-map/index.html }
+    pattern: '^(?=[\s\S]*projection: \{ type: ''mercator'' \})(?=[\s\S]*const COLORS = \[''#00007f'')(?=[\s\S]*setInterval\(\(\) => \{)(?=[\s\S]*new maplibregl\.NavigationControl\(\))(?=[\s\S]*new maplibregl\.ScaleControl\()(?=[\s\S]*class="north-arrow")(?=[\s\S]*''Courier New'')(?=[\s\S]*Source: Global Charge Monitor, Electric Car Registrations 2026 edition\. Boundaries: Natural Earth \(public domain\)\.)'
+    weight: 2
+  - name: no-edit-to-the-page
+    type: tool_used
+    tool: Edit
+    input_match: 'ev-map/index\.html'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-write-to-the-page
+    type: tool_used
+    tool: Write
+    input_match: 'ev-map/index\.html'
+    min: 0
+    max: 0
+    arm: both
+  - name: names-mercator
+    type: regex
+    pattern: 'mercator'
+    flags: i
+  - name: names-the-rainbow
+    type: regex
+    pattern: 'rainbow|\bjet\b|spectral|full[- ]spectrum'
+    flags: i
+  - name: names-the-autoplay
+    type: regex
+    pattern: 'setInterval|auto-?play|auto-?advanc|loops?\b|looping|animat|advances every|forever|endless'
+    flags: i
+  - name: fixes-the-filled-totals
+    type: regex
+    pattern: 'per[ -]capita|per (?:1,000|1000|100,000|million|thousand|person|people)|normali[sz]|share of (?:new )?(?:car )?sales|\bpopulation\b|proportional (?:symbol|circle)|circles? sized|sized by (?:area|total)|graduated (?:symbol|circle)'
+    flags: i
+  # Indicator: reported, not scored.
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?data-map"'
+    arm: with-only

@@ -1,0 +1,28 @@
+schema_version: "1.1"
+name: growth-chart-wins
+plugins:
+  - ../..
+context:
+  scaffold_script: scaffold.sh
+graders:
+  # Code signatures only, so reading the skill's idiom files or naming a choropleth in prose doesn't count as a map.
+  - name: no-map-written
+    type: tool_used
+    tool: Write
+    input_match: 'new\s+maplibregl\.Map|maplibre-gl@|leaflet@|leaflet\.js|\bL\.map\(|d3\.geo[A-Z]\w*\(|\bgeoPath\(|us-atlas|FeatureCollection|px\.choropleth|go\.Choropleth|folium\.|import geopandas|cartopy|locationmode'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-map-written-in-shell
+    type: tool_used
+    tool: Bash
+    input_match: 'new\s+maplibregl\.Map|maplibre-gl@|leaflet@|leaflet\.js|\bL\.map\(|d3\.geo[A-Z]\w*\(|\bgeoPath\(|us-atlas|FeatureCollection|px\.choropleth|go\.Choropleth|folium\.|import geopandas|cartopy|locationmode'
+    min: 0
+    max: 0
+    arm: both
+  # Indicator: reported, not scored.
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?data-map"'
+    arm: with-only

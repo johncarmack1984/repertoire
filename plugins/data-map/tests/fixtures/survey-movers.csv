@@ -1,0 +1,7 @@
+origin,dest,movers,moe
+North,South,1000,164.5
+South,North,900,329
+North,East,500,82.25
+East,North,200,16.45
+South,East,0,40
+East,South,190,98.7

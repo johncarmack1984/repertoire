@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: hospital-totals-symbols
+plugins:
+  - ../..
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: wrote-the-page
+    type: file_exists
+    path: bed-map/index.html
+    weight: 2
+  # Indicators: reported, not scored.
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?data-map"'
+    arm: with-only
+  - name: datamap-ran
+    type: tool_used
+    tool: Bash
+    input_match: 'datamap\.py'
+    min: 1
+    arm: with-only
