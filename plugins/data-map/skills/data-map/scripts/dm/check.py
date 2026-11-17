@@ -258,7 +258,7 @@ def rule_focus(page: Page) -> list:
         out.append(FAIL("focus", f"dm-spec.focus.by is {f.get('by')!r}", 'use "out", "in", or "both"', 24))
     if not f.get("title"):
         out.append(WARN("focus", "dm-spec.focus has no title template, so a focused page's title is only the place's name",
-                        'write one that states the point for any place, such as "Students from {name} most often study in {top}"', 24))
+                        'write one that states the point for any place, such as "Shipments from {name} most often go to {top}"', 24))
     held, total = (layer.get("reveal") or {}).get("count") or layer.get("kept"), layer.get("total")
     if held and total and held < total:
         out.append(WARN("focus", f"layer {name!r} holds {held} of its {total} flows, so a focused place's totals and shares leave out its smaller flows",
@@ -588,7 +588,7 @@ def judge_annotations(rep: dict) -> list:
 
 LEAD = 0.55
 # A world map 640 px wide under a two-line title, a classed legend, and a two-line source line draws 40% of its figure's
-# height, and nothing there can go; the round-3 figures the judges marked down drew 31% and 32%.
+# height, and nothing there can go; a map at a third of its figure reads as an inset beside its own legend and notes.
 FIGURE_LEAD = 0.4
 
 

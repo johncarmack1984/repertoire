@@ -57,7 +57,7 @@ The property barely matters on a small area, since "small geographic areas are e
 
 Web Mercator is the exception at state size. Its area scale is sec² of the latitude, which grows about 9% from 37° N to 40° N. A state-wide dot or density map takes Albers. A city map can stay on Web Mercator and keep its standard tiles.
 
-`crs` draws the line between them with the conics' 1.6%. It recommends Web Mercator, for every idiom, when the extent's longer side is no more than the side of a square over which Web Mercator's area scale changes by 1.6%, and it prints both. That square is about 1,600 km at the Equator, 88 km at 30°, 50 km at 45°, and 29 km at 60°, so a 10 km bike-share network passes anywhere and Kansas fails. Its alternative is the equal-area projection for the extent, for a static map that compares areas and draws no tiles.
+`crs` draws the line between them with the conics' 1.6%. It recommends Web Mercator, for every idiom, when the extent's longer side is no more than the side of a square over which Web Mercator's area scale changes by 1.6%, and it prints both. That square is about 1,600 km at the Equator, 88 km at 30°, 50 km at 45°, and 29 km at 60°, so a city 10 km across passes anywhere and Kansas fails. Its alternative is the equal-area projection for the extent, for a static map that compares areas and draws no tiles.
 
 ## Generalization
 
@@ -79,7 +79,7 @@ Under a registered CRS in maplibre-gl:
 
 - GeoJSON sources are reprojected in the workers once proj4 is loaded there, through `importScriptInWorkers` and `setProjectionHandler`. `stacks/maplibre.md` has the code.
 - Web Mercator tiles draw in the wrong place. Use GeoJSON layers, or tiles cut in the CRS's own grid, such as martin's `tile_grids`. List every tile source with its grid in `dm-spec.tiles`; `check` fails a mismatch (P11).
-- A world map draws no frame by default (`dm-spec.frame: "none"`): land on the page color, cropped to the data's latitudes, which reads larger at a newsletter's width. For the sphere's outline, ocean, and graticule, set `"frame": "sphere"` and write them with `geo --sphere --graticule 30`, with the definition's `+lon_0` as `--lon0`.
+- A world map draws no frame by default (`dm-spec.frame: "none"`). The land sits on the page color, cropped to the data's latitudes, which reads larger in a narrow column. For the sphere's outline, ocean, and graticule, set `"frame": "sphere"` and write them with `geo --sphere --graticule 30`, with the definition's `+lon_0` as `--lon0`.
 - Densify long edges with `geo --densify 100`, because the renderer joins vertices with straight segments and a long one skips the curve the projection gives it (P12). `flows` writes densified lines already.
 - Clip the data to the hemisphere a view shows, in the prep script. The renderer doesn't clip it.
 - Call `fitBounds` in the map's `load` event. Bounds given to the constructor are fitted in Web Mercator and draw the world at half size.

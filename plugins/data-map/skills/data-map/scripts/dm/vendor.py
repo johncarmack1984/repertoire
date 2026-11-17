@@ -14,7 +14,7 @@ import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
-CDN = "https://cdn.jsdelivr.net/npm"
+NPM = "https://cdn.jsdelivr.net/npm"
 REGION = re.compile(r"<!-- data-map:vendor((?: \S+)*) -->\n(.*?)<!-- /data-map:vendor -->", re.S)
 CARRIER = re.compile(r"\A// [^\n]*\n\(self\.dmVendor \?\?= \{\}\)\[(\"[^\"]+\")\] = (\".*\");\n\Z", re.S)
 
@@ -116,7 +116,7 @@ def fetch(lib: Lib, f: File) -> bytes:
         data = cached.read_bytes()
         if sha(data) == f.sha256:
             return data
-    url = f"{os.environ.get('DM_CDN', CDN)}/{lib.name}@{lib.version}/{f.path}"
+    url = f"{os.environ.get('DM_NPM', NPM)}/{lib.name}@{lib.version}/{f.path}"
     try:
         with urllib.request.urlopen(url, timeout=60) as r:
             data = r.read()

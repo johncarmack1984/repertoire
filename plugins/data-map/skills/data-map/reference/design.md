@@ -31,7 +31,7 @@ The quietest basemap is none. A world choropleth needs only its own polygons, cr
 
 ## Map elements
 
-Each element answers a need of the reader, or it stays off (Slocum §11.4). Place them largest first, keep the mapped area as large as the frame allows, and avoid a top-heavy layout (Slocum §11.4.2, §13.3.5). The map is the largest element: on an interactive page it takes most of the window, and in a static figure it fills its column. A companion that pushes it under about two fifths of a figure's height, or a side panel that leaves it under about half the window's width, costs more than it adds, and `check` names the block that crowds it.
+Each element answers a need of the reader, or it stays off (Slocum §11.4). Place them largest first, keep the mapped area as large as the frame allows, and avoid a top-heavy layout (Slocum §11.4.2, §13.3.5). The map is the largest element. On an interactive page it takes most of the window, and in a static figure it fills its column. A companion that pushes it under about two fifths of a figure's height, or a side panel that leaves it under about half the window's width, costs more than it adds, and `check` names the block that crowds it.
 
 - **Title.** It states the point, in a sentence the data supports: *Homes heat with wood most in the northern hills* rather than *Wood heating by county*. A subtitle under it gives the theme, the unit, the region, and the date. Leave out the word *map* and any abbreviation (Muehlenhaus ch. 9; Slocum §11.4.4). Put the places it names in `dm-spec.highlight`, so the reader finds them on the map and in the companions without hunting.
 - **Legend.** It defines every thematic symbol at the map's own size and color, and it says how to read them, with the unit, the method and class count, what high and low mean, and no data (Muehlenhaus ch. 9; Slocum §11.4.5). It shows at load, and no heading reads Legend.
@@ -93,9 +93,9 @@ Show the overview first, then zoom and filter, then details on demand (Munzner �
 - Every hover also works on tap and on keyboard focus, and nothing essential lives only in a tooltip.
 - A map that fills a phone's screen must not trap its scroll. On a globe the template scrolls the page on a vertical swipe and turns the globe on a sideways one.
 - A selection in a companion chart lights the same features on the map, and the reverse (Slocum §24.4.5).
-- On a flows map read place by place, such as a station's routes or a country's students, `focus` lets the reader pick one place by click, tap, or a picker, and rewrites the title for it from the flows, so the headline stays true for every place.
+- On a flows map read place by place, such as one port's shipments or one city's movers, `focus` lets the reader pick one place by click, tap, or a picker, and rewrites the title for it from the flows, so the headline stays true for every place.
 - Show which filters are on, and give the reader a way back to the overview (Munzner §13.2; Muehlenhaus ch. 15).
-- Say what the map does. A gesture nobody mentions goes unfound, as a tilt did in a round of blind judging, so the template writes one quiet line under an interactive map: hover or tap, click to focus, drag, zoom, and tilt when allowed.
+- Say what the map does. A gesture nobody mentions goes unfound, so the template writes one quiet line under an interactive map that names hover or tap, click to focus, drag, zoom, and tilt when allowed.
 
 ## Motion
 

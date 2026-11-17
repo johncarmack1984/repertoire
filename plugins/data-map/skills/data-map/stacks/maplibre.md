@@ -55,7 +55,7 @@ python3 <skill>/scripts/datamap.py check map --scale 2
 
 ## What the page draws from data
 
-The page reads the legend's layers and draws each by its kind. A `classes` layer becomes fills with white boundaries, hatching for `dm_low_n`, and an outline on hover. A `sizes` layer becomes circles in `dm_order`, largest first, with labels. A `flows` layer becomes lines in `dm_order`, each as opaque as its `dm_opacity`, nodes sized by `dm_r`, labels, and an arrowhead at each destination. Under each flow an unseen line at least 12 px wide, 24 on a touch screen, takes the pointer, because MapLibre hits a line only within half its width and a 1 px flow would be all but untappable; a pointer on a drawn line still takes that line first. One feature answers the pointer at a time: the topmost under it, outlined alone.
+The page reads the legend's layers and draws each by its kind. A `classes` layer becomes fills with white boundaries, hatching for `dm_low_n`, and an outline on hover. A `sizes` layer becomes circles in `dm_order`, largest first, with labels. A `flows` layer becomes lines in `dm_order`, each as opaque as its `dm_opacity`, nodes sized by `dm_r`, labels, and an arrowhead at each destination. Under each flow an unseen line at least 12 px wide, 24 on a touch screen, takes the pointer, because MapLibre hits a line only within half its width and a 1 px flow would be all but untappable; a pointer on a drawn line still takes that line first. One feature answers the pointer at a time, the topmost under it, and it alone is outlined.
 
 The `flows` lever draws every flow in one color, `#a63603` unless `--color` names another, and fades them by value, from `--fade-min` (0.45) at the smallest kept flow to fully opaque at the largest; `--no-fade` keeps them all opaque. Larger flows darker is Jenny et al.'s suggestion, and the fade follows magnitude, never length (Slocum, ch. 20), so long thin arcs don't out-ink short heavy ones.
 
@@ -67,13 +67,13 @@ The side panel draws each legend layer. Classes get their limits, a separate no-
 
 ## Focus on one place
 
-With `focus` in `controls`, a picker under the subtitle lists every node of the flows layer by name, and clicking or tapping a node's circle does the same. The page then draws only that place's flows, every one the file holds, those leaving it in vermilion and those arriving in blue (Okabe and Ito's pair, apart under every color-vision deficiency), rings its circle, and shows only its partners' circles and names. The side panel puts a key to the two colors and a table of its partners in place of the companions, ranked by `by`. The notes step aside, and the kept line under the slider says how many flows it draws. Escape, a second click, the Show all button, or "every place" in the picker returns to the overview. Nothing moves on its own: the map turns or pans only to bring a focused place into view, at once under a reduced-motion setting.
+With `focus` in `controls`, a picker under the subtitle lists every node of the flows layer by name, and clicking or tapping a node's circle does the same. The page then draws only that place's flows, every one the file holds, those leaving it in vermilion and those arriving in blue (Okabe and Ito's pair, apart under every color-vision deficiency), rings its circle, and shows only its partners' circles and names. The side panel puts a key to the two colors and a table of its partners in place of the companions, ranked by `by`. The notes step aside, and the kept line under the slider says how many flows it draws. Escape, a second click, the Show all button, or "every place" in the picker returns to the overview. Nothing moves on its own. The map turns or pans only to bring a focused place into view, and at once under a reduced-motion setting.
 
 The title and subtitle are rewritten from `dm-spec.focus`, with `{name}`, `{top}` (the largest partner by `by`), `{top_value}`, `{share}` (of `{total}`), `{total}`, `{out}`, `{in}`, `{partners}`, and `{unit}` computed from the flows:
 
 ```json
 "controls": ["reveal", "focus"],
-"focus": {"by": "out", "title": "Students from {name} most often study in {top}", "subtitle": "{top_value} of its {total} students abroad, {share}"}
+"focus": {"by": "out", "title": "Shipments from {name} most often go to {top}", "subtitle": "{top_value} of its {total} shipments out, {share}"}
 ```
 
 The figures are true only when the page holds every flow, so run the lever with `--reveal` and a `--reveal-max` at least the number of flows. `check` warns when the layer holds fewer, fails a template field the page doesn't fill, and warns on a missing title template. It judges the overview; the page's own `dataMap.focus(key)` focuses a place for a test.
@@ -143,7 +143,7 @@ To add a layer by hand, pass a function as the second argument of `DataMap.start
 
 ## Traps
 
-- The page loads nothing from the network. Chrome loads no ES module from a file, and MapLibre 6 ships only ES modules, so `vendor/` carries MapLibre, its worker, and proj4 as text in classic scripts (`*.text.js`), and the page runs them from blob URLs. `check` renders the page, then opens it again from disk with every host name failing to resolve, and fails it if it doesn't draw. It warns on any URL the page loads from a CDN. Without Chrome, `check` runs its static pass and says the render was not measured.
+- The page loads nothing from the network. Chrome loads no ES module from a file, and MapLibre 6 ships only ES modules, so `vendor/` carries MapLibre, its worker, and proj4 as text in classic scripts (`*.text.js`), and the page runs them from blob URLs. `check` renders the page, then opens it again from disk with every host name failing to resolve, and fails it if it doesn't draw. It warns on any URL the page loads from a remote host, such as jsDelivr or unpkg. Without Chrome, `check` runs its static pass and says the render was not measured.
 - maplibre-gl's `glyphs`-free text uses `text-font` names as CSS families, and a generic such as `system-ui` can't carry a weight. The template handles basemap labels; a label layer of your own uses the page's font stack.
 - The levers write string ids for areas, so hover outlines match the feature's id with a filter rather than feature-state.
 - Class fills stay opaque. A `fill-opacity` below 1 blends each class with what lies under it, so the map no longer shows the legend's colors (P9), and `check` can't find them.

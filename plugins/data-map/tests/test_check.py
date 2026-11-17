@@ -169,7 +169,7 @@ def working_file(name: str):
     return lambda folder: (folder / name).write_text("x")
 
 
-def from_cdn(folder: Path):
+def from_jsdelivr(folder: Path):
     """The page as round 3 shipped it: MapLibre imported from jsDelivr, nothing in vendor/."""
     p = folder / "index.html"
     text = re.sub(r"<!-- data-map:vendor -->\n.*?<!-- /data-map:vendor -->\n", "", p.read_text(), count=1, flags=re.S)
@@ -219,7 +219,7 @@ STATIC_BAD = [
     ("a vendored library edited", "maplibre-crs", lambda f: (f / "vendor/proj4@2.22.0/proj4.text.js").write_text(
         (f / "vendor/proj4@2.22.0/proj4.text.js").read_text().replace("6378137", "6378138", 1)), ("FAIL", "pins", None)),
     ("a vendored library missing", "deck-globe", remove("vendor/deck.gl@9.4.1/dist.min.js"), ("FAIL", "pins", None)),
-    ("a library loaded from jsDelivr", "maplibre-globe", from_cdn, ("WARN", "offline", 33)),
+    ("a library loaded from jsDelivr", "maplibre-globe", from_jsdelivr, ("WARN", "offline", 33)),
     ("a CRS page whose vendor region lost proj4", "maplibre-crs", lambda f: (f / "vendor/proj4@2.22.0/proj4.text.js").unlink() or
      page('<script src="vendor/proj4@2.22.0/proj4.text.js"></script>\n', "")(f), ("FAIL", "sync", 9)),
     ("the library edited by hand", "deck-globe", lib_edit, ("FAIL", "library", None)),
@@ -354,14 +354,14 @@ class Static(unittest.TestCase):
         self.assertIn("vendor/maplibre-gl@6.18.0/maplibre-gl.css is missing", out)
 
     def test_a_second_project_syncs_from_the_cache_with_no_network(self):
-        cdn = {"DM_CDN": "http://127.0.0.1:9"}
-        with patched_env(DM_CACHE=str(self.tmp / "empty"), **cdn):
+        npm = {"DM_NPM": "http://127.0.0.1:9"}
+        with patched_env(DM_CACHE=str(self.tmp / "empty"), **npm):
             code, out = cli("new", "maplibre", self.tmp / "nothing-cached")
         self.assertEqual(code, 2)
         self.assertIn("can't fetch http://127.0.0.1:9/maplibre-gl@6.18.0/dist/maplibre-gl.mjs", out)
         self.assertIn(str(self.tmp / "empty"), out)
         shutil.copytree(vendor.cache_dir(), self.tmp / "cache")
-        with patched_env(DM_CACHE=str(self.tmp / "cache"), **cdn):
+        with patched_env(DM_CACHE=str(self.tmp / "cache"), **npm):
             self.assertEqual(cli("new", "deck-gl", self.tmp / "second")[0], 0)
             self.assertEqual(cli("sync", self.tmp / "second", "--check")[0], 0)
         self.assertTrue((self.tmp / "second" / "vendor" / "deck.gl@9.4.1" / "dist.min.js").is_file())
@@ -1155,9 +1155,9 @@ class Render(unittest.TestCase):
                     self.assertIn(("PASS", "ready", 33), findings(result))
                     self.assertIn(("PASS", "offline", 33), findings(result))
 
-    def test_opened_from_disk_with_no_network_a_page_that_loads_a_cdn_fails(self):
+    def test_opened_from_disk_with_no_network_a_page_that_loads_from_jsdelivr_fails(self):
         folder = copy("maplibre-globe", self.tmp)
-        from_cdn(folder)
+        from_jsdelivr(folder)
         code, result = self.render(folder)
         offline = next(f for f in result["findings"] if f["check"] == "offline" and f["status"] != "WARN")
         self.assertEqual((code, offline["status"]), (1, "FAIL"))

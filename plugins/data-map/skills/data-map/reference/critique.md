@@ -74,7 +74,7 @@ After each round's fixes, answer Muehlenhaus's three drift checks (ch. 6):
 
 Before the report, confirm Muehlenhaus's ten points (ch. 6):
 
-1. The map at load carries the message, on the map itself: the places the title names are in view or marked, and an annotation names them where a reader's eye lands, not only a footer or a table.
+1. The map at load carries the message on the map itself. The places the title names are in view or marked, and an annotation names them where a reader's eye lands, not only a footer or a table.
 2. Each interaction serves the map's goal.
 3. No round of fixes added anything that competes with that goal.
 4. The map reads without explanation.
