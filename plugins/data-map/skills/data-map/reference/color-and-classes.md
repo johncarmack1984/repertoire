@@ -68,7 +68,7 @@ Slocum notes that "quantiles is the only method that can be used for ordinal dat
 
 Slocum lists geometric breaks among the interval methods (§5.12), and Jiang names arithmetic and geometric series as the older answer to a heavy tail (Slocum ch. 5, note 6). Each break is a fixed ratio above the last, so each class covers the same span on a log scale. `classes` keeps every break readable. It climbs the ladder 1, 2, 5, 10, 20, 50 by one, two, or three rungs per class, a ratio of 2 to 2.5, 4 to 5, or 10, and uses 1, 2.5, 5 only when that ladder can't fill every class, because 2.5 adds a decimal to every label.
 
-The ratio is the finest that covers the positive values' span in at most 7 classes (6 on one hue), and the class count follows from it. Of the placements that leave every class a unit and none more than 40% of them, `classes` takes the one whose top class holds the fewest units, two at least, so the darkest color marks the few places where the values run highest rather than a band through the middle of the range. A top class of one would mark a lone outlier, often a tiny place whose rate is unstable. When no placement keeps every class under 40%, it takes the one whose wider end class spans the fewest orders of magnitude. A first break of 1, 10, or 0.1 labels one decimal finer, so the lowest class reads `0 to 0.9`, never `0`.
+The ratio is the finest that covers the positive values' span in at most 7 classes (6 on one hue), and the class count follows from it. Of the placements that leave every class a unit and none more than 40% of them, `classes` takes the one whose top class holds the fewest units, two at least, so the darkest color marks the few places where the values run highest rather than a band through the middle of the range. A top class of one would mark a lone outlier, often a tiny place whose rate is unstable. When no placement keeps every class under 40%, it takes the one whose wider end class spans the fewest orders of magnitude. Its breaks are readable already, so they aren't rounded, and the values and labels keep two significant figures at the lowest break. A first break of 2 labels `0 to 1.9` and `2 to 9.9`, so a rate of 1.62 shows as 1.6 below it, never as 2 above it.
 
 ## One class swallows the map
 
@@ -90,7 +90,7 @@ A series of one attribute, such as years in small multiples, takes one set of ro
 
 ## Breaks and legend labels
 
-Round the breaks to meaningful values at the data's precision, then assign classes by the rounded breaks, so the legend and the fills always agree (Slocum §5.3, §5.4). `classes` does both.
+Round the breaks to meaningful values at the data's precision, then assign classes by the rounded breaks, so the legend and the fills always agree (Slocum §5.3, §5.4). `classes` does both, and classes each value as it's shown, at two significant figures of the lowest break at least, so no value reads on one side of a break and fills the other.
 
 Label the legend by these rules (Slocum §11.4.5, §14.7):
 

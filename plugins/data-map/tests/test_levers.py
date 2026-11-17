@@ -242,6 +242,14 @@ class Classing(unittest.TestCase):
         c = classify.finish("manual", [30, 100, 200, 400], [2.5, 31.2, 150.4, 250, 964.3], round_breaks=False)
         self.assertEqual(c.labels(), ["3 to 29", "30 to 99", "100 to 199", "200 to 399", "400 to 964"])
 
+    def test_unrounded_breaks_show_two_significant_figures_at_the_lowest(self):
+        # Values are classed as they're shown. At a break of 2's own precision, whole numbers, a rate of 1.62 showed as
+        # 2 and filled the class above 2; at tenths it shows as 1.6, below it, and only 1.995, shown as 2.0, sits above.
+        xs = [0.4, 1.62, 1.995, 3.1, 9.4, 12, 48, 61]
+        c = classify.finish("manual", [2, 10, 50], xs, round_breaks=False)
+        self.assertEqual(c.labels(), ["0.4 to 1.9", "2 to 9.9", "10 to 49.9", "50 to 61"])
+        self.assertEqual([c.index(x) for x in xs], [0, 0, 1, 1, 1, 2, 2, 3])
+
     def test_geometric_breaks_climb_by_ten_and_label_a_first_break_of_one_finer(self):
         # 0.2 to 90 spans log10(450) = 2.65 decades; three classes take a ratio of 10. Of the progressions by ten that
         # leave every class a value, 2 and 20 would hold the fewest in the top class, two, but put 5 of the 10 below 2,
@@ -307,19 +315,22 @@ class OneClassSwallows(unittest.TestCase):
         # 0.2, 1 and 0.02, 0.1, 0.5, 2 put more than 40% of the countries in their top class. Of the rest, 0.05, 0.2, 1, 5
         # holds 50 in its top class; 0.1, 0.5, 2, 10, 33; 0.2, 1, 5, 20, 13, with Russia, Iran, and Indonesia in the class
         # below it; 0.5, 2, 10, 50, four; and 1, 5, 20, 100 only the Falklands, whose 3,398 people give no stable rate.
-        # Of the top classes that hold two or more, 0.5, 2, 10, 50's holds the fewest.
+        # Of the top classes that hold two or more, 0.5, 2, 10, 50's holds the fewest. Values show to hundredths, two
+        # significant figures at the lowest break, so none rounds into the class above; at tenths three rates between
+        # 0.45 and 0.5 showed as 0.5.
         self.assertAlmostEqual(span, 3.43, places=2)
         breaks = [0.5, 2, 10, 50]
-        shown = [round(v, 1) for v in rates]
+        shown = [round(v, 2) for v in rates]
+        self.assertEqual(sum(1 for v in rates if v < 0.5 <= round(v, 1)), 3)
         want = [sum(1 for v in shown if lo <= v < hi) for lo, hi in zip([0] + breaks, breaks + [math.inf])]
-        self.assertEqual(want, [47, 37, 55, 29, 4])
+        self.assertEqual(want, [50, 34, 55, 29, 4])
         self.assertEqual(sum(1 for v in rates if v >= 100), 1)
         for method in ("geometric", "auto"):
             with tempfile.TemporaryDirectory() as out:
                 code, text, layer = MeaslesCase.classes(out, "--method", method)
             self.assertEqual(code, 0, text)
             self.assertEqual((layer["method"], layer["breaks"][1:-1], layer["counts"]), ("geometric", breaks, want))
-            self.assertEqual(layer["labels"], ["0 to 0.4", "0.5 to 1.9", "2 to 9.9", "10 to 49.9", "50 to 117.7"])
+            self.assertEqual(layer["labels"], ["0 to 0.49", "0.5 to 1.99", "2 to 9.99", "10 to 49.99", "50 to 117.72"])
             self.assertNotRegex(text, r"(?m)^WARN classes")
             self.assertIn("a ratio of 4 to 5 per class cover them in 5 classes", layer["k_reason"])
             self.assertIn(("geometric", round(55 / 172, 3)), [(c["method"], c["largest"]) for c in layer["candidates"]])

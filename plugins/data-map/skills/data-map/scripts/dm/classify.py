@@ -302,6 +302,14 @@ def nice(inner: list, xs: list, pinned: frozenset = frozenset()) -> tuple:
     return list(inner), min([_exp(b, 7) for b in inner if b] or [span_e])
 
 
+def own_precision(inner: list) -> int:
+    """The precision of breaks that aren't rounded, as geometric and hand-set ones: their own, with two significant
+    figures at the smallest at least, as nice() keeps. Values are classed as they're shown, and at a break of 2's own
+    precision a value of 1.6 would show as 2 and fill the class above it."""
+    nonzero = [abs(b) for b in inner if b]
+    return min([0] + [Decimal(repr(b)).normalize().as_tuple().exponent for b in inner] + ([_exp(min(nonzero), 2)] if nonzero else []))
+
+
 def finish(method: str, raw_inner: list, xs: list, slots: list | None = None, palette_k: int | None = None,
            pinned: frozenset = frozenset(), round_breaks: bool = True) -> Classing:
     xs = sorted(xs)
@@ -310,7 +318,7 @@ def finish(method: str, raw_inner: list, xs: list, slots: list | None = None, pa
     if round_breaks:
         inner, e = nice(inner, xs, pinned)
     else:
-        e = min([0] + [Decimal(repr(b)).normalize().as_tuple().exponent for b in inner])
+        e = own_precision(inner)
         if precision_floor(xs) is not None:
             e = max(e, 0)
     k = len(inner) + 1
@@ -377,16 +385,13 @@ def geometric_breaks(xs: list, k: int) -> list:
 
 
 def geometric_classing(xs: list, k: int) -> Classing:
-    """Geometric breaks for k classes, or the most under k that leave every class a value. Labels go one place finer
-    than a first break of 1, 10, or 0.1, so the lowest class never reads as 0."""
+    """Geometric breaks for k classes, or the most under k that leave every class a value, labeled at own_precision."""
     xs = sorted(xs)
     m, inner = k, []
     while m > 1 and not inner:
         inner = geometric_breaks(xs, m)
         m -= 0 if inner else 1
-    e = min([0] + [Decimal(repr(b)).normalize().as_tuple().exponent for b in inner])
-    if inner and Decimal(repr(inner[0])) == Decimal(1).scaleb(e):
-        e -= 1
+    e = own_precision(inner)
     if precision_floor(xs) is not None:
         e = max(e, 0)
     c = Classing("geometric", inner, e, round_to(xs[0], e), round_to(xs[-1], e), list(range(m)), m)
