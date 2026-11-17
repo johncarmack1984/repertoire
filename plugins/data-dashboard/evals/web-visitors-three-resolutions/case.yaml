@@ -49,3 +49,31 @@ graders:
     target: { source: file, path: web-analysis.html }
     pattern: '"asOf"\s*:\s*"\d{4}-\d\d-\d\dT\d\d:\d\d(?::\d\d)?(?:Z|[+-]\d\d:?\d\d)"|as of[^<]{0,60}\d{1,2}:\d\d[^<]{0,20}\b(?:[ECMP][SD]T|UTC|GMT|Pacific)\b'
     flags: i
+  - name: no-alert-states
+    type: regex
+    target: { source: file, path: web-analysis.html }
+    pattern: '"state"\s*:\s*"(?:alert|warn)"|"alert"\s*:\s*0?\.\d*[1-9]|\balertWhen\s*:|class(?:Name)?\s*[:=]\s*["''][^"'']*\b(?:alert|warning|critical|danger)\b'
+    flags: i
+    match: not_contains
+    weight: 2
+  - name: products-referrers-and-pairs
+    type: regex
+    target: { source: file, path: web-analysis.html }
+    pattern: '^(?=[\s\S]*pleated skirt)(?=[\s\S]*reddit\.com)(?=[\s\S]*trailnotes\.blog)(?=[\s\S]*bought together)(?=[\s\S]*(?:shown together|rarely bought))'
+    flags: i
+  - name: referrer-change-keeps-sign
+    type: regex
+    target: { source: file, path: web-analysis.html }
+    pattern: 'facebook\.com[\s\S]{0,400}?(?:−|-|&minus;)\s?(?:0?\.22|22)(?!\d)'
+    flags: i
+  - name: deviations-in-the-data
+    type: regex
+    target: { source: file, path: web-analysis.html }
+    pattern: 'id\s*=\s*["'']dd-data["''][^>]*>(?=(?:(?!</script>)[\s\S])*?-0?\.(?:29|30?)\d*\b)(?=(?:(?!</script>)[\s\S])*?-0?\.3[78]\d*\b)'
+    weight: 2
+  - name: no-orange-or-yellow
+    type: regex
+    target: { source: file, path: web-analysis.html }
+    pattern: '#[c-f][0-9a-f][4-9a][0-9a-f][0-4][0-9a-f](?:[0-9a-f]{2})?(?![0-9a-f])|#[c-f][0-9a-f][b-f][0-9a-f][0-6][0-9a-f](?:[0-9a-f]{2})?(?![0-9a-f])|#[c-f][4-9a-f][0-4](?![0-9a-f])|(?:[:=]\s*|["''])(?:orange|darkorange|orangered|coral|tomato|gold|goldenrod|yellow|amber)\b(?!-)'
+    flags: i
+    match: not_contains

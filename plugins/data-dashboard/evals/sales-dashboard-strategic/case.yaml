@@ -45,3 +45,40 @@ graders:
     target: { source: file, path: sales-dashboard.html }
     pattern: '"asOf"\s*:\s*"\d{4}-\d\d-\d\dT\d\d:\d\d(?::\d\d)?(?:Z|[+-]\d\d:?\d\d)"|as of[^<]{0,60}\d{1,2}:\d\d[^<]{0,20}\b(?:[ECMP][SD]T|UTC|GMT|Pacific)\b'
     flags: i
+  - name: no-green
+    type: regex
+    target: { source: file, path: sales-dashboard.html }
+    pattern: '#[0-6][0-9a-f][89a-f][0-9a-f][0-8][0-9a-f](?:[0-9a-f]{2})?(?![0-9a-f])|#[0-6][89a-f][0-8](?![0-9a-f])|rgba?\(\s*(?:\d|[1-9]\d)\s*,\s*(?:1[3-9]\d|2[0-5]\d)\s*,\s*(?:\d|[1-9]\d|1[01]\d)\s*[,)]|hsla?\(\s*(?:[89]\d|1[0-5]\d)(?:deg)?\s*,?\s*(?:[3-9]\d|100)%|(?:[:=]\s*|["''])(?:green|lime|limegreen|forestgreen|seagreen|mediumseagreen|darkgreen|springgreen|lightgreen|palegreen|yellowgreen|olivedrab)\b(?!-)'
+    flags: i
+    match: not_contains
+  - name: no-blue
+    type: regex
+    target: { source: file, path: sales-dashboard.html }
+    pattern: '#(?:0[0-9a-f]{3}[5-9a-f]|1[0-9a-f]{3}[6-9a-f]|2[0-9a-f]{3}[7-9a-f]|3[0-9a-f]{3}[89a-f]|4[0-9a-f]{3}[9a-f]|5[0-9a-f]{3}[a-f]|6[0-9a-f]{3}[b-f]|7[0-9a-f]{3}[c-f]|8[0-9a-f]{3}[d-f]|9[0-9a-f]{3}[ef])[0-9a-f](?:[0-9a-f]{2})?(?![0-9a-f])|rgba?\(\s*(?:\d|[1-9]\d|1[01]\d)\s*,\s*\d{1,3}\s*,\s*(?:1[89]\d|2[0-5]\d)\s*[,)]|(?:[:=]\s*|["''])(?:blue|steelblue|royalblue|dodgerblue|cornflowerblue|deepskyblue|skyblue|lightblue)\b(?!-)'
+    flags: i
+    match: not_contains
+  - name: no-boxed-panels
+    type: regex
+    target: { source: file, path: sales-dashboard.html }
+    pattern: 'border-radius\s*:\s*(?:[4-9]|[1-4]\d)(?:\.\d+)?px|(?<![-\w])border\s*:\s*(?:[1-9]\d*(?:\.\d+)?px\s+)?(?:solid|dashed|double)\b'
+    flags: i
+    match: not_contains
+  - name: sized-to-the-screen
+    type: regex
+    target: { source: file, path: sales-dashboard.html }
+    pattern: '(?<![-\w])height\s*:\s*100d?vh'
+    flags: i
+  - name: key-metrics-first
+    type: regex
+    target: { source: file, path: sales-dashboard.html }
+    pattern: '^(?:(?!<h[23]\b)[\s\S])*<h[23]\b[^>]*>(?:(?!</h[23]>)[\s\S]){0,120}?\bkey (?:metrics|measures|indicators|figures)\b'
+    flags: i
+  - name: every-group-present
+    type: regex
+    target: { source: file, path: sales-dashboard.html }
+    pattern: '^(?=[\s\S]*\bprofit\b)(?=[\s\S]*average order)(?=[\s\S]*on-?time)(?=[\s\S]*new customers)(?=[\s\S]*satisfaction)(?=[\s\S]*market share)(?=[\s\S]*north america)(?=[\s\S]*europe)(?=[\s\S]*\basia\b)(?=[\s\S]*south america)(?=[\s\S]*middle east)(?=[\s\S]*cabernet)(?=[\s\S]*chardonnay)(?=[\s\S]*zinfandel)(?=[\s\S]*sauvignon blanc)(?=[\s\S]*merlot)(?=[\s\S]*larkspur)(?=[\s\S]*pipeline)(?=[\s\S]*bayside hotels)'
+    flags: i
+  - name: targets-on-the-page
+    type: regex
+    target: { source: file, path: sales-dashboard.html }
+    pattern: '^(?=[\s\S]*(?<![\d.])24,?000,?000(?!\d))(?=[\s\S]*(?<![\d.])3,?600,?000(?!\d))(?=[\s\S]*(?<![\d.])1,?600,?000(?!\d))(?=[\s\S]*(?<![\d.])1,?636,?000(?!\d))(?=[\s\S]*(?<![\d.])623,?000(?!\d))(?=[\s\S]*(?<![\d.])3,?000,?000(?!\d))(?=[\s\S]*(?<![\d.])14,?000(?!\d))'
